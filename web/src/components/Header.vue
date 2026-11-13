@@ -1,13 +1,27 @@
 <template>
-  <header class="relative bg-white/95 dark:bg-[#0B0F19]/95 border-b border-slate-200 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 px-3.5 sm:px-4 py-1.5 flex items-center justify-between sticky top-0 z-40 select-none transition-colors duration-150">
+  <header class="relative bg-white/95 dark:bg-[#0B0F19]/95 border-b border-slate-200 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 px-2.5 sm:px-4 py-1.5 flex items-center justify-between gap-1.5 sticky top-0 z-40 select-none transition-colors duration-150">
     <!-- Backdrop Blur Layer (Isolated sibling so header does not form a containing block for modals) -->
     <div class="absolute inset-0 backdrop-blur-md -z-10 pointer-events-none"></div>
-    <!-- Left: Logo & App Title -->
-    <div class="flex items-center space-x-2.5">
-      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-soft text-white font-bold text-xs tracking-wider">
+    <!-- Left: Mobile Hamburger, Logo & Workspace Switcher -->
+    <div class="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+      <!-- Mobile Hamburger Menu Trigger (< 768px) -->
+      <button
+        type="button"
+        id="btn-mobile-hamburger"
+        @click.stop="$emit('toggle-sidebar')"
+        class="md:hidden w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/70 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center flex-shrink-0 cursor-pointer transition-colors shadow-xs"
+        aria-label="Open Navigation Menu"
+        title="Menu Navigasi"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-soft text-white font-bold text-xs tracking-wider flex-shrink-0">
         DL
       </div>
-      <div class="flex items-center space-x-2">
+      <div class="hidden md:flex items-center space-x-2 flex-shrink-0">
         <h1 class="text-xs font-bold tracking-tight text-slate-900 dark:text-white uppercase font-sans hidden md:block">
           {{ $t('header.appTitle') }}
         </h1>
@@ -17,14 +31,14 @@
       </div>
 
       <!-- Multi-Tenant & Multi-Site Workspace Switcher -->
-      <div class="flex items-center gap-1.5 pl-2 ml-1 border-l border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-1 sm:gap-1.5 pl-1.5 sm:pl-2 ml-0.5 sm:ml-1 border-l border-slate-200 dark:border-slate-800 min-w-0 flex-1 sm:flex-initial">
         <!-- SUPERADMIN Global / Tenant Switcher -->
-        <div v-if="isSuperAdmin" class="flex items-center gap-1">
+        <div v-if="isSuperAdmin" class="flex items-center gap-1 min-w-0" :class="availableSites.length > 0 && activeTenantId > 0 ? 'max-w-[46%] sm:max-w-none' : 'flex-1 sm:flex-initial'">
           <select
             id="header-tenant-switcher"
             :value="activeTenantId"
             @change="onHeaderTenantChange($event.target.value)"
-            class="h-7 max-w-[190px] sm:max-w-[230px] px-2 rounded-lg text-2xs font-semibold bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/60 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer truncate"
+            class="h-7 w-full sm:w-auto max-w-[160px] sm:max-w-[230px] px-2 rounded-lg text-2xs font-semibold bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/60 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer truncate"
             title="Pilih Workspace Tenant (SUPERADMIN Global Switcher)"
           >
             <option :value="0">🌐 Semua Tenant (Global)</option>
@@ -34,10 +48,11 @@
           </select>
         </div>
 
-        <!-- Scoped Tenant Badge for Non-Superadmin -->
+        <!-- Scoped Tenant Badge for Non-Superadmin (Hidden on mobile when Site Switcher already represents active station) -->
         <div
           v-else-if="currentTenantLabel"
-          class="h-7 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/70 flex items-center gap-1.5 text-2xs font-semibold text-slate-700 dark:text-slate-200 max-w-[180px] truncate"
+          :class="availableSites.length > 0 ? 'hidden md:flex' : 'flex'"
+          class="h-7 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/70 items-center gap-1.5 text-2xs font-semibold text-slate-700 dark:text-slate-200 min-w-0 max-w-[165px] sm:max-w-[180px] truncate"
           :title="'Organisasi Tenant: ' + currentTenantLabel"
         >
           <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
@@ -50,7 +65,7 @@
           id="header-site-switcher"
           :value="activeSiteId"
           @change="onHeaderSiteChange($event.target.value)"
-          class="h-7 max-w-[165px] sm:max-w-[215px] px-2 rounded-lg text-2xs font-semibold bg-cyan-50 hover:bg-cyan-100/80 dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer truncate"
+          class="h-7 min-w-0 flex-1 sm:flex-initial max-w-[175px] sm:max-w-[215px] px-2 rounded-lg text-2xs font-semibold bg-cyan-50 hover:bg-cyan-100/80 dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer truncate"
           title="Filter Stasiun / Titik Pantau"
         >
           <option :value="0">📍 Semua Stasiun ({{ availableSites.length }})</option>
@@ -63,7 +78,7 @@
         <router-link
           v-if="isSuperAdmin || isAdmin || (isEngineer && isCloudMode)"
           to="/administration/tenants"
-          class="hidden sm:flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs"
+          class="hidden sm:flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs flex-shrink-0"
           :class="$route.path.startsWith('/administration/tenants')
             ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/50'
             : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60'"
@@ -77,13 +92,13 @@
     </div>
 
     <!-- Right: Controls & User -->
-    <div class="flex items-center space-x-1.5 sm:space-x-2">
-      <!-- 0. Sidebar Auto-Hide Setup Icon Button -->
+    <div class="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+      <!-- 0. Sidebar Auto-Hide Setup Icon Button (Desktop >= 768px only) -->
       <button
         type="button"
         id="btn-sidebar-autohide-toggle"
         @click.stop="toggleSidebarAutoHide"
-        class="relative w-7 h-7 rounded-lg border transition-colors flex items-center justify-center shadow-xs cursor-pointer"
+        class="hidden md:flex relative w-7 h-7 rounded-lg border transition-colors items-center justify-center shadow-xs cursor-pointer"
         :class="sidebarAutoHide
           ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30'
           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-slate-700/60'"
@@ -98,11 +113,11 @@
         </svg>
       </button>
 
-      <!-- 1. Operator Console / Dashboard Operator Quick Icon Button -->
+      <!-- 1. Operator Console / Dashboard Operator Quick Icon Button (Tablet/Desktop >= 640px; mobile uses Drawer) -->
       <router-link
         v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)"
         to="/monitoring/operator"
-        class="relative w-7 h-7 rounded-lg border transition-colors flex items-center justify-center shadow-xs"
+        class="hidden sm:flex relative w-7 h-7 rounded-lg border transition-colors items-center justify-center shadow-xs"
         :class="$route.path === '/monitoring/operator' || $route.path === '/operator'
           ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30'
           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 border-slate-200 dark:border-slate-700/60'"
@@ -121,7 +136,7 @@
       <router-link
         v-else
         to="/monitoring/dashboard-operator"
-        class="relative w-7 h-7 rounded-lg border transition-colors flex items-center justify-center shadow-xs"
+        class="hidden sm:flex relative w-7 h-7 rounded-lg border transition-colors items-center justify-center shadow-xs"
         :class="$route.path === '/monitoring/dashboard-operator'
           ? 'bg-sky-500/20 text-sky-400 border-sky-500/50 ring-1 ring-sky-500/30'
           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 border-slate-200 dark:border-slate-700/60'"
@@ -143,7 +158,7 @@
       <!-- 2. Notification Bell with Unread / Active Alarms Badge -->
       <router-link
         to="/alarm/active"
-        class="relative w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 transition-colors flex items-center justify-center shadow-xs"
+        class="relative w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 transition-colors flex items-center justify-center shadow-xs flex-shrink-0"
         :title="$t('navigation.alarmsEvents') || 'Active Alarms'"
         aria-label="Active Alarms"
       >
@@ -158,11 +173,11 @@
         </span>
       </router-link>
 
-      <!-- 3. Language Switch Button (EN / ID Slide Switch) -->
+      <!-- 3. Language Switch Button (EN / ID Slide Switch — >= 640px; mobile inside Profile Menu) -->
       <button
         type="button"
         @click="toggleLanguage"
-        class="h-7 px-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center justify-center transition-all shadow-xs cursor-pointer"
+        class="hidden sm:flex h-7 px-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 items-center justify-center transition-all shadow-xs cursor-pointer"
         :title="$t('header.language') + ': ' + (language === 'id' ? 'Bahasa Indonesia (Click to switch to English)' : 'English (Click to switch to Bahasa Indonesia)')"
         aria-label="Toggle Language"
       >
@@ -186,7 +201,7 @@
       <button
         type="button"
         @click="toggleTheme"
-        class="h-7 px-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center justify-center transition-all shadow-xs cursor-pointer"
+        class="h-7 px-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center justify-center transition-all shadow-xs cursor-pointer flex-shrink-0"
         :title="$t('header.appearance') + ': ' + (isDarkMode ? $t('header.dark') : $t('header.light')) + ' (Click to toggle)'"
         aria-label="Toggle Dark / Light Theme"
       >
@@ -207,11 +222,11 @@
       </button>
 
       <!-- 5. User Profile Badge & Quick Role Switcher -->
-      <div class="relative pl-2.5 border-l border-slate-200 dark:border-slate-800" ref="userDropdown">
+      <div class="relative pl-1.5 sm:pl-2.5 border-l border-slate-200 dark:border-slate-800 flex-shrink-0" ref="userDropdown">
         <button
           type="button"
           @click="isUserMenuOpen = !isUserMenuOpen"
-          class="flex items-center space-x-1.5 p-0.5 sm:p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors cursor-pointer text-left"
+          class="flex items-center space-x-1 sm:space-x-1.5 p-0.5 sm:p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors cursor-pointer text-left"
           title="Switch User Role / Account"
         >
           <div class="w-6.5 h-6.5 rounded-full flex items-center justify-center text-3xs font-bold font-sans ring-1"
@@ -226,7 +241,7 @@
               {{ userRole }}
             </div>
           </div>
-          <svg class="w-3.5 h-3.5 text-slate-400 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="hidden sm:block w-3.5 h-3.5 text-slate-400 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
@@ -234,7 +249,7 @@
         <!-- Dropdown Menu -->
         <div
           v-if="isUserMenuOpen"
-          class="absolute right-0 mt-2 w-72 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs font-sans animate-fade-in"
+          class="absolute right-0 mt-2 w-64 sm:w-72 max-w-[calc(100vw-20px)] bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs font-sans animate-fade-in"
         >
           <!-- Active Session Info Card -->
           <div class="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
@@ -276,6 +291,18 @@
                 <div class="font-semibold text-xs leading-none">{{ $t('auth.switchAccount') || 'Switch Account' }}</div>
                 <div class="text-4xs text-slate-400 mt-0.5">{{ $t('auth.loginAsAnotherUser') || 'Login as another user' }}</div>
               </div>
+            </button>
+
+            <!-- 3. Mobile Language Switch Row (< 640px) -->
+            <button
+              type="button"
+              @click="toggleLanguage"
+              class="sm:hidden w-full text-left px-3 py-2 rounded-xl flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            >
+              <span class="font-semibold text-xs">{{ $t('header.language') || 'Language' }}</span>
+              <span class="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 text-3xs font-mono font-bold">
+                {{ language === 'id' ? 'ID • Indonesia' : 'EN • English' }}
+              </span>
             </button>
           </div>
 

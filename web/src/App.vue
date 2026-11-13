@@ -13,21 +13,22 @@
 
     <!-- Main Content Area with Sidebar -->
     <div class="flex flex-1 overflow-hidden relative" v-if="!isLoginRoute && isShellReady">
-      <!-- 1. Normal Pinned Sidebar (rendered when auto-hide is FALSE) -->
-      <Sidebar
-        v-if="!sidebarAutoHide"
-        :is-collapsed="isSidebarCollapsed"
-        :is-auto-hide="false"
-        @toggle-autohide="onSidebarAutoHideToggle"
-        @request-logout="openLogoutConfirmModal"
-      />
+      <!-- 1. Normal Pinned Sidebar (rendered when auto-hide is FALSE — Desktop >= 768px only) -->
+      <div v-if="!sidebarAutoHide" class="hidden md:flex h-full flex-shrink-0">
+        <Sidebar
+          :is-collapsed="isSidebarCollapsed"
+          :is-auto-hide="false"
+          @toggle-autohide="onSidebarAutoHideToggle"
+          @request-logout="openLogoutConfirmModal"
+        />
+      </div>
 
-      <!-- 2. Auto-Hide Edge Hover Trigger Zone (rendered when auto-hide is TRUE) -->
+      <!-- 2. Auto-Hide Edge Hover Trigger Zone (rendered when auto-hide is TRUE — Desktop >= 768px only) -->
       <div
         v-if="sidebarAutoHide"
         @mouseenter="openSidebarHover"
         @click="openSidebarHover"
-        class="fixed left-0 top-0 bottom-0 w-4 z-40 cursor-pointer group flex items-center justify-start pointer-events-auto"
+        class="hidden md:flex fixed left-0 top-0 bottom-0 w-4 z-40 cursor-pointer group items-center justify-start pointer-events-auto"
         :title="$t('navigation.sidebarHoverTitle') || 'Hover to view navigation sidebar (Auto-Hide active)'"
       >
         <!-- Subtle cyan indicator beacon on edge -->
@@ -40,7 +41,7 @@
           v-if="sidebarAutoHide && isSidebarHovered"
           @mouseleave="scheduleCloseSidebarHover"
           @mouseenter="cancelCloseSidebarHover"
-          class="fixed left-0 top-0 bottom-0 z-50 w-60 shadow-2xl flex flex-col bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800"
+          class="hidden md:flex fixed left-0 top-0 bottom-0 z-50 w-60 shadow-2xl flex-col bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800"
         >
           <Sidebar
             :is-collapsed="false"
@@ -57,18 +58,44 @@
         <div
           v-if="sidebarAutoHide && isSidebarHovered"
           @click="closeSidebarHoverImmediate"
-          class="fixed inset-0 z-40 bg-black/20 dark:bg-black/40 backdrop-blur-xs transition-opacity"
+          class="hidden md:block fixed inset-0 z-40 bg-black/20 dark:bg-black/40 backdrop-blur-xs transition-opacity"
         ></div>
+      </transition>
+
+      <!-- 5. Mobile Full-Height Slide-Over Navigation Drawer & Backdrop (< 768px) -->
+      <transition name="fade">
+        <div
+          v-if="isMobileViewport && isMobileDrawerOpen"
+          @click="closeMobileDrawer"
+          class="fixed inset-0 z-[65] bg-slate-950/55 backdrop-blur-xs transition-opacity md:hidden"
+        ></div>
+      </transition>
+
+      <transition name="sidebar-slide">
+        <div
+          v-if="isMobileViewport && isMobileDrawerOpen"
+          id="mobile-sidebar-drawer"
+          class="fixed inset-y-0 left-0 z-[70] w-[78vw] max-w-[280px] shadow-2xl flex flex-col bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800 md:hidden"
+        >
+          <Sidebar
+            :is-collapsed="false"
+            :is-auto-hide="false"
+            :is-mobile-drawer="true"
+            @navigate="closeMobileDrawer"
+            @close-mobile="closeMobileDrawer"
+            @request-logout="openLogoutConfirmModal"
+          />
+        </div>
       </transition>
 
       <!-- Viewport / Route Views -->
       <main
-        class="flex-1 transition-colors duration-150"
-        :class="(isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-4 overflow-y-auto bg-transparent dark:bg-slate-950')"
+        class="flex-1 min-w-0 transition-colors duration-150"
+        :class="(isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-2.5 sm:p-4 overflow-y-auto bg-transparent dark:bg-slate-950')"
       >
         <router-view
           :key="'ctx-' + ($store.state.contextRevision || 0)"
-          :is-sidebar-collapsed="isSidebarCollapsed || sidebarAutoHide"
+          :is-sidebar-collapsed="isMobileViewport ? !isMobileDrawerOpen : (isSidebarCollapsed || sidebarAutoHide)"
           :is-top-panel-hidden="isTopPanelHidden"
           :is-sidebar-auto-hide="sidebarAutoHide"
           @toggle-sidebar="toggleSidebar"
@@ -144,11 +171,16 @@ export default {
       isSidebarCollapsed: true, // Default to fullscreen SCADA mode for Operator Dashboard
       isTopPanelHidden: true,
       isSidebarHovered: false,
+      isMobileDrawerOpen: false,
+      viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1280,
       hoverCloseTimer: null,
       showLogoutConfirmModal: false,
     };
   },
   computed: {
+    isMobileViewport() {
+      return this.viewportWidth < 768;
+    },
     isLoginRoute() {
       return this.$route && (this.$route.path === '/login' || this.$route.name === 'Login');
     },
@@ -179,12 +211,44 @@ export default {
           this.isTopPanelHidden = false;
           this.isSidebarCollapsed = false;
         }
+        this.isMobileDrawerOpen = false;
         this.closeSidebarHoverImmediate();
       },
     },
   },
+  mounted() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.onWindowResize, { passive: true });
+      window.addEventListener('keydown', this.onGlobalKeydown);
+    }
+  },
+  beforeDestroy() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.onWindowResize);
+      window.removeEventListener('keydown', this.onGlobalKeydown);
+    }
+  },
   methods: {
+    onWindowResize() {
+      if (typeof window === 'undefined') return;
+      this.viewportWidth = window.innerWidth;
+      if (this.viewportWidth >= 768 && this.isMobileDrawerOpen) {
+        this.isMobileDrawerOpen = false;
+      }
+    },
+    onGlobalKeydown(e) {
+      if (e && e.key === 'Escape' && this.isMobileDrawerOpen) {
+        this.isMobileDrawerOpen = false;
+      }
+    },
+    closeMobileDrawer() {
+      this.isMobileDrawerOpen = false;
+    },
     toggleSidebar() {
+      if (this.isMobileViewport) {
+        this.isMobileDrawerOpen = !this.isMobileDrawerOpen;
+        return;
+      }
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
       if (this.isOperatorRoute || this.isDashboardOperatorRoute) {
         this.isTopPanelHidden = this.isSidebarCollapsed;
@@ -224,11 +288,13 @@ export default {
       this.isSidebarHovered = false;
     },
     openLogoutConfirmModal() {
+      this.closeMobileDrawer();
       this.closeSidebarHoverImmediate();
       this.showLogoutConfirmModal = true;
     },
     async confirmAppLogout() {
       this.showLogoutConfirmModal = false;
+      this.closeMobileDrawer();
       this.closeSidebarHoverImmediate();
       await this.$store.dispatch('logout');
       if (this.$route.path !== '/login') {

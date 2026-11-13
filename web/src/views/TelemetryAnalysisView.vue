@@ -1,75 +1,75 @@
 <template>
   <div class="space-y-2.5 font-sans compact-telemetry-workbench">
     <!-- BAR 1: UNIFIED HEADER, MODE SWITCHER, QUICK TIME PILLS, LAYOUT & ACTIONS -->
-    <div class="saas-card px-3 py-2 bg-white dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-xs">
+    <div class="saas-card ta-bar1-card px-3 py-2 bg-white dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-xs">
       <!-- Left: Compact Breadcrumb + Title + Segmented Mode + Time Presets -->
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="flex items-center space-x-2 pr-1">
+      <div class="ta-bar1-left flex flex-wrap items-center gap-2">
+        <div class="ta-title-group flex items-center space-x-2 pr-1 min-w-0">
           <router-link
             :to="isOperator ? '/monitoring/dashboard-operator' : '/monitoring/devices'"
-            class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition"
+            class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition flex-shrink-0"
             :title="$t('navigation.monitoring')"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
           </router-link>
-          <h1 class="text-sm font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
+          <h1 class="text-sm font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap truncate">
             {{ $t('analysis.breadcrumb') }}
           </h1>
         </div>
 
-        <span class="hidden sm:inline-block h-4 w-px bg-slate-200 dark:bg-slate-800"></span>
+        <span class="hidden md:inline-block h-4 w-px bg-slate-200 dark:bg-slate-800"></span>
 
         <!-- Segmented Data Source Mode Tabs -->
-        <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs">
+        <div class="ta-mode-tabs inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs">
           <button
             @click="setMode('HISTORICAL')"
             :title="$t('analysis.historicalSemantic')"
-            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center space-x-1.5"
+            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center justify-center space-x-1.5 min-w-0"
             :class="activeMode === 'HISTORICAL'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
           >
-            <span class="w-1.5 h-1.5 rounded-full" :class="activeMode === 'HISTORICAL' ? 'bg-white' : 'bg-blue-500'"></span>
-            <span>{{ $t('analysis.modeHistorical') }}</span>
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="activeMode === 'HISTORICAL' ? 'bg-white' : 'bg-blue-500'"></span>
+            <span class="truncate">{{ $t('analysis.modeHistorical') }}</span>
           </button>
 
           <button
             v-if="!isOperator"
             @click="setMode('RAW')"
             :title="$t('analysis.rawSemantic')"
-            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center space-x-1.5"
+            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center justify-center space-x-1.5 min-w-0"
             :class="activeMode === 'RAW'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
           >
-            <span class="w-1.5 h-1.5 rounded-full" :class="activeMode === 'RAW' ? 'bg-white' : 'bg-emerald-500'"></span>
-            <span>{{ $t('analysis.modeRaw') }}</span>
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="activeMode === 'RAW' ? 'bg-white' : 'bg-emerald-500'"></span>
+            <span class="truncate">{{ $t('analysis.modeRaw') }}</span>
           </button>
 
           <button
             @click="setMode('AGGREGATED')"
             :title="$t('analysis.aggregatedSemantic')"
-            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center space-x-1.5"
+            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center justify-center space-x-1.5 min-w-0"
             :class="activeMode === 'AGGREGATED'
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
           >
-            <span class="w-1.5 h-1.5 rounded-full" :class="activeMode === 'AGGREGATED' ? 'bg-white' : 'bg-indigo-500'"></span>
-            <span>{{ $t('analysis.modeAggregated') }}</span>
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="activeMode === 'AGGREGATED' ? 'bg-white' : 'bg-indigo-500'"></span>
+            <span class="truncate">{{ $t('analysis.modeAggregated') }}</span>
           </button>
         </div>
 
         <!-- 1-Click Quick Time Range Pills -->
-        <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-3xs font-mono">
+        <div class="ta-time-presets inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-3xs font-mono">
           <button
             v-for="tp in availableTimePresets"
             :key="tp.value"
             @click="selectTimePreset(tp.value)"
-            class="px-2 py-1 rounded-md font-semibold transition"
+            class="px-2 py-1 rounded-md font-semibold transition text-center"
             :class="filters.timePreset === tp.value
-              ? 'bg-white text-slate-900 shadow-xs border border-slate-300/80 dark:bg-slate-800 dark:text-white dark:border-slate-700'
+              ? 'is-active-preset bg-white text-slate-900 shadow-xs border border-slate-300/80 dark:bg-slate-800 dark:text-white dark:border-slate-700'
               : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
           >
             {{ tp.label }}
@@ -77,16 +77,16 @@
         </div>
         <span
           v-if="activeMode === 'RAW'"
-          class="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-800/60 text-4xs font-mono font-semibold"
+          class="ta-raw-badge px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-800/60 text-4xs font-mono font-semibold"
         >
           Max {{ rawMaxRangeShort }}
         </span>
       </div>
 
       <!-- Right: Workspace Layout Switcher + Compact Actions -->
-      <div class="flex flex-wrap items-center gap-1.5">
-        <!-- Layout Density Mode (Split / Chart / Table) -->
-        <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-3xs font-semibold">
+      <div class="ta-bar1-right flex flex-wrap items-center gap-1.5">
+        <!-- Layout Density Mode (Split / Chart / Table — Desktop Bar 1; Mobile rendered on Trend/Table header) -->
+        <div class="ta-desktop-layout-switcher inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-3xs font-semibold">
           <button
             @click="setWorkspaceLayout('SPLIT')"
             class="px-2 py-1 rounded-md transition"
@@ -119,137 +119,306 @@
           </button>
         </div>
 
-        <!-- Refresh -->
-        <button
-          @click="fetchData"
-          :disabled="loading"
-          :title="$t('common.refresh')"
-          class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold transition flex items-center space-x-1 disabled:opacity-50"
-        >
-          <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <span class="hidden xl:inline">{{ $t('common.refresh') }}</span>
-        </button>
-
-        <!-- Unified Export Dropdown (XLS, PDF, CSV, JSON + Chart PNG, JPG) -->
-        <div ref="exportMenuWrap" class="relative">
+        <div class="ta-actions-cluster flex items-center gap-1.5">
+          <!-- Refresh -->
           <button
-            @click.stop="exportDropdownOpen = !exportDropdownOpen"
-            :disabled="isExporting"
-            class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 text-2xs font-semibold transition flex items-center space-x-1.5 shadow-xs disabled:opacity-50"
+            @click="fetchData"
+            :disabled="loading"
+            :title="$t('common.refresh')"
+            class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold transition flex items-center space-x-1 disabled:opacity-50"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span>{{ $t('common.export') }}</span>
-            <svg class="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
+            <span class="hidden xl:inline">{{ $t('common.refresh') }}</span>
           </button>
 
-          <div
-            v-if="exportDropdownOpen"
-            class="absolute right-0 mt-1.5 w-52 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-40 py-1.5 divide-y divide-slate-100 dark:divide-slate-800"
-          >
-            <!-- Section 1: Data Export -->
-            <div class="pb-1">
-              <div class="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                {{ $t('analysis.exportDataGroup') }}
-              </div>
-              <button
-                @click="exportXLS"
-                :disabled="records.length === 0"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
-              >
-                <span>📊 {{ $t('analysis.exportXls') }}</span>
-                <span class="text-4xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">XLS</span>
-              </button>
-              <button
-                @click="exportPDF"
-                :disabled="records.length === 0"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
-              >
-                <span>📑 {{ $t('analysis.exportPdf') }}</span>
-                <span class="text-4xs font-mono text-rose-600 dark:text-rose-400 font-bold">PDF</span>
-              </button>
-              <button
-                @click="exportCSV"
-                :disabled="records.length === 0"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
-              >
-                <span>📄 {{ $t('analysis.exportCsv') }}</span>
-                <span class="text-4xs font-mono text-slate-400 font-bold">CSV</span>
-              </button>
-              <button
-                @click="exportJSON"
-                :disabled="records.length === 0"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
-              >
-                <span>📦 {{ $t('analysis.exportJson') }}</span>
-                <span class="text-4xs font-mono text-slate-400 font-bold">JSON</span>
-              </button>
-            </div>
+          <!-- Unified Export Dropdown (XLS, PDF, CSV, JSON + Chart PNG, JPG) -->
+          <div ref="exportMenuWrap" class="relative">
+            <button
+              @click.stop="exportDropdownOpen = !exportDropdownOpen"
+              :disabled="isExporting"
+              class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 text-2xs font-semibold transition flex items-center space-x-1.5 shadow-xs disabled:opacity-50"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>{{ $t('common.export') }}</span>
+              <svg class="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
 
-            <!-- Section 2: Chart Image Export -->
-            <div class="pt-1">
-              <div class="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                {{ $t('analysis.exportChartGroup') }}
+            <div
+              v-if="exportDropdownOpen"
+              class="absolute right-0 mt-1.5 w-52 max-w-[calc(100vw-24px)] bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-40 py-1.5 divide-y divide-slate-100 dark:divide-slate-800"
+            >
+              <!-- Section 1: Data Export -->
+              <div class="pb-1">
+                <div class="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  {{ $t('analysis.exportDataGroup') }}
+                </div>
+                <button
+                  @click="exportXLS"
+                  :disabled="records.length === 0"
+                  class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+                >
+                  <span>📊 {{ $t('analysis.exportXls') }}</span>
+                  <span class="text-4xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">XLS</span>
+                </button>
+                <button
+                  @click="exportPDF"
+                  :disabled="records.length === 0"
+                  class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+                >
+                  <span>📑 {{ $t('analysis.exportPdf') }}</span>
+                  <span class="text-4xs font-mono text-rose-600 dark:text-rose-400 font-bold">PDF</span>
+                </button>
+                <button
+                  @click="exportCSV"
+                  :disabled="records.length === 0"
+                  class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+                >
+                  <span>📄 {{ $t('analysis.exportCsv') }}</span>
+                  <span class="text-4xs font-mono text-slate-400 font-bold">CSV</span>
+                </button>
+                <button
+                  @click="exportJSON"
+                  :disabled="records.length === 0"
+                  class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+                >
+                  <span>📦 {{ $t('analysis.exportJson') }}</span>
+                  <span class="text-4xs font-mono text-slate-400 font-bold">JSON</span>
+                </button>
               </div>
-              <button
-                @click="exportChart('png')"
-                :disabled="visibleSeries.length === 0"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
-              >
-                <span>🖼️ {{ $t('analysis.exportChartPng') }}</span>
-                <span class="text-4xs font-mono text-blue-600 dark:text-blue-400 font-bold">PNG</span>
-              </button>
-              <button
-                @click="exportChart('jpg')"
-                :disabled="visibleSeries.length === 0"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
-              >
-                <span>🖼️ {{ $t('analysis.exportChartJpg') }}</span>
-                <span class="text-4xs font-mono text-amber-600 dark:text-amber-400 font-bold">JPG</span>
-              </button>
+
+              <!-- Section 2: Chart Image Export -->
+              <div class="pt-1">
+                <div class="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  {{ $t('analysis.exportChartGroup') }}
+                </div>
+                <button
+                  @click="exportChart('png')"
+                  :disabled="visibleSeries.length === 0"
+                  class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+                >
+                  <span>🖼️ {{ $t('analysis.exportChartPng') }}</span>
+                  <span class="text-4xs font-mono text-blue-600 dark:text-blue-400 font-bold">PNG</span>
+                </button>
+                <button
+                  @click="exportChart('jpg')"
+                  :disabled="visibleSeries.length === 0"
+                  class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+                >
+                  <span>🖼️ {{ $t('analysis.exportChartJpg') }}</span>
+                  <span class="text-4xs font-mono text-amber-600 dark:text-amber-400 font-bold">JPG</span>
+                </button>
+              </div>
             </div>
+          </div>
+
+          <!-- Superadmin Purge All Raw Telemetry -->
+          <button
+            v-if="isSuperAdmin && activeMode === 'RAW'"
+            id="btn-analysis-purge-raw"
+            @click="openPurgeRawModal"
+            :disabled="isPurgingRaw || loading"
+            class="px-2 sm:px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white border border-rose-500 text-2xs font-semibold transition flex items-center space-x-1 shadow-xs disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span class="hidden sm:inline">{{ $t('retention.purgeAllRawBtn') }}</span>
+          </button>
+
+          <!-- Superadmin Telemetry Injector Shortcut -->
+          <router-link
+            v-if="isSuperAdmin"
+            :to="filters.deviceId ? ('/monitoring/telemetry-injection?device_id=' + filters.deviceId) : '/monitoring/telemetry-injection'"
+            class="hidden sm:flex px-2.5 py-1.5 rounded-lg bg-violet-600/15 hover:bg-violet-600/25 text-violet-700 dark:text-violet-300 border border-violet-500/30 text-2xs font-semibold transition items-center space-x-1"
+          >
+            <span>⚡</span>
+            <span class="hidden sm:inline">Suntik</span>
+          </router-link>
+
+          <!-- Shortcut to Live Telemetry (Hidden for Operator role; desktop/tablet bar button, mobile uses Drawer) -->
+          <router-link
+            v-if="!isOperator"
+            to="/monitoring/telemetry"
+            class="hidden sm:flex px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 dark:border-emerald-500/30 text-2xs font-semibold transition items-center space-x-1.5"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+            <span class="hidden xl:inline">{{ $t('navigation.liveTelemetry') }}</span>
+            <span class="xl:hidden">Live</span>
+          </router-link>
+        </div>
+      </div>
+    </div>
+
+    <!-- BAR 2: SLIM INLINE FILTERS + LIVE TELEMETRY KPI STRIP -->
+    <div class="saas-card ta-bar2-card px-3 py-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 shadow-xs">
+      <div class="ta-bar2-row flex flex-wrap items-center justify-between gap-2">
+        <!-- Compact Inline Filter Controls -->
+        <div class="ta-filter-grid flex flex-wrap items-center gap-1.5">
+          <!-- Device Filter (Hidden for Operator) -->
+          <select
+            v-if="!isOperator"
+            v-model="filters.deviceId"
+            @change="onDeviceChange"
+            :aria-label="$t('telemetry.device')"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 max-w-[190px] truncate"
+          >
+            <option value="">{{ $t('analysis.allDevices') }}</option>
+            <option v-for="d in devicesList" :key="d.id" :value="d.id">
+              {{ d.device_code }} — {{ d.device_name }}
+            </option>
+          </select>
+
+          <!-- Parameter Filter -->
+          <select
+            v-model="filters.parameterId"
+            @change="fetchData"
+            :aria-label="$t('telemetry.parameterName')"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 max-w-[210px] truncate"
+          >
+            <option value="">{{ $t('analysis.allParameters') }}</option>
+            <option v-for="p in availableParameters" :key="p.id" :value="p.id">
+              {{ p.parameter_code }} ({{ p.parameter_name }})
+            </option>
+          </select>
+
+          <!-- Quality Filter -->
+          <select
+            v-model="filters.quality"
+            @change="fetchData"
+            :aria-label="$t('analysis.qualityFilter')"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 truncate"
+          >
+            <option value="">{{ $t('analysis.allQualities') }}</option>
+            <option value="GOOD">{{ $t('telemetry.qualityGood') }}</option>
+            <option value="UNCERTAIN">{{ $t('telemetry.qualityUncertain') }}</option>
+            <option value="BAD">{{ $t('telemetry.qualityBad') }}</option>
+            <option value="STALE">{{ $t('telemetry.qualityStale') }}</option>
+          </select>
+
+          <!-- Contextual Aggregation Function OR Raw Plot Mode -->
+          <select
+            v-if="activeMode === 'AGGREGATED'"
+            v-model="filters.aggFunction"
+            @change="fetchData"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 truncate"
+          >
+            <option value="">{{ $t('analysis.allFunctions') }}</option>
+            <option value="AVG">Fn: AVG</option>
+            <option value="MIN">Fn: MIN</option>
+            <option value="MAX">Fn: MAX</option>
+            <option value="SUM">Fn: SUM</option>
+            <option value="COUNT">Fn: COUNT</option>
+            <option value="FIRST">Fn: FIRST</option>
+            <option value="LAST">Fn: LAST</option>
+          </select>
+
+          <select
+            v-else-if="activeMode === 'RAW' && canAccessRawMode"
+            v-model="rawChartMode"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 truncate"
+          >
+            <option value="scaled">{{ $t('analysis.viewScaledValue') }}</option>
+            <option value="raw">{{ $t('analysis.viewRawValue') }}</option>
+          </select>
+
+          <!-- Page Size (Desktop in Bar 2; Mobile in Data Table footer/header) -->
+          <select
+            v-model="filters.pageSize"
+            @change="fetchData"
+            class="ta-pagesize-select px-2 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500"
+          >
+            <option :value="50">50 / pg</option>
+            <option :value="100">100 / pg</option>
+            <option :value="250">250 / pg</option>
+            <option :value="500">500 / pg</option>
+          </select>
+        </div>
+
+        <!-- Inline Monospace KPI Ribbon (Replaces 6 Tall KPI Cards) -->
+        <div
+          v-if="activeSingleSeriesStats"
+          class="ta-kpi-strip flex flex-wrap items-center justify-between sm:justify-start gap-x-2.5 gap-y-1 px-2.5 py-1.5 sm:py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono tabular-nums"
+        >
+          <span class="font-bold text-slate-900 dark:text-white">
+            {{ activeSingleSeriesStats.label }}:
+            <span class="text-blue-600 dark:text-blue-400">{{ activeSingleSeriesStats.latest !== null ? activeSingleSeriesStats.latest : '--' }}</span>
+            <span class="text-3xs text-slate-500">{{ activeSingleSeriesStats.unit }}</span>
+          </span>
+          <span class="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+          <div class="flex items-center gap-2">
+            <span class="text-emerald-600 dark:text-emerald-400">Min <b>{{ activeSingleSeriesStats.min !== null ? activeSingleSeriesStats.min : '--' }}</b></span>
+            <span class="text-rose-600 dark:text-rose-400">Max <b>{{ activeSingleSeriesStats.max !== null ? activeSingleSeriesStats.max : '--' }}</b></span>
+            <span class="text-blue-600 dark:text-blue-400">Avg <b>{{ activeSingleSeriesStats.avg !== null ? activeSingleSeriesStats.avg : '--' }}</b></span>
+          </div>
+          <span class="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+          <div class="flex items-center gap-1.5 ml-auto sm:ml-0">
+            <span class="text-slate-600 dark:text-slate-300">n=<b>{{ activeSingleSeriesStats.sampleCount }}</b></span>
+            <span class="px-1.5 py-0.5 sm:py-0.2 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold">{{ activeSingleSeriesStats.goodPercent }}% GOOD</span>
           </div>
         </div>
 
-        <!-- Superadmin Purge All Raw Telemetry -->
+        <div
+          v-else
+          class="ta-kpi-strip flex flex-wrap items-center justify-between sm:justify-start gap-x-2.5 gap-y-1 px-2.5 py-1.5 sm:py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono tabular-nums"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-slate-700 dark:text-slate-300">
+              {{ $t('analysis.activeSeries') }}: <b class="text-slate-900 dark:text-white">{{ visibleSeries.length }}/{{ seriesList.length }}</b>
+            </span>
+            <span class="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+            <span class="sm:hidden text-slate-400 dark:text-slate-600">&middot;</span>
+            <span class="text-slate-700 dark:text-slate-300">
+              {{ $t('analysis.samples') }}: <b class="text-slate-900 dark:text-white">{{ totalRecords }}</b>
+            </span>
+          </div>
+          <span class="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+          <span class="px-2 sm:px-1.5 py-0.5 sm:py-0.2 rounded-full sm:rounded bg-emerald-500/15 sm:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold ml-auto sm:ml-0">
+            {{ allSeriesOverview.goodPercent }}% GOOD
+          </span>
+          <template v-if="allSeriesOverview.latestMeasurement">
+            <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+            <span class="text-slate-500 dark:text-slate-400 hidden sm:inline truncate max-w-[240px]">
+              {{ (!isOperator && allSeriesOverview.latestMeasurement.deviceCode ? allSeriesOverview.latestMeasurement.deviceCode + ':' : '') + allSeriesOverview.latestMeasurement.paramCode }}
+              <b class="text-slate-900 dark:text-white">{{ formatVal(allSeriesOverview.latestMeasurement.value) }}</b>
+              {{ allSeriesOverview.latestMeasurement.unit || '' }}
+              <span class="text-4xs">({{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }})</span>
+            </span>
+          </template>
+        </div>
+      </div>
+
+      <!-- Compact Custom Time Range Row -->
+      <div v-if="filters.timePreset === 'custom'" class="pt-1.5 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2 text-xs">
+        <div class="flex items-center justify-between sm:justify-start space-x-1.5">
+          <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.startDate') }}:</span>
+          <input
+            type="datetime-local"
+            step="1"
+            v-model="filters.startTime"
+            class="flex-1 sm:flex-initial min-w-0 px-2 py-1 sm:py-0.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div class="flex items-center justify-between sm:justify-start space-x-1.5">
+          <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.endDate') }}:</span>
+          <input
+            type="datetime-local"
+            step="1"
+            v-model="filters.endTime"
+            class="flex-1 sm:flex-initial min-w-0 px-2 py-1 sm:py-0.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+          />
+        </div>
         <button
-          v-if="isSuperAdmin && activeMode === 'RAW'"
-          id="btn-analysis-purge-raw"
-          @click="openPurgeRawModal"
-          :disabled="isPurgingRaw || loading"
-          class="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white border border-rose-500 text-2xs font-semibold transition flex items-center space-x-1 shadow-xs disabled:opacity-50"
+          @click="fetchData"
+          class="w-full sm:w-auto px-2.5 py-1.5 sm:py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition text-center"
         >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          <span class="hidden sm:inline">{{ $t('retention.purgeAllRawBtn') }}</span>
+          {{ $t('common.apply') || 'Apply' }}
         </button>
-
-        <!-- Superadmin Telemetry Injector Shortcut -->
-        <router-link
-          v-if="isSuperAdmin"
-          :to="filters.deviceId ? ('/monitoring/telemetry-injection?device_id=' + filters.deviceId) : '/monitoring/telemetry-injection'"
-          class="px-2.5 py-1.5 rounded-lg bg-violet-600/15 hover:bg-violet-600/25 text-violet-700 dark:text-violet-300 border border-violet-500/30 text-2xs font-semibold transition flex items-center space-x-1"
-        >
-          <span>⚡</span>
-          <span class="hidden sm:inline">Suntik</span>
-        </router-link>
-
-        <!-- Shortcut to Live Telemetry (Hidden for Operator role) -->
-        <router-link
-          v-if="!isOperator"
-          to="/monitoring/telemetry"
-          class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 dark:border-emerald-500/30 text-2xs font-semibold transition flex items-center space-x-1.5"
-        >
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
-          <span class="hidden xl:inline">{{ $t('navigation.liveTelemetry') }}</span>
-          <span class="xl:hidden">Live</span>
-        </router-link>
       </div>
     </div>
 
@@ -267,166 +436,6 @@
       <button @click="purgeSuccessMsg = ''" class="text-emerald-600 dark:text-emerald-400 hover:opacity-75 text-2xs font-bold px-2 py-0.5">✕</button>
     </div>
 
-    <!-- BAR 2: SLIM INLINE FILTERS + LIVE TELEMETRY KPI STRIP -->
-    <div class="saas-card px-3 py-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 shadow-xs">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <!-- Compact Inline Filter Controls -->
-        <div class="flex flex-wrap items-center gap-1.5">
-          <!-- Device Filter (Hidden for Operator) -->
-          <select
-            v-if="!isOperator"
-            v-model="filters.deviceId"
-            @change="onDeviceChange"
-            :aria-label="$t('telemetry.device')"
-            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 max-w-[190px]"
-          >
-            <option value="">{{ $t('analysis.allDevices') }}</option>
-            <option v-for="d in devicesList" :key="d.id" :value="d.id">
-              {{ d.device_code }} — {{ d.device_name }}
-            </option>
-          </select>
-
-          <!-- Parameter Filter -->
-          <select
-            v-model="filters.parameterId"
-            @change="fetchData"
-            :aria-label="$t('telemetry.parameterName')"
-            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 max-w-[210px]"
-          >
-            <option value="">{{ $t('analysis.allParameters') }}</option>
-            <option v-for="p in availableParameters" :key="p.id" :value="p.id">
-              {{ p.parameter_code }} ({{ p.parameter_name }})
-            </option>
-          </select>
-
-          <!-- Quality Filter -->
-          <select
-            v-model="filters.quality"
-            @change="fetchData"
-            :aria-label="$t('analysis.qualityFilter')"
-            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
-          >
-            <option value="">{{ $t('analysis.allQualities') }}</option>
-            <option value="GOOD">{{ $t('telemetry.qualityGood') }}</option>
-            <option value="UNCERTAIN">{{ $t('telemetry.qualityUncertain') }}</option>
-            <option value="BAD">{{ $t('telemetry.qualityBad') }}</option>
-            <option value="STALE">{{ $t('telemetry.qualityStale') }}</option>
-          </select>
-
-          <!-- Contextual Aggregation Function OR Raw Plot Mode -->
-          <select
-            v-if="activeMode === 'AGGREGATED'"
-            v-model="filters.aggFunction"
-            @change="fetchData"
-            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
-          >
-            <option value="">{{ $t('analysis.allFunctions') }}</option>
-            <option value="AVG">Fn: AVG</option>
-            <option value="MIN">Fn: MIN</option>
-            <option value="MAX">Fn: MAX</option>
-            <option value="SUM">Fn: SUM</option>
-            <option value="COUNT">Fn: COUNT</option>
-            <option value="FIRST">Fn: FIRST</option>
-            <option value="LAST">Fn: LAST</option>
-          </select>
-
-          <select
-            v-else-if="activeMode === 'RAW' && canAccessRawMode"
-            v-model="rawChartMode"
-            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
-          >
-            <option value="scaled">{{ $t('analysis.viewScaledValue') }}</option>
-            <option value="raw">{{ $t('analysis.viewRawValue') }}</option>
-          </select>
-
-          <!-- Page Size -->
-          <select
-            v-model="filters.pageSize"
-            @change="fetchData"
-            class="px-2 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500"
-          >
-            <option :value="50">50 / pg</option>
-            <option :value="100">100 / pg</option>
-            <option :value="250">250 / pg</option>
-            <option :value="500">500 / pg</option>
-          </select>
-        </div>
-
-        <!-- Inline Monospace KPI Ribbon (Replaces 6 Tall KPI Cards) -->
-        <div
-          v-if="activeSingleSeriesStats"
-          class="flex flex-wrap items-center gap-2.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono tabular-nums"
-        >
-          <span class="font-bold text-slate-900 dark:text-white">
-            {{ activeSingleSeriesStats.label }}:
-            <span class="text-blue-600 dark:text-blue-400">{{ activeSingleSeriesStats.latest !== null ? activeSingleSeriesStats.latest : '--' }}</span>
-            <span class="text-3xs text-slate-500">{{ activeSingleSeriesStats.unit }}</span>
-          </span>
-          <span class="text-slate-300 dark:text-slate-700">|</span>
-          <span class="text-emerald-600 dark:text-emerald-400">Min <b>{{ activeSingleSeriesStats.min !== null ? activeSingleSeriesStats.min : '--' }}</b></span>
-          <span class="text-rose-600 dark:text-rose-400">Max <b>{{ activeSingleSeriesStats.max !== null ? activeSingleSeriesStats.max : '--' }}</b></span>
-          <span class="text-blue-600 dark:text-blue-400">Avg <b>{{ activeSingleSeriesStats.avg !== null ? activeSingleSeriesStats.avg : '--' }}</b></span>
-          <span class="text-slate-300 dark:text-slate-700">|</span>
-          <span class="text-slate-600 dark:text-slate-300">n=<b>{{ activeSingleSeriesStats.sampleCount }}</b></span>
-          <span class="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">{{ activeSingleSeriesStats.goodPercent }}% GOOD</span>
-        </div>
-
-        <div
-          v-else
-          class="flex flex-wrap items-center gap-2.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono tabular-nums"
-        >
-          <span class="text-slate-700 dark:text-slate-300">
-            {{ $t('analysis.activeSeries') }}: <b class="text-slate-900 dark:text-white">{{ visibleSeries.length }}/{{ seriesList.length }}</b>
-          </span>
-          <span class="text-slate-300 dark:text-slate-700">|</span>
-          <span class="text-slate-700 dark:text-slate-300">
-            {{ $t('analysis.samples') }}: <b class="text-slate-900 dark:text-white">{{ totalRecords }}</b>
-          </span>
-          <span class="text-slate-300 dark:text-slate-700">|</span>
-          <span class="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
-            {{ allSeriesOverview.goodPercent }}% GOOD
-          </span>
-          <template v-if="allSeriesOverview.latestMeasurement">
-            <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
-            <span class="text-slate-500 dark:text-slate-400 hidden sm:inline truncate max-w-[240px]">
-              {{ (!isOperator && allSeriesOverview.latestMeasurement.deviceCode ? allSeriesOverview.latestMeasurement.deviceCode + ':' : '') + allSeriesOverview.latestMeasurement.paramCode }}
-              <b class="text-slate-900 dark:text-white">{{ formatVal(allSeriesOverview.latestMeasurement.value) }}</b>
-              {{ allSeriesOverview.latestMeasurement.unit || '' }}
-              <span class="text-4xs">({{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }})</span>
-            </span>
-          </template>
-        </div>
-      </div>
-
-      <!-- Compact Custom Time Range Row -->
-      <div v-if="filters.timePreset === 'custom'" class="pt-1.5 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-xs">
-        <div class="flex items-center space-x-1.5">
-          <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.startDate') }}:</span>
-          <input
-            type="datetime-local"
-            step="1"
-            v-model="filters.startTime"
-            class="px-2 py-0.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <div class="flex items-center space-x-1.5">
-          <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.endDate') }}:</span>
-          <input
-            type="datetime-local"
-            step="1"
-            v-model="filters.endTime"
-            class="px-2 py-0.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <button
-          @click="fetchData"
-          class="px-2.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition"
-        >
-          {{ $t('common.apply') || 'Apply' }}
-        </button>
-      </div>
-    </div>
-
     <!-- ZONE 3A: ADAPTIVE CHART + DOCKED PER-SERIES MATRIX -->
     <div
       v-show="workspaceLayout !== 'TABLE'"
@@ -437,10 +446,10 @@
         :class="workspaceLayout === 'CHART' ? 'lg:col-span-12' : 'lg:col-span-8'"
         class="saas-card bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-xs"
       >
-        <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-          <div class="flex items-center space-x-2 min-w-0">
+        <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+          <div class="flex items-center space-x-1.5 sm:space-x-2 min-w-0">
             <span class="w-2 h-2 rounded-full shrink-0" :class="activeMode === 'HISTORICAL' ? 'bg-blue-500' : activeMode === 'RAW' ? 'bg-emerald-500' : 'bg-indigo-500'"></span>
-            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider truncate">{{ $t('analysis.trendChart') }}</h3>
+            <h3 class="text-[11px] sm:text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider truncate">{{ $t('analysis.trendChart') }}</h3>
             <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono truncate hidden sm:inline">
               <span v-if="filters.parameterId">• {{ activeParameterLabel }}</span>
               <span v-else>• {{ visibleSeries.length }}/{{ seriesList.length }} series</span>
@@ -448,10 +457,35 @@
             </span>
           </div>
 
-          <!-- Quick Chart Image Export (PNG/JPG) + Scale Switcher + Reset -->
-          <div class="flex flex-wrap items-center gap-1.5 text-3xs font-mono">
-            <!-- Direct 1-Click PNG / JPG Chart Export -->
-            <div class="inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
+          <!-- Quick Chart Image Export (PNG/JPG) + Mobile Layout Switcher + Scale Switcher + Reset -->
+          <div class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-3xs font-mono">
+            <!-- Mobile Compact Layout Switcher (< 768px) -->
+            <div class="md:hidden inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800 font-sans font-semibold">
+              <button
+                @click="setWorkspaceLayout('SPLIT')"
+                class="px-1.5 py-0.5 rounded transition"
+                :class="workspaceLayout === 'SPLIT' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'"
+              >
+                {{ $t('analysis.layoutSplit') }}
+              </button>
+              <button
+                @click="setWorkspaceLayout('CHART')"
+                class="px-1.5 py-0.5 rounded transition"
+                :class="workspaceLayout === 'CHART' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'"
+              >
+                {{ $t('analysis.layoutChart') }}
+              </button>
+              <button
+                @click="setWorkspaceLayout('TABLE')"
+                class="px-1.5 py-0.5 rounded transition"
+                :class="workspaceLayout === 'TABLE' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'"
+              >
+                {{ $t('analysis.layoutTable') }}
+              </button>
+            </div>
+
+            <!-- Direct 1-Click PNG / JPG Chart Export (>= 640px; on mobile available inside unified Export menu) -->
+            <div class="hidden sm:inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
               <button
                 @click="exportChart('png')"
                 :disabled="visibleSeries.length === 0 || isExporting"
@@ -474,14 +508,14 @@
             <div class="inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
               <button
                 @click="setChartScaleMode('normalized')"
-                class="px-2 py-0.5 rounded transition font-semibold"
+                class="px-1.5 sm:px-2 py-0.5 rounded transition font-semibold"
                 :class="chartScaleMode === 'normalized' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
               >
                 Norm %
               </button>
               <button
                 @click="setChartScaleMode('native')"
-                class="px-2 py-0.5 rounded transition font-semibold"
+                class="px-1.5 sm:px-2 py-0.5 rounded transition font-semibold"
                 :class="chartScaleMode === 'native' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
               >
                 Native
@@ -498,10 +532,33 @@
           </div>
         </div>
 
+        <!-- Mobile Interactive Series Legend Strip (< 640px) -->
+        <div
+          v-if="seriesList.length > 0"
+          class="sm:hidden px-3 py-1.5 bg-slate-50/70 dark:bg-[#0B0F19]/80 border-b border-slate-100 dark:border-slate-800/70 flex items-center gap-2 overflow-x-auto no-scrollbar"
+        >
+          <button
+            v-for="s in seriesList"
+            :key="'mob-chip-' + s.id"
+            type="button"
+            @click="toggleFocusSeries(s.id)"
+            class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-3xs font-mono font-semibold whitespace-nowrap border transition shrink-0"
+            :class="[
+              hiddenSeriesIds.includes(s.id) ? 'opacity-40 line-through border-slate-200 dark:border-slate-800' : '',
+              focusedSeriesId === s.id
+                ? 'bg-blue-600/15 text-blue-700 dark:text-blue-300 border-blue-500/40 ring-1 ring-blue-500/20'
+                : 'bg-white dark:bg-slate-900/80 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-800'
+            ]"
+          >
+            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
+            <span>{{ (!isOperator && s.deviceCode ? s.deviceCode + ':' : '') + s.paramCode }}</span>
+          </button>
+        </div>
+
         <!-- SVG Chart Canvas Area -->
         <div
           ref="chartContainer"
-          :class="workspaceLayout === 'CHART' ? 'h-80' : 'h-60'"
+          :class="workspaceLayout === 'CHART' ? 'h-64 sm:h-80' : 'h-[215px] sm:h-60'"
           class="w-full bg-white dark:bg-[#0B0F19] relative select-none overflow-hidden flex-1"
         >
           <!-- Empty State -->
@@ -521,6 +578,8 @@
             :viewBox="`0 0 ${containerWidth} ${containerHeight}`"
             @mousemove="onChartMouseMove"
             @mouseleave="onChartMouseLeave"
+            @touchstart.passive="onChartTouchMove"
+            @touchmove.passive="onChartTouchMove"
           >
             <defs>
               <linearGradient
@@ -657,9 +716,9 @@
           <!-- Interactive Floating Tooltip -->
           <div
             v-if="activePoint"
-            class="absolute z-20 pointer-events-none bg-white/95 dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2 text-xs shadow-2xl text-slate-800 dark:text-slate-200 font-sans backdrop-blur-md"
+            class="absolute z-20 pointer-events-none bg-white/95 dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2 text-xs shadow-2xl text-slate-800 dark:text-slate-200 font-sans backdrop-blur-md max-w-[205px]"
             :style="{
-              left: `${Math.min(Math.max(activePoint.x - 80, 10), containerWidth - 205)}px`,
+              left: `${Math.min(Math.max(activePoint.x - 80, 8), Math.max(8, containerWidth - 205))}px`,
               top: `${Math.max(activePoint.y - 80, 8)}px`
             }"
           >
@@ -777,11 +836,39 @@
     >
       <!-- Compact Table Header, Quick Data Export, Search & Inline Pagination -->
       <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center space-x-2">
-          <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('analysis.dataTable') }}</h3>
-          <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent text-3xs font-mono font-bold">
-            {{ totalRecords }} items
-          </span>
+        <div class="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-2">
+          <div class="flex items-center space-x-2">
+            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('analysis.dataTable') }}</h3>
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent text-3xs font-mono font-bold">
+              {{ totalRecords }} items
+            </span>
+          </div>
+
+          <!-- Mobile Layout Switcher when in Table-Only View (< 768px) -->
+          <div
+            v-if="workspaceLayout === 'TABLE'"
+            class="md:hidden inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800 text-3xs font-semibold"
+          >
+            <button
+              @click="setWorkspaceLayout('SPLIT')"
+              class="px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300"
+            >
+              {{ $t('analysis.layoutSplit') }}
+            </button>
+            <button
+              @click="setWorkspaceLayout('CHART')"
+              class="px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300"
+            >
+              {{ $t('analysis.layoutChart') }}
+            </button>
+            <button
+              @click="setWorkspaceLayout('TABLE')"
+              class="px-1.5 py-0.5 rounded bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white"
+            >
+              {{ $t('analysis.layoutTable') }}
+            </button>
+          </div>
+
           <!-- Quick 1-Click XLS / PDF Data Buttons -->
           <div class="hidden sm:inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800 text-3xs font-mono">
             <button
@@ -803,16 +890,29 @@
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2 text-xs">
+        <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-1.5 sm:gap-2 text-xs">
           <input
             type="text"
             v-model="tableSearch"
             :placeholder="$t('analysis.searchTable')"
-            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 w-44"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 flex-1 min-w-0 sm:flex-initial sm:w-44"
           />
 
+          <!-- Mobile Page Size Selector (< 768px) -->
+          <select
+            v-model="filters.pageSize"
+            @change="fetchData"
+            aria-label="Page Size"
+            class="md:hidden px-1.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-2xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 shrink-0"
+          >
+            <option :value="50">50/pg</option>
+            <option :value="100">100/pg</option>
+            <option :value="250">250/pg</option>
+            <option :value="500">500/pg</option>
+          </select>
+
           <!-- Inline Compact Pagination -->
-          <div class="inline-flex items-center space-x-1 font-mono text-2xs">
+          <div class="inline-flex items-center space-x-1 font-mono text-2xs shrink-0">
             <button
               @click="prevPage"
               :disabled="currentPage <= 1 || loading"
@@ -821,7 +921,7 @@
             >
               ‹
             </button>
-            <span class="px-1.5 text-slate-600 dark:text-slate-400 tabular-nums">
+            <span class="px-1 sm:px-1.5 text-slate-600 dark:text-slate-400 tabular-nums">
               {{ currentPage }} / {{ Math.ceil(totalRecords / filters.pageSize) || 1 }}
             </span>
             <button
@@ -1490,8 +1590,9 @@ export default {
     },
     chartPlotData() {
       const visible = this.visibleSeries;
-      const padLeft = 52;
-      const padRight = 20;
+      const isNarrowPlot = this.containerWidth < 460;
+      const padLeft = isNarrowPlot ? 40 : 52;
+      const padRight = isNarrowPlot ? 12 : 20;
       const padTop = 18;
       const padBottom = 30;
 
@@ -2011,6 +2112,15 @@ export default {
         this.fetchData({ keepWindow: true });
       }
     },
+    onChartTouchMove(e) {
+      if (!e.touches || e.touches.length === 0) return;
+      const touch = e.touches[0];
+      this.onChartMouseMove({
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        isTouch: true,
+      });
+    },
     onChartMouseMove(e) {
       if (!this.$refs.chartContainer) return;
       const rect = this.$refs.chartContainer.getBoundingClientRect();
@@ -2039,14 +2149,16 @@ export default {
         const dx = pt.x - mouseX;
         const dy = pt.y - mouseY;
         // Weight X distance heavier for natural time scrubbing while distinguishing vertical series
-        const dist = Math.sqrt(dx * dx + (dy * 0.5) * (dy * 0.5));
+        const yWeight = e.isTouch ? 0.25 : 0.5;
+        const dist = Math.sqrt(dx * dx + (dy * yWeight) * (dy * yWeight));
         if (dist < minDistance) {
           minDistance = dist;
           closest = pt;
         }
       }
 
-      if (minDistance < 90) {
+      const maxThreshold = e.isTouch ? 180 : 90;
+      if (minDistance < maxThreshold) {
         this.activePoint = closest;
       } else {
         this.activePoint = null;
@@ -2408,5 +2520,117 @@ export default {
   padding-bottom: 0.34rem !important;
   padding-left: 0.7rem !important;
   padding-right: 0.7rem !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (max-width: 767px) {
+  .ta-bar1-card {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 8px;
+    column-gap: 8px;
+    align-items: center;
+    padding: 10px 11px 8px !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-bottom-width: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  .ta-bar1-left,
+  .ta-bar1-right {
+    display: contents !important;
+  }
+  .ta-desktop-layout-switcher {
+    display: none !important;
+  }
+  .ta-title-group {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .ta-actions-cluster {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .ta-mode-tabs {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 3px;
+    padding: 3px !important;
+  }
+  .ta-mode-tabs > button {
+    width: 100%;
+    padding: 6px 6px !important;
+  }
+  .ta-time-presets {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px !important;
+  }
+  .ta-time-presets > button {
+    width: 100%;
+    padding: 5px 2px !important;
+  }
+  .ta-time-presets > button.is-active-preset {
+    background-color: #2563EB !important;
+    color: #FFFFFF !important;
+    border-color: #2563EB !important;
+  }
+  .ta-raw-badge {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    justify-self: start;
+  }
+  .ta-bar1-card + .ta-bar2-card {
+    margin-top: 0 !important;
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+    padding: 8px 11px 10px !important;
+  }
+  .ta-bar2-row {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .ta-filter-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px !important;
+    width: 100%;
+  }
+  .ta-pagesize-select {
+    display: none !important;
+  }
+  .ta-filter-grid > select {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 33px;
+  }
+  .ta-filter-grid > select:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .ta-kpi-strip {
+    width: 100%;
+  }
+  .compact-analysis-table th,
+  .compact-analysis-table td {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
 }
 </style>

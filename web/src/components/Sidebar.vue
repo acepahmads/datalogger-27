@@ -1,20 +1,25 @@
 <template>
   <aside
-    :class="isCollapsed ? 'hidden' : 'w-60 flex flex-col'"
-    class="bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800/60 flex-shrink-0 select-none text-slate-700 dark:text-slate-300 font-sans transition-all duration-150 h-full"
+    :class="isMobileDrawer ? 'w-full flex flex-col border-r-0' : (isCollapsed ? 'hidden' : 'w-60 flex flex-col border-r border-slate-200 dark:border-slate-800/60')"
+    class="bg-white dark:bg-[#0B0F19] flex-shrink-0 select-none text-slate-700 dark:text-slate-300 font-sans transition-all duration-150 h-full"
   >
     <!-- Brand Header -->
     <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800/40 flex items-start justify-between">
       <div class="min-w-0 pr-2">
         <div class="text-sm font-black text-slate-900 dark:text-white tracking-wider truncate">DATALOGGER</div>
         <div class="text-2xs text-slate-500 dark:text-slate-400 font-medium truncate">Analysis Application</div>
-        <div class="flex items-center space-x-1.5 mt-2">
+        <div
+          :class="isMobileDrawer
+            ? 'inline-flex items-center space-x-1.5 mt-2 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20'
+            : 'flex items-center space-x-1.5 mt-2'"
+        >
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide">{{ isCloudMode ? 'Cloud Receiver Active' : $t('navigation.edgeSystem') }}</span>
         </div>
       </div>
-      <!-- Setup / Auto-Hide Pin Icon Button -->
+      <!-- Setup / Auto-Hide Pin Icon Button (Desktop) -->
       <button
+        v-if="!isMobileDrawer"
         type="button"
         id="btn-sidebar-autohide-setup"
         @click.stop="toggleAutoHide"
@@ -30,6 +35,20 @@
           <path d="M9 3v18" stroke-linecap="round" />
           <path v-if="!sidebarAutoHide" stroke-linecap="round" stroke-linejoin="round" d="m14 9-3 3 3 3" />
           <path v-else stroke-linecap="round" stroke-linejoin="round" d="m12 9 3 3-3 3" />
+        </svg>
+      </button>
+      <!-- Close Drawer Button (Mobile Slide-Over) -->
+      <button
+        v-else
+        type="button"
+        id="btn-sidebar-mobile-close"
+        @click.stop="$emit('close-mobile')"
+        class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/70 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 transition-colors flex items-center justify-center mt-0.5 flex-shrink-0 cursor-pointer"
+        aria-label="Close Navigation Menu"
+        title="Tutup Menu"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
@@ -442,6 +461,10 @@ export default {
       default: false,
     },
     isAutoHide: {
+      type: Boolean,
+      default: false,
+    },
+    isMobileDrawer: {
       type: Boolean,
       default: false,
     },
