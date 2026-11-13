@@ -862,6 +862,74 @@
         </div>
       </div>
 
+      <!-- Search & Filter Bar for Setup Parameters -->
+      <div
+        v-if="device.parameters && device.parameters.length > 0"
+        class="flex flex-col md:flex-row md:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800/80"
+      >
+        <!-- Search Input -->
+        <div class="relative flex-1 min-w-[220px]">
+          <span class="absolute inset-y-0 left-3 flex items-center text-slate-400 dark:text-slate-500 pointer-events-none">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+            </svg>
+          </span>
+          <input
+            type="text"
+            v-model="paramSearchQuery"
+            :placeholder="$t('deviceDetail.searchParamsPlaceholder') || 'Cari kode, nama parameter, kategori, satuan, atau register...'"
+            class="w-full pl-8 pr-8 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition shadow-2xs"
+          />
+          <button
+            v-if="paramSearchQuery"
+            type="button"
+            @click="paramSearchQuery = ''"
+            class="absolute inset-y-0 right-2.5 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xs font-mono"
+            title="Clear Search"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Category, Quality & Active Filter Reset -->
+        <div class="flex flex-wrap items-center gap-2">
+          <select
+            v-if="deviceParameterCategories.length > 0"
+            v-model="paramCategoryFilter"
+            class="px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 shadow-2xs"
+          >
+            <option value="all">{{ $t('deviceDetail.allCategories') || 'Semua Kategori' }}</option>
+            <option v-for="cat in deviceParameterCategories" :key="'pcat-' + cat.id" :value="cat.id">
+              {{ cat.name }} ({{ cat.count }})
+            </option>
+          </select>
+
+          <select
+            v-model="paramQualityFilter"
+            class="px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 shadow-2xs"
+          >
+            <option value="all">{{ $t('deviceDetail.allQualitiesOption') || 'Semua Kualitas' }}</option>
+            <option value="GOOD">GOOD</option>
+            <option value="UNCERTAIN">UNCERTAIN</option>
+            <option value="BAD">BAD</option>
+            <option value="STALE">STALE</option>
+          </select>
+
+          <template v-if="hasActiveParamFilters">
+            <span class="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-3xs font-mono font-semibold text-blue-700 dark:text-blue-300">
+              {{ $t('deviceDetail.showingFilteredParams', { shown: filteredParameters.length, total: device.parameters.length }) }}
+            </span>
+            <button
+              type="button"
+              @click="resetParamFilters"
+              class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 text-2xs font-semibold transition shadow-2xs"
+            >
+              ↺ {{ $t('deviceDetail.resetParamFilter') || 'Reset Filter' }}
+            </button>
+          </template>
+        </div>
+      </div>
+
       <!-- Parameters Table -->
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs font-sans">
@@ -1218,8 +1286,23 @@
               </td>
             </tr>
             <tr v-else-if="filteredParameters.length === 0">
-              <td :colspan="canAccessRawMode ? 12 : 11" class="py-8 text-center text-xs text-slate-400">
-                {{ paramStatusFilter === 'active' ? 'No active parameters.' : 'No inactive parameters.' }}
+              <td :colspan="canAccessRawMode ? 12 : 11" class="py-10 text-center">
+                <div class="flex flex-col items-center justify-center space-y-2">
+                  <svg class="w-7 h-7 text-slate-400 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+                  </svg>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ $t('deviceDetail.noMatchingParams') || 'Tidak ada parameter yang cocok dengan kata kunci pencarian atau filter yang dipilih.' }}
+                  </p>
+                  <button
+                    v-if="hasActiveParamFilters"
+                    type="button"
+                    @click="resetParamFilters"
+                    class="px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:hover:bg-blue-500/25 dark:text-blue-300 dark:border-blue-500/30 text-2xs font-semibold transition"
+                  >
+                    ↺ {{ $t('deviceDetail.resetParamFilter') || 'Reset Filter' }}
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -3961,10 +4044,13 @@ export default {
       testReadLoading: false,
       testReadResult: null,
 
-      // Parameters Table Sorting & Active/Inactive Actions
+      // Parameters Table Sorting, Search & Active/Inactive Actions
       paramSortKey: localStorage.getItem('datalogger_param_sort_key') || '',
       paramSortDir: localStorage.getItem('datalogger_param_sort_dir') || '',
       paramStatusFilter: 'all',
+      paramSearchQuery: '',
+      paramCategoryFilter: 'all',
+      paramQualityFilter: 'all',
       selectedParamIds: [],
       paramToggleLoading: {},
       bulkParamLoading: false,
@@ -4170,13 +4256,86 @@ export default {
       if (!this.device || !Array.isArray(this.device.parameters)) return 0;
       return this.device.parameters.filter(p => !p.enabled).length;
     },
-    filteredParameters() {
-      const list = this.sortedParameters;
-      if (this.paramStatusFilter === 'active') {
-        return list.filter(p => !!p.enabled);
+    deviceParameterCategories() {
+      if (!this.device || !Array.isArray(this.device.parameters)) return [];
+      const counts = new Map();
+      let uncatCount = 0;
+      for (const p of this.device.parameters) {
+        const cat = this.getResolvedParamCategory(p);
+        if (cat && cat.id) {
+          const id = String(cat.id);
+          if (!counts.has(id)) {
+            counts.set(id, { id, name: cat.name, count: 0 });
+          }
+          counts.get(id).count += 1;
+        } else {
+          uncatCount += 1;
+        }
       }
-      if (this.paramStatusFilter === 'inactive') {
-        return list.filter(p => !p.enabled);
+      const items = Array.from(counts.values()).sort((a, b) => a.name.localeCompare(b.name));
+      if (uncatCount > 0) {
+        items.push({
+          id: 'uncategorized',
+          name: this.$t('operator.uncategorized') || 'Uncategorized',
+          count: uncatCount,
+        });
+      }
+      return items;
+    },
+    hasActiveParamFilters() {
+      return Boolean(
+        (this.paramSearchQuery && this.paramSearchQuery.trim()) ||
+        this.paramStatusFilter !== 'all' ||
+        this.paramCategoryFilter !== 'all' ||
+        this.paramQualityFilter !== 'all'
+      );
+    },
+    filteredParameters() {
+      let list = this.sortedParameters;
+      if (this.paramStatusFilter === 'active') {
+        list = list.filter(p => !!p.enabled);
+      } else if (this.paramStatusFilter === 'inactive') {
+        list = list.filter(p => !p.enabled);
+      }
+      if (this.paramCategoryFilter && this.paramCategoryFilter !== 'all') {
+        list = list.filter(p => {
+          const cat = this.getResolvedParamCategory(p);
+          if (this.paramCategoryFilter === 'uncategorized') {
+            return !cat || !cat.id;
+          }
+          return Boolean(cat && String(cat.id) === String(this.paramCategoryFilter));
+        });
+      }
+      if (this.paramQualityFilter && this.paramQualityFilter !== 'all') {
+        list = list.filter(p => this.getParamQuality(p) === this.paramQualityFilter);
+      }
+      const q = (this.paramSearchQuery || '').trim().toLowerCase();
+      if (q) {
+        list = list.filter(p => {
+          const code = String(p.parameter_code || p.code || '').toLowerCase();
+          const name = String(p.parameter_name || p.name || '').toLowerCase();
+          const cat = this.getResolvedParamCategory(p);
+          const catName = String((cat && cat.name) || '').toLowerCase();
+          const unit = String(p.unit || '').toLowerCase();
+          const dt = String(p.data_type || '').toLowerCase();
+          const regAddr = p.register_address !== undefined && p.register_address !== null ? String(p.register_address) : '';
+          const regTag = regAddr ? `#${regAddr}` : '';
+          const regType = String(p.register_type || '').toLowerCase();
+          const desc = String(p.description || '').toLowerCase();
+          const form = String(p.formula || '').toLowerCase();
+          return (
+            code.includes(q) ||
+            name.includes(q) ||
+            catName.includes(q) ||
+            unit.includes(q) ||
+            dt.includes(q) ||
+            regAddr.includes(q) ||
+            regTag.includes(q) ||
+            regType.includes(q) ||
+            desc.includes(q) ||
+            form.includes(q)
+          );
+        });
       }
       return list;
     },
@@ -4572,6 +4731,11 @@ export default {
         }
       },
     },
+    '$route.params.id'() {
+      this.resetParamFilters();
+      this.selectedParamIds = [];
+      this.loadDevice();
+    },
     '$route.query.tab'(newTab) {
       if (newTab) {
         this.switchTab(newTab);
@@ -4613,6 +4777,12 @@ export default {
     }
   },
   methods: {
+    resetParamFilters() {
+      this.paramSearchQuery = '';
+      this.paramStatusFilter = 'all';
+      this.paramCategoryFilter = 'all';
+      this.paramQualityFilter = 'all';
+    },
     toggleParamSort(key) {
       if (this.paramSortKey !== key) {
         this.paramSortKey = key;

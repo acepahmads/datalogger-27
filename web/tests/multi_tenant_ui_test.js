@@ -223,4 +223,12 @@ assert(paramModalCode.includes('stuck_count_threshold: (() => {'), 'ParameterMod
 assert(paramConfigViewModalCode.includes('isStuckDetectionActive') && paramConfigViewModalCode.includes('stuckCountThreshold'), 'ParameterConfigViewModal must display per-parameter stuck configuration');
 assert(enLocaleCode.includes('"stuckDetectionTitle"') && idLocaleCode.includes('"stuckDetectionTitle"'), 'Both EN and ID locales must define stuckDetectionTitle');
 
+// 18. Parameter Setup Search & Filter Bar (DeviceDetailView)
+const deviceDetailViewCode = fs.readFileSync(path.join(srcDir, 'views', 'DeviceDetailView.vue'), 'utf8');
+assert(deviceDetailViewCode.includes('v-model="paramSearchQuery"'), 'DeviceDetailView Parameters tab must include paramSearchQuery search input');
+assert(deviceDetailViewCode.includes('v-model="paramCategoryFilter"'), 'DeviceDetailView Parameters tab must include paramCategoryFilter dropdown');
+assert(deviceDetailViewCode.includes('v-model="paramQualityFilter"'), 'DeviceDetailView Parameters tab must include paramQualityFilter dropdown');
+assert(deviceDetailViewCode.includes('resetParamFilters()'), 'DeviceDetailView must define resetParamFilters()');
+assert(enLocaleCode.includes('"searchParamsPlaceholder"') && idLocaleCode.includes('"searchParamsPlaceholder"'), 'Both EN and ID locales must define searchParamsPlaceholder');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');
