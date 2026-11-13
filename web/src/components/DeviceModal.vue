@@ -625,6 +625,24 @@
                 </div>
               </div>
             </div>
+
+            <div class="pt-2.5 border-t border-emerald-200/80 dark:border-emerald-800/60 grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+              <div>
+                <label class="block text-3xs font-semibold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider mb-1">
+                  Legacy Module ID Cloud Lama (module_id)
+                </label>
+                <input
+                  id="input-edge-push-legacy-module-id"
+                  v-model.trim="form.legacy_module_id"
+                  type="text"
+                  placeholder="Contoh: 199 (opsional)"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-emerald-300 dark:border-emerald-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <p class="md:col-span-2 text-2xs text-emerald-800/90 dark:text-emerald-300/80 leading-relaxed">
+                Opsional untuk kompatibilitas format Cloud lama <code class="font-mono font-bold">create_multi</code> (<code class="font-mono">{ "multi": [{ "tick": { "module_id": 199, "station_id": 202, ... } }] }</code>). Kosongkan jika hanya memakai <code class="font-mono">device_code</code> atau hanya ada 1 perangkat di stasiun.
+              </p>
+            </div>
           </div>
 
           <!-- Common Timing Configuration (Active Polling Protocols) -->
@@ -821,6 +839,7 @@ export default {
         site_id: 1,
         device_code: '',
         device_name: '',
+        legacy_module_id: '',
         device_type: 'MODBUS_TCP',
         manufacturer: '',
         model: '',
@@ -972,6 +991,7 @@ export default {
             site_id: newVal.site_id || this.defaultSiteId(),
             device_code: newVal.device_code || newVal.code || '',
             device_name: newVal.device_name || newVal.name || '',
+            legacy_module_id: newVal.legacy_module_id || '',
             device_type: proto,
             manufacturer: newVal.manufacturer || '',
             model: newVal.model || '',
@@ -1081,6 +1101,7 @@ export default {
         site_id: source.site_id || this.defaultSiteId(),
         device_code: suggestedCode,
         device_name: suggestedName,
+        legacy_module_id: '',
         device_type: proto,
         manufacturer: source.manufacturer || '',
         model: source.model || '',
@@ -1219,6 +1240,7 @@ export default {
         site_id: this.defaultSiteId(),
         device_code: '',
         device_name: '',
+        legacy_module_id: '',
         device_type: 'MODBUS_TCP',
         manufacturer: '',
         model: '',

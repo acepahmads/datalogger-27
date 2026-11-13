@@ -912,7 +912,8 @@
               :station-name="gpsForm.site_name"
               :editable="true"
               height="240px"
-              @pick-coordinates="onPickStationGps"
+              @coordinate-change="onPickStationGps"
+              @location-selected="onSelectStationLocation"
             />
           </div>
 
@@ -1922,23 +1923,55 @@ export default {
         site_id: site.site_id,
         site_name: site.site_name,
         tenant_name: site.tenant_name,
-        latitude: hasValid ? Number(site.latitude) : -6.2,
-        longitude: hasValid ? Number(site.longitude) : 106.816666,
+        latitude: hasValid ? Number(site.latitude) : null,
+        longitude: hasValid ? Number(site.longitude) : null,
         address: site.address || '',
       };
       this.showGpsModal = true;
     },
 
-    onPickStationGps(coords) {
+    async onPickStationGps(coords) {
       if (!coords) return;
-      if (Number.isFinite(Number(coords.latitude))) {
-        this.gpsForm.latitude = Number(Number(coords.latitude).toFixed(6));
+      const rawLat = coords.lat !== undefined ? coords.lat : coords.latitude;
+      const rawLng = coords.lng !== undefined ? coords.lng : coords.longitude;
+      if (rawLat !== null && rawLat !== undefined && Number.isFinite(Number(rawLat))) {
+        this.gpsForm.latitude = Number(Number(rawLat).toFixed(6));
       }
-      if (Number.isFinite(Number(coords.longitude))) {
-        this.gpsForm.longitude = Number(Number(coords.longitude).toFixed(6));
+      if (rawLng !== null && rawLng !== undefined && Number.isFinite(Number(rawLng))) {
+        this.gpsForm.longitude = Number(Number(rawLng).toFixed(6));
       }
-      if (coords.address && !this.gpsForm.address) {
-        this.gpsForm.address = coords.address;
+      const addr = coords.displayName || coords.display_name || coords.address || '';
+      if (addr && !this.gpsForm.address) {
+        this.gpsForm.address = addr;
+      } else if (coords.source === 'MAP' && isValidStationCoordinate(this.gpsForm.latitude, this.gpsForm.longitude)) {
+        try {
+          const res = await axios.get('/api/system/location/reverse', {
+            params: { lat: this.gpsForm.latitude, lng: this.gpsForm.longitude },
+          });
+          const geo = res && res.data && res.data.data;
+          const revAddr = (geo && (geo.display_name || geo.place_name)) || '';
+          if (revAddr) {
+            this.gpsForm.address = revAddr;
+          }
+        } catch (_) {
+          // ignore reverse geocode network errors
+        }
+      }
+    },
+
+    onSelectStationLocation(loc) {
+      if (!loc) return;
+      const rawLat = loc.lat !== undefined ? loc.lat : loc.latitude;
+      const rawLng = loc.lng !== undefined ? loc.lng : loc.longitude;
+      if (rawLat !== null && rawLat !== undefined && Number.isFinite(Number(rawLat))) {
+        this.gpsForm.latitude = Number(Number(rawLat).toFixed(6));
+      }
+      if (rawLng !== null && rawLng !== undefined && Number.isFinite(Number(rawLng))) {
+        this.gpsForm.longitude = Number(Number(rawLng).toFixed(6));
+      }
+      const resolvedAddress = loc.displayName || loc.display_name || loc.name || '';
+      if (resolvedAddress) {
+        this.gpsForm.address = resolvedAddress;
       }
     },
 

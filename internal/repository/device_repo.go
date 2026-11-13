@@ -185,6 +185,48 @@ func (r *DeviceRepository) GetByCodeInTenant(tenantID uint, code string) (*model
 	return &dev, nil
 }
 
+// GetByLegacyModuleIDInSite fetches an active device by its legacy Cloud module_id within a specific site.
+func (r *DeviceRepository) GetByLegacyModuleIDInSite(tenantID, siteID uint, legacyModuleID string) (*model.Device, error) {
+	clean := strings.TrimSpace(legacyModuleID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var dev model.Device
+	err := r.db.Where("tenant_id = ? AND site_id = ? AND deleted_at IS NULL AND enabled = ? AND LOWER(legacy_module_id) = LOWER(?)", tenantID, siteID, true, clean).
+		Preload("Tenant").
+		Preload("Site").
+		Preload("Connection").
+		Preload("Parameters", "deleted_at IS NULL").
+		Preload("Parameters.Category").
+		Order("id ASC").
+		First(&dev).Error
+	if err != nil {
+		return nil, err
+	}
+	return &dev, nil
+}
+
+// GetByLegacyModuleIDInTenant fetches an active device by its legacy Cloud module_id within a tenant.
+func (r *DeviceRepository) GetByLegacyModuleIDInTenant(tenantID uint, legacyModuleID string) (*model.Device, error) {
+	clean := strings.TrimSpace(legacyModuleID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var dev model.Device
+	err := r.db.Where("tenant_id = ? AND deleted_at IS NULL AND enabled = ? AND LOWER(legacy_module_id) = LOWER(?)", tenantID, true, clean).
+		Preload("Tenant").
+		Preload("Site").
+		Preload("Connection").
+		Preload("Parameters", "deleted_at IS NULL").
+		Preload("Parameters.Category").
+		Order("id ASC").
+		First(&dev).Error
+	if err != nil {
+		return nil, err
+	}
+	return &dev, nil
+}
+
 // Create inserts a new device and optional connection
 func (r *DeviceRepository) Create(device *model.Device) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {

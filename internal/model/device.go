@@ -199,6 +199,7 @@ type Device struct {
 	Model            string                 `gorm:"size:128" json:"model"`
 	SerialNumber     string                 `gorm:"size:128;index" json:"serial_number"`
 	FirmwareVersion  string                 `gorm:"size:64" json:"firmware_version"`
+	LegacyModuleID   string                 `gorm:"column:legacy_module_id;size:64;index" json:"legacy_module_id,omitempty"`
 	Description      string                 `gorm:"size:255" json:"description"`
 	Location         string                 `gorm:"size:128" json:"location"`
 	Latitude         *float64               `json:"latitude"`

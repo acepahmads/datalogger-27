@@ -401,6 +401,8 @@ func main() {
 		// Multi-Tenant Telemetry Receiver Gateway (Plain JSON + Authorization: Bearer dlg_live_...)
 		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
 		api.POST("/ingest/mqtt", ingestHandler.IngestMQTT)
+		api.POST("/ticks/create_multi", ingestHandler.IngestTelemetry)
+		api.POST("/sparing_logs/create_multi", ingestHandler.IngestTelemetry)
 
 		// Multi-Tenant & Multi-Site Organization Management (SUPERADMIN global + ADMIN/Cloud ENGINEER scoped to own tenant)
 		tenantsGroup := api.Group("/tenants")
@@ -877,6 +879,8 @@ func main() {
 		// Multi-Tenant Telemetry Receiver Gateway v1 (Plain JSON + Authorization: Bearer dlg_live_...)
 		r.POST("/api/v1/ingest/telemetry", middleware.RestoreMaintenanceGuard(), ingestHandler.IngestTelemetry)
 		r.POST("/api/v1/ingest/mqtt", middleware.RestoreMaintenanceGuard(), ingestHandler.IngestMQTT)
+		r.POST("/api/v1/ticks/create_multi", middleware.RestoreMaintenanceGuard(), ingestHandler.IngestTelemetry)
+		r.POST("/api/v1/sparing_logs/create_multi", middleware.RestoreMaintenanceGuard(), ingestHandler.IngestTelemetry)
 
 		// Compatibility API v1 routes (mirrors device and polling-plan routes for /api/v1 callers)
 		apiV1 := r.Group("/api/v1")

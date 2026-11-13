@@ -48,27 +48,33 @@
       class="absolute top-2.5 left-2.5 z-30 flex flex-col w-72 sm:w-80 md:w-96 max-w-[calc(100%-56px)] font-sans"
     >
       <div class="relative flex items-center shadow-md rounded-xl bg-white/95 dark:bg-[#0B0F19]/95 border border-slate-200/90 dark:border-slate-700/80 focus-within:border-[#1685E5] focus-within:ring-2 focus-within:ring-[#1685E5]/20 transition">
-        <span class="pl-2.5 text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center">
+        <button
+          type="button"
+          @click.stop="executeSearch(true)"
+          class="pl-2.5 pr-1 py-1.5 text-slate-400 hover:text-[#1685E5] dark:text-slate-500 dark:hover:text-blue-400 text-xs flex items-center justify-center cursor-pointer"
+          title="Cari Lokasi"
+        >
           <svg v-if="!isSearching" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <span v-else class="animate-spin inline-block w-3.5 h-3.5 border-2 border-[#1685E5] border-t-transparent rounded-full"></span>
-        </span>
+        </button>
         <input
           ref="locationSearchInput"
           v-model="searchQuery"
           type="text"
           :placeholder="$t('operator.searchLocationPlaceholder') || 'Search city, address, or lat, lng... (Enter)'"
-          class="w-full py-1.5 pl-2 pr-7 text-xs font-sans bg-transparent text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
-          @keydown.enter.prevent="executeSearch"
+          class="w-full py-1.5 pl-1 pr-7 text-xs font-sans bg-transparent text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
+          @input="onSearchInput"
+          @keydown.enter.prevent="executeSearch(true)"
           @keydown.esc="clearSearch"
         />
         <button
           v-if="searchQuery"
           type="button"
-          @click="clearSearch"
-          class="absolute right-2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
+          @click.stop="clearSearch"
+          class="absolute right-2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs cursor-pointer"
           title="Clear search"
         >
           ✕
@@ -78,12 +84,14 @@
       <!-- Dropdown Results List -->
       <div
         v-if="searchResults && searchResults.length > 0"
+        @click.stop
         class="mt-1.5 bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-700/80 rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto text-xs font-sans divide-y divide-slate-100 dark:divide-slate-800"
       >
         <div
           v-for="(res, idx) in searchResults"
           :key="idx"
-          @click="selectSearchResult(res)"
+          @mousedown.prevent
+          @click.stop="selectSearchResult(res)"
           class="p-2.5 hover:bg-[#EAF5FF]/70 dark:hover:bg-blue-600/15 cursor-pointer transition flex items-start space-x-2"
         >
           <svg class="w-3.5 h-3.5 text-[#1685E5] dark:text-blue-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -212,6 +220,7 @@ export default {
       searchResults: [],
       isSearching: false,
       searchNotice: '',
+      searchDebounceTimer: null,
     };
   },
   computed: {
@@ -256,6 +265,10 @@ export default {
     });
   },
   beforeDestroy() {
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
+    }
     if (this.map) {
       this.map.off();
       this.map.remove();
@@ -308,11 +321,14 @@ export default {
 
       // Click on map to pinpoint exact station location when editable
       this.map.on('click', (e) => {
+        if (this.searchResults && this.searchResults.length > 0) {
+          this.searchResults = [];
+        }
         if (this.editable) {
           const lat = Number(e.latlng.lat.toFixed(6));
           const lng = Number(e.latlng.lng.toFixed(6));
           this.setMarkerPosition(lat, lng);
-          this.$emit('coordinate-change', { lat, lng });
+          this.$emit('coordinate-change', { lat, lng, source: 'MAP' });
         }
       });
 
@@ -359,7 +375,7 @@ export default {
           const lat = Number(pos.lat.toFixed(6));
           const lng = Number(pos.lng.toFixed(6));
           this.updateAccuracyCircle();
-          this.$emit('coordinate-change', { lat, lng });
+          this.$emit('coordinate-change', { lat, lng, source: 'MAP' });
         }
       });
 
@@ -450,17 +466,43 @@ export default {
     },
 
     clearSearch() {
+      if (this.searchDebounceTimer) {
+        clearTimeout(this.searchDebounceTimer);
+        this.searchDebounceTimer = null;
+      }
       this.searchQuery = '';
       this.searchResults = [];
       this.searchNotice = '';
     },
 
-    async executeSearch() {
+    onSearchInput() {
+      if (this.searchDebounceTimer) {
+        clearTimeout(this.searchDebounceTimer);
+        this.searchDebounceTimer = null;
+      }
+      this.searchNotice = '';
+      const q = (this.searchQuery || '').trim();
+      if (q.length < 3) {
+        this.searchResults = [];
+        return;
+      }
+      this.searchDebounceTimer = setTimeout(() => {
+        this.executeSearch(false);
+      }, 400);
+    },
+
+    async executeSearch(autoApplyTop = true) {
+      if (this.searchDebounceTimer) {
+        clearTimeout(this.searchDebounceTimer);
+        this.searchDebounceTimer = null;
+      }
       const q = (this.searchQuery || '').trim();
       if (!q) return;
 
       this.searchNotice = '';
-      this.searchResults = [];
+      if (autoApplyTop) {
+        this.searchResults = [];
+      }
 
       // 1. Direct Coordinate Parsing
       const directCoords = this.parseCoordinates(q);
@@ -506,19 +548,25 @@ export default {
 
         if (results && results.length > 0) {
           this.searchResults = results;
-          // Automatically apply the top result to the map
-          this.applySearchedLocation(results[0], false);
-        } else {
+          if (autoApplyTop) {
+            this.applySearchedLocation(results[0], false);
+          }
+        } else if (autoApplyTop) {
+          this.searchResults = [];
           this.searchNotice = 'Lokasi tidak ditemukan. Masukkan nama kota/alamat spesifik atau koordinat (lat, lng).';
         }
       } catch (err) {
-        this.searchNotice = 'Gagal melakukan pencarian lokasi.';
+        if (autoApplyTop) {
+          this.searchNotice = 'Gagal melakukan pencarian lokasi.';
+        }
       } finally {
         this.isSearching = false;
       }
     },
 
     selectSearchResult(item) {
+      if (!item) return;
+      this.searchQuery = item.name || item.display_name || this.searchQuery;
       this.applySearchedLocation(item, true);
       this.searchResults = [];
     },
@@ -533,7 +581,7 @@ export default {
       if (closeDropdown) {
         this.searchResults = [];
       }
-      this.$emit('coordinate-change', { lat, lng });
+      this.$emit('coordinate-change', { lat, lng, source: 'SEARCH' });
       this.$emit('location-selected', {
         lat,
         lng,

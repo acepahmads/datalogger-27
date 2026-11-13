@@ -231,4 +231,14 @@ assert(deviceDetailViewCode.includes('v-model="paramQualityFilter"'), 'DeviceDet
 assert(deviceDetailViewCode.includes('resetParamFilters()'), 'DeviceDetailView must define resetParamFilters()');
 assert(enLocaleCode.includes('"searchParamsPlaceholder"') && idLocaleCode.includes('"searchParamsPlaceholder"'), 'Both EN and ID locales must define searchParamsPlaceholder');
 
+// 19. Telemetry Ingest Format Switch (AUTO / STANDARD_V1 / CBI_LEGACY) & Legacy create_multi Support
+assert(tenantsViewCode.includes('updateIngestKeyFormat'), 'TenantsManagementView must allow live switching of Bearer Token ingest_format');
+assert(tenantsViewCode.includes('ingestFormatOptions'), 'TenantsManagementView must offer AUTO, STANDARD_V1, and CBI_LEGACY format choices');
+assert(tenantsViewCode.includes('cbi_multi_tick'), 'TenantsManagementView payload builder must include cbi_multi_tick (Cloud Lama create_multi) mode');
+assert(tenantsViewCode.includes('/api/v1/ticks/create_multi'), 'TenantsManagementView must document /api/v1/ticks/create_multi legacy endpoint');
+assert(tenantsViewCode.includes('legacy_station_id'), 'TenantsManagementView must support Site legacy_station_id mapping');
+assert(tenantsViewCode.includes('custom_token'), 'TenantsManagementView must support importing existing legacy Bearer token (custom_token)');
+assert(tenantsViewCode.includes('saveBuilderLegacyMapping'), 'TenantsManagementView must allow quick-saving station_id & module_id mapping');
+assert(deviceModalCode.includes('input-edge-push-legacy-module-id') && deviceModalCode.includes('legacy_module_id'), 'DeviceModal must expose optional legacy_module_id for passive push devices');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

@@ -82,6 +82,8 @@ type CreateSiteRequest struct {
 	Description      string   `json:"description"`
 	MonitoringDomain string   `json:"monitoring_domain"`
 	StationTypeMode  string   `json:"station_type_mode"`
+	IngestFormat     string   `json:"ingest_format"`
+	LegacyStationID  string   `json:"legacy_station_id"`
 	Latitude         *float64 `json:"latitude"`
 	Longitude        *float64 `json:"longitude"`
 	LocationSource   string   `json:"location_source"`
@@ -96,6 +98,8 @@ type UpdateSiteRequest struct {
 	Description      *string  `json:"description"`
 	MonitoringDomain *string  `json:"monitoring_domain"`
 	StationTypeMode  *string  `json:"station_type_mode"`
+	IngestFormat     *string  `json:"ingest_format"`
+	LegacyStationID  *string  `json:"legacy_station_id"`
 	Latitude         *float64 `json:"latitude"`
 	Longitude        *float64 `json:"longitude"`
 	LocationSource   *string  `json:"location_source"`
@@ -108,7 +112,18 @@ type CreateAPIKeyRequest struct {
 	TenantID      uint   `json:"tenant_id"`
 	SiteID        *uint  `json:"site_id"`
 	Name          string `json:"name" binding:"required"`
+	IngestFormat  string `json:"ingest_format"`
+	CustomToken   string `json:"custom_token"`
 	AutoProvision *bool  `json:"auto_provision"`
+}
+
+type UpdateAPIKeyRequest struct {
+	Enabled       *bool   `json:"enabled"`
+	IngestFormat  *string `json:"ingest_format"`
+	SiteID        *uint   `json:"site_id"`
+	ClearSiteID   bool    `json:"clear_site_id"`
+	Name          *string `json:"name"`
+	AutoProvision *bool   `json:"auto_provision"`
 }
 
 // --- Tenant Operations ---
@@ -482,6 +497,8 @@ func (s *TenantService) CreateSite(req CreateSiteRequest, scope tenantctx.Scope,
 		Description:      strings.TrimSpace(req.Description),
 		MonitoringDomain: req.MonitoringDomain,
 		StationTypeMode:  req.StationTypeMode,
+		IngestFormat:     model.NormalizeIngestFormat(req.IngestFormat),
+		LegacyStationID:  strings.TrimSpace(req.LegacyStationID),
 		Latitude:         req.Latitude,
 		Longitude:        req.Longitude,
 		LocationSource:   locSrc,
@@ -538,6 +555,12 @@ func (s *TenantService) UpdateSite(id uint, req UpdateSiteRequest, scope tenantc
 	}
 	if req.StationTypeMode != nil && strings.TrimSpace(*req.StationTypeMode) != "" {
 		st.StationTypeMode = strings.ToUpper(strings.TrimSpace(*req.StationTypeMode))
+	}
+	if req.IngestFormat != nil {
+		st.IngestFormat = model.NormalizeIngestFormat(*req.IngestFormat)
+	}
+	if req.LegacyStationID != nil {
+		st.LegacyStationID = strings.TrimSpace(*req.LegacyStationID)
 	}
 	if req.Latitude != nil {
 		st.Latitude = req.Latitude
@@ -656,14 +679,34 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 		siteID = &sid
 	}
 
-	rawBytes := make([]byte, 20)
-	if _, err := rand.Read(rawBytes); err != nil {
-		return nil, "", errors.New("failed to generate random API key")
+	rawKey := strings.TrimSpace(req.CustomToken)
+	if strings.HasPrefix(strings.ToLower(rawKey), "bearer ") {
+		rawKey = strings.TrimSpace(rawKey[7:])
 	}
-	rawKey := "dlg_live_" + hex.EncodeToString(rawBytes)
-	prefix := rawKey[:17] + "..."
+	var prefix string
+	if rawKey != "" {
+		if len(rawKey) < 8 {
+			return nil, "", errors.New("custom Bearer token minimal 8 karakter")
+		}
+		if existing, _ := s.repo.GetAPIKeyByHash(hashIngestKey(rawKey)); existing != nil {
+			return nil, "", errors.New("Bearer token tersebut sudah terdaftar pada kunci lain")
+		}
+		if len(rawKey) > 14 {
+			prefix = rawKey[:10] + "..."
+		} else {
+			prefix = rawKey[:4] + "..."
+		}
+	} else {
+		rawBytes := make([]byte, 20)
+		if _, err := rand.Read(rawBytes); err != nil {
+			return nil, "", errors.New("failed to generate random API key")
+		}
+		rawKey = "dlg_live_" + hex.EncodeToString(rawBytes)
+		prefix = rawKey[:17] + "..."
+	}
 	// Strict governance: devices and parameters must be registered manually by users (never auto-created).
 	autoProv := false
+	ingestFmt := model.NormalizeIngestFormat(req.IngestFormat)
 
 	k := &model.TenantAPIKey{
 		TenantID:      tenantID,
@@ -671,6 +714,7 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 		Name:          name,
 		KeyPrefix:     prefix,
 		KeyHash:       hashIngestKey(rawKey),
+		IngestFormat:  ingestFmt,
 		AutoProvision: autoProv,
 		Enabled:       true,
 		CreatedBy:     scope.Username,
@@ -686,7 +730,7 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 			Username:  scope.Username,
 			Action:    "INGEST_KEY_CREATE",
 			Resource:  "INGEST_KEY",
-			Details:   fmt.Sprintf("Generated Edge Ingest API key '%s' (%s)", k.Name, k.KeyPrefix),
+			Details:   fmt.Sprintf("Generated Edge Ingest API key '%s' (%s, format=%s)", k.Name, k.KeyPrefix, k.IngestFormat),
 			IPAddress: ip,
 			CreatedAt: time.Now(),
 		})
@@ -699,7 +743,7 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 	return k, rawKey, nil
 }
 
-func (s *TenantService) ToggleAPIKey(id uint, enabled bool, autoProvision *bool, scope tenantctx.Scope, ip string) (*model.TenantAPIKey, error) {
+func (s *TenantService) UpdateAPIKey(id uint, req UpdateAPIKeyRequest, scope tenantctx.Scope, ip string) (*model.TenantAPIKey, error) {
 	k, err := s.repo.GetAPIKeyByID(id)
 	if err != nil || k == nil {
 		return nil, errors.New("API key not found")
@@ -707,13 +751,45 @@ func (s *TenantService) ToggleAPIKey(id uint, enabled bool, autoProvision *bool,
 	if !scope.CanAccessTenant(k.TenantID) {
 		return nil, errors.New("access denied: API key belongs to another tenant")
 	}
-	k.Enabled = enabled
+	if req.Enabled != nil {
+		k.Enabled = *req.Enabled
+	}
+	if req.IngestFormat != nil {
+		k.IngestFormat = model.NormalizeIngestFormat(*req.IngestFormat)
+	}
+	if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+		k.Name = strings.TrimSpace(*req.Name)
+	}
+	if req.ClearSiteID {
+		k.SiteID = nil
+	} else if req.SiteID != nil {
+		if *req.SiteID == 0 {
+			k.SiteID = nil
+		} else {
+			st, sErr := s.repo.GetSiteByID(*req.SiteID)
+			if sErr != nil || st == nil || st.TenantID != k.TenantID {
+				return nil, errors.New("selected site does not belong to target tenant")
+			}
+			sid := st.ID
+			k.SiteID = &sid
+		}
+	}
 	k.AutoProvision = false
 	if err := s.repo.UpdateAPIKey(k); err != nil {
 		return nil, err
 	}
 	s.invalidateKeyCache()
+	if loaded, lErr := s.repo.GetAPIKeyByID(k.ID); lErr == nil && loaded != nil {
+		return loaded, nil
+	}
 	return k, nil
+}
+
+func (s *TenantService) ToggleAPIKey(id uint, enabled bool, autoProvision *bool, scope tenantctx.Scope, ip string) (*model.TenantAPIKey, error) {
+	return s.UpdateAPIKey(id, UpdateAPIKeyRequest{
+		Enabled:       &enabled,
+		AutoProvision: autoProvision,
+	}, scope, ip)
 }
 
 func (s *TenantService) DeleteAPIKey(id uint, scope tenantctx.Scope, ip string) error {

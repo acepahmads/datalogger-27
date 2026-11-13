@@ -141,6 +141,10 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		api.POST("/auth/login", authHandler.Login)
 		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
 		api.POST("/v1/ingest/telemetry", ingestHandler.IngestTelemetry)
+		api.POST("/ticks/create_multi", ingestHandler.IngestTelemetry)
+		api.POST("/v1/ticks/create_multi", ingestHandler.IngestTelemetry)
+		api.POST("/sparing_logs/create_multi", ingestHandler.IngestTelemetry)
+		api.POST("/v1/sparing_logs/create_multi", ingestHandler.IngestTelemetry)
 		api.POST("/ingest/mqtt", ingestHandler.IngestMQTT)
 		api.POST("/v1/ingest/mqtt", ingestHandler.IngestMQTT)
 

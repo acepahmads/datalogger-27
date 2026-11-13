@@ -81,6 +81,7 @@ type EdgeIngestResponse struct {
 	SiteCode               string   `json:"site_code"`
 	DeviceCode             string   `json:"device_code,omitempty"`
 	LoggerType             string   `json:"logger_type,omitempty"`
+	DetectedFormat         string   `json:"detected_format,omitempty"`
 	Source                 string   `json:"source,omitempty"`
 	DevicesProcessed       int      `json:"devices_processed"`
 	RecordsProcessed       int      `json:"records_processed"`
@@ -99,15 +100,36 @@ type edgeReading struct {
 }
 
 type edgeDeviceBatch struct {
-	LoggerType  string
-	SiteCode    string
-	StationHint string
-	DeviceCode  string
-	DeviceHint  string
-	DeviceName  string
-	RawTS       interface{}
-	Timestamp   *time.Time
-	Readings    []edgeReading
+	FormatFamily string // STANDARD_V1 | CBI_LEGACY
+	LoggerType   string
+	SiteCode     string
+	StationHint  string
+	DeviceCode   string
+	DeviceHint   string
+	DeviceName   string
+	RawTS        interface{}
+	Timestamp    *time.Time
+	Readings     []edgeReading
+}
+
+// legacyCBISensorAliases maps legacy CBI Cloud create_multi sensor_name tokens
+// to common normalized parameter codes registered on AQMS/SPARING/ONLIMO devices.
+var legacyCBISensorAliases = map[string][]string{
+	"temp":           {"temperature", "suhu", "ambienttemp", "airtemp"},
+	"temperature":    {"temp", "suhu"},
+	"pressure":       {"airpressure", "barometricpressure", "press", "tekananudara"},
+	"airpressure":    {"pressure", "press"},
+	"wspeed":         {"ws", "windspeed", "wspd", "kecepatanangin"},
+	"ws":             {"wspeed", "windspeed"},
+	"windangle":      {"wd", "winddirection", "winddir", "arahangin"},
+	"wd":             {"windangle", "winddirection"},
+	"intensity":      {"solarradiation", "sr", "solar", "radiasimatahari", "globalradiation"},
+	"sr":             {"intensity", "solarradiation"},
+	"tprecipitation": {"rainfall", "rain", "precipitation", "curahhujan"},
+	"rainintensity":  {"rainrate", "rainfall", "rain", "intensitashujan"},
+	"humidity":       {"rh", "relativehumidity", "hum", "kelembaban"},
+	"nh3n":           {"ammonia", "amonia", "nh3"},
+	"debit":          {"flow", "flowrate", "lajuair"},
 }
 
 var reservedEnvelopeKeys = map[string]bool{
@@ -463,7 +485,7 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 	rootDevName := stringField(root, "device_name", "name")
 	rootRawTS := rowTimestampFromMap(root, nil)
 
-	parseRowArray := func(rawRecs []interface{}, arrayLabel string, fallbackLoggerType string) ([]edgeDeviceBatch, error) {
+	parseRowArray := func(rawRecs []interface{}, arrayLabel string, fallbackLoggerType string, formatFamily string) ([]edgeDeviceBatch, error) {
 		if len(rawRecs) == 0 {
 			return nil, &IngestHTTPError{
 				StatusCode: 400,
@@ -519,14 +541,15 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 				lt = fallbackLoggerType
 			}
 			batches = append(batches, edgeDeviceBatch{
-				LoggerType:  lt,
-				SiteCode:    sCode,
-				StationHint: sHint,
-				DeviceCode:  dCode,
-				DeviceHint:  dHint,
-				DeviceName:  rootDevName,
-				RawTS:       recRawTS,
-				Readings:    readings,
+				FormatFamily: formatFamily,
+				LoggerType:   lt,
+				SiteCode:     sCode,
+				StationHint:  sHint,
+				DeviceCode:   dCode,
+				DeviceHint:   dHint,
+				DeviceName:   rootDevName,
+				RawTS:        recRawTS,
+				Readings:     readings,
 			})
 		}
 		return batches, nil
@@ -534,17 +557,17 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 
 	// 1. Mode B — Standardized Batch / Offline Backfill format: {"records": [ {"timestamp": "...", "values": {...}}, ... ]}
 	if rawRecs, ok := root["records"].([]interface{}); ok {
-		return parseRowArray(rawRecs, "records", "")
+		return parseRowArray(rawRecs, "records", "", model.IngestFormatStandardV1)
 	}
 
 	// 1b. Cloud CBI Multi 30x2-Minute SPARING format: {"module_id": "4", "station_id": "3", "hourly_data": [ {"ph": 7.03, ..., "created_at": "2026-11-12 08:00:00 +0700"}, ... ]}
 	if rawHourly, ok := root["hourly_data"].([]interface{}); ok {
-		return parseRowArray(rawHourly, "hourly_data", "SPARING")
+		return parseRowArray(rawHourly, "hourly_data", "SPARING", model.IngestFormatCBILegacy)
 	}
 
 	// 1c. KLHK SPARING Hourly 30x2-Minute format: {"uid": "...", "data": [ {"datetime": 1794445200, "pH": 7.03, "cod": 85.54, "tss": 19.21, "nh3n": 0, "debit": 0.23}, ... ]}
 	if rawDataArr, ok := root["data"].([]interface{}); ok && !isCodeValueReadingList(rawDataArr) {
-		return parseRowArray(rawDataArr, "data", "SPARING")
+		return parseRowArray(rawDataArr, "data", "SPARING", model.IngestFormatStandardV1)
 	}
 
 	// 1d. Cloud CBI Multi-Tick format: {"multi": [ {"tick": {"module_id": 4, "station_id": 3, "sensor_name": "ph", "value": 7.03, "created_at": "..."}}, ... ]}
@@ -595,18 +618,15 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 			gk := tickGroupKey{sHint: sHint, dHint: dHint, tsKey: tsKey}
 			grp, exists := groupMap[gk]
 			if !exists {
-				lt := rootLoggerType
-				if lt == "" {
-					lt = "SPARING"
-				}
 				grp = &edgeDeviceBatch{
-					LoggerType:  lt,
-					SiteCode:    rootSiteCode,
-					StationHint: sHint,
-					DeviceCode:  rootDevCode,
-					DeviceHint:  dHint,
-					DeviceName:  rootDevName,
-					RawTS:       rawTS,
+					FormatFamily: model.IngestFormatCBILegacy,
+					LoggerType:   rootLoggerType,
+					SiteCode:     rootSiteCode,
+					StationHint:  sHint,
+					DeviceCode:   rootDevCode,
+					DeviceHint:   dHint,
+					DeviceName:   rootDevName,
+					RawTS:        rawTS,
 				}
 				groupMap[gk] = grp
 				groupOrder = append(groupOrder, gk)
@@ -680,14 +700,15 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 					}
 					if len(recReadings) > 0 {
 						batches = append(batches, edgeDeviceBatch{
-							LoggerType:  lt,
-							SiteCode:    sCode,
-							StationHint: sHint,
-							DeviceCode:  dCode,
-							DeviceHint:  dHint,
-							DeviceName:  dName,
-							RawTS:       recTS,
-							Readings:    recReadings,
+							FormatFamily: model.IngestFormatStandardV1,
+							LoggerType:   lt,
+							SiteCode:     sCode,
+							StationHint:  sHint,
+							DeviceCode:   dCode,
+							DeviceHint:   dHint,
+							DeviceName:   dName,
+							RawTS:        recTS,
+							Readings:     recReadings,
 						})
 					}
 				}
@@ -705,14 +726,15 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 			}
 			if len(readings) > 0 {
 				batches = append(batches, edgeDeviceBatch{
-					LoggerType:  lt,
-					SiteCode:    sCode,
-					StationHint: sHint,
-					DeviceCode:  dCode,
-					DeviceHint:  dHint,
-					DeviceName:  dName,
-					RawTS:       devRawTS,
-					Readings:    readings,
+					FormatFamily: model.IngestFormatStandardV1,
+					LoggerType:   lt,
+					SiteCode:     sCode,
+					StationHint:  sHint,
+					DeviceCode:   dCode,
+					DeviceHint:   dHint,
+					DeviceName:   dName,
+					RawTS:        devRawTS,
+					Readings:     readings,
 				})
 			}
 		}
@@ -757,16 +779,41 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 
 	return []edgeDeviceBatch{
 		{
-			LoggerType:  rootLoggerType,
-			SiteCode:    rootSiteCode,
-			StationHint: rootStationHint,
-			DeviceCode:  rootDevCode,
-			DeviceHint:  rootDevHint,
-			DeviceName:  rootDevName,
-			RawTS:       rootRawTS,
-			Readings:    readings,
+			FormatFamily: model.IngestFormatStandardV1,
+			LoggerType:   rootLoggerType,
+			SiteCode:     rootSiteCode,
+			StationHint:  rootStationHint,
+			DeviceCode:   rootDevCode,
+			DeviceHint:   rootDevHint,
+			DeviceName:   rootDevName,
+			RawTS:        rootRawTS,
+			Readings:     readings,
 		},
 	}, nil
+}
+
+func validateBatchFormatPolicy(batchFmt, policyFmt, ownerLabel string) error {
+	normPolicy := model.NormalizeIngestFormat(policyFmt)
+	if normPolicy == model.IngestFormatAuto {
+		return nil
+	}
+	normBatch := model.NormalizeIngestFormat(batchFmt)
+	if normBatch == model.IngestFormatAuto {
+		normBatch = model.IngestFormatStandardV1
+	}
+	if normPolicy == model.IngestFormatStandardV1 && normBatch == model.IngestFormatCBILegacy {
+		return &IngestHTTPError{
+			StatusCode: 400,
+			Message:    fmt.Sprintf("Payload ditolak: %s diatur hanya menerima Format Standar Baru (STANDARD_V1), sedangkan data menggunakan Format Cloud Lama (create_multi). Ubah switch format ke AUTO atau CBI_LEGACY untuk menerima format lama.", ownerLabel),
+		}
+	}
+	if normPolicy == model.IngestFormatCBILegacy && normBatch != model.IngestFormatCBILegacy {
+		return &IngestHTTPError{
+			StatusCode: 400,
+			Message:    fmt.Sprintf("Payload ditolak: %s diatur khusus Format Cloud Lama (CBI_LEGACY / create_multi), sedangkan data menggunakan Format Standar Baru. Ubah switch format ke AUTO atau STANDARD_V1 untuk menerima format baru.", ownerLabel),
+		}
+	}
+	return nil
 }
 
 // normalizeParamMatchKey strips non-alphanumeric separators (e.g. "PM2.5" -> "pm25", "NH3-N" -> "nh3n")
@@ -835,6 +882,11 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 	for i := range batches {
 		batch := &batches[i]
 
+		// Enforce Bearer Token-level Inbound Format Switch (AUTO | STANDARD_V1 | CBI_LEGACY)
+		if err := validateBatchFormatPolicy(batch.FormatFamily, apiKey.IngestFormat, fmt.Sprintf("Bearer Token '%s'", apiKey.Name)); err != nil {
+			return nil, err
+		}
+
 		// 1. Strict Manual Site Resolution (NO Auto-Create)
 		var site *model.Site
 		if apiKey.SiteID != nil && *apiKey.SiteID > 0 {
@@ -867,7 +919,10 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			}
 		} else {
 			if sHint := strings.TrimSpace(batch.StationHint); sHint != "" {
-				site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, model.NormalizeSlugCode(sHint))
+				site, _ = s.tenantService.GetRepo().GetSiteByLegacyStationID(tenantID, sHint)
+				if site == nil {
+					site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, model.NormalizeSlugCode(sHint))
+				}
 				if site == nil {
 					site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, sHint)
 				}
@@ -881,9 +936,16 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			}
 			if site == nil {
 				if dHint := strings.TrimSpace(batch.DeviceHint); dHint != "" {
-					if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, dHint); d != nil && d.SiteID > 0 {
+					if d, _ := s.deviceRepo.GetByLegacyModuleIDInTenant(tenantID, dHint); d != nil && d.SiteID > 0 {
 						if st, _ := s.tenantService.GetRepo().GetSiteByID(d.SiteID); st != nil && st.TenantID == tenantID && st.Enabled {
 							site = st
+						}
+					}
+					if site == nil {
+						if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, dHint); d != nil && d.SiteID > 0 {
+							if st, _ := s.tenantService.GetRepo().GetSiteByID(d.SiteID); st != nil && st.TenantID == tenantID && st.Enabled {
+								site = st
+							}
 						}
 					}
 				}
@@ -906,6 +968,11 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			}
 		}
 
+		// Enforce Station-level Inbound Format Switch (AUTO | STANDARD_V1 | CBI_LEGACY)
+		if err := validateBatchFormatPolicy(batch.FormatFamily, site.IngestFormat, fmt.Sprintf("Stasiun '%s'", site.Code)); err != nil {
+			return nil, err
+		}
+
 		// 2. Strict Manual Device Resolution (NO Auto-Create)
 		var dev *model.Device
 		devCode := strings.TrimSpace(batch.DeviceCode)
@@ -924,8 +991,11 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				}
 			}
 		} else {
-			if devHint := strings.TrimSpace(batch.DeviceHint); devHint != "" {
-				if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, devHint); d != nil && d.SiteID == site.ID && d.Enabled {
+			devHint := strings.TrimSpace(batch.DeviceHint)
+			if devHint != "" {
+				if d, _ := s.deviceRepo.GetByLegacyModuleIDInSite(tenantID, site.ID, devHint); d != nil && d.Enabled {
+					dev = d
+				} else if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, devHint); d != nil && d.SiteID == site.ID && d.Enabled {
 					dev = d
 				} else if parsedDevID, pErr := strconv.ParseUint(devHint, 10, 64); pErr == nil && parsedDevID > 0 {
 					if dByID, _ := s.deviceRepo.GetByID(uint(parsedDevID)); dByID != nil && dByID.TenantID == tenantID && dByID.SiteID == site.ID && dByID.Enabled {
@@ -942,6 +1012,12 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 					PageSize: 10,
 				})
 				if len(siteDevs) == 1 {
+					if devHint != "" && strings.TrimSpace(siteDevs[0].LegacyModuleID) != "" && !strings.EqualFold(strings.TrimSpace(siteDevs[0].LegacyModuleID), devHint) {
+						return nil, &IngestHTTPError{
+							StatusCode: 404,
+							Message:    fmt.Sprintf("Device dengan module_id '%s' tidak cocok pada stasiun '%s' (Legacy Module ID terdaftar: '%s')", devHint, site.Code, siteDevs[0].LegacyModuleID),
+						}
+					}
 					dev = &siteDevs[0]
 				} else if len(siteDevs) == 0 {
 					return nil, &IngestHTTPError{
@@ -951,7 +1027,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				} else {
 					return nil, &IngestHTTPError{
 						StatusCode: 400,
-						Message:    fmt.Sprintf("Station '%s' has %d active devices; please specify 'device_code' in JSON payload", site.Code, len(siteDevs)),
+						Message:    fmt.Sprintf("Station '%s' has %d active devices; please specify 'device_code' or configure matching Legacy Module ID ('module_id') on the target device", site.Code, len(siteDevs)),
 					}
 				}
 			}
@@ -1060,12 +1136,16 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		lastSiteCode     string
 		lastDevCode      string
 		lastLoggerType   string
+		lastDetectedFmt  string
 	)
 
 	for _, item := range resolved {
 		lastSiteID = item.site.ID
 		lastSiteCode = item.site.Code
 		lastDevCode = item.dev.DeviceCode
+		if item.batch.FormatFamily != "" {
+			lastDetectedFmt = item.batch.FormatFamily
+		}
 		if item.batch.LoggerType != "" {
 			lastLoggerType = item.batch.LoggerType
 		} else if lastLoggerType == "" {
@@ -1076,6 +1156,21 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		recTS := item.ts
 		recordIngestedCount := 0
 
+		// Pre-mark direct exact/normalized parameter matches in this batch so legacy alias fallback never collides with them
+		usedParamIDsInRecord := make(map[uint]bool, len(item.batch.Readings))
+		for _, r := range item.batch.Readings {
+			rc := strings.TrimSpace(r.Code)
+			p := bundle.exact[strings.ToUpper(rc)]
+			if p == nil {
+				if nk := normalizeParamMatchKey(rc); nk != "" {
+					p = bundle.norm[nk]
+				}
+			}
+			if p != nil {
+				usedParamIDsInRecord[p.ID] = true
+			}
+		}
+
 		for _, r := range item.batch.Readings {
 			rawCode := strings.TrimSpace(r.Code)
 			upperKey := strings.ToUpper(rawCode)
@@ -1083,6 +1178,20 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			if param == nil {
 				if nk := normalizeParamMatchKey(rawCode); nk != "" {
 					param = bundle.norm[nk]
+				}
+			}
+			// Legacy CBI create_multi sensor_name alias fallback (e.g. temp->temperature, pressure->air-pressure, intensity->solar-radiation, tprecipitation->rain-fall)
+			if param == nil && item.batch.FormatFamily == model.IngestFormatCBILegacy {
+				if nk := normalizeParamMatchKey(rawCode); nk != "" {
+					if cands, hasAlias := legacyCBISensorAliases[nk]; hasAlias {
+						for _, cand := range cands {
+							if p := bundle.norm[cand]; p != nil && !usedParamIDsInRecord[p.ID] {
+								param = p
+								usedParamIDsInRecord[p.ID] = true
+								break
+							}
+						}
+					}
 				}
 			}
 
@@ -1213,6 +1322,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		SiteCode:               lastSiteCode,
 		DeviceCode:             lastDevCode,
 		LoggerType:             lastLoggerType,
+		DetectedFormat:         lastDetectedFmt,
 		Source:                 source,
 		DevicesProcessed:       len(touchedDevices),
 		RecordsProcessed:       len(resolved),
@@ -1307,12 +1417,14 @@ type PayloadTemplateResponse struct {
 	SiteCode             string                   `json:"site_code"`
 	DeviceCode           string                   `json:"device_code"`
 	EndpointURL          string                   `json:"endpoint_url"`
+	LegacyEndpointURL    string                   `json:"legacy_endpoint_url,omitempty"`
 	MQTTEndpointURL      string                   `json:"mqtt_endpoint_url"`
 	MQTTTopic            string                   `json:"mqtt_topic"`
 	RegisteredParameters []RegisteredParamSummary `json:"registered_parameters"`
 	UsingActualParams    bool                     `json:"using_actual_params"`
 	SinglePayload        map[string]interface{}   `json:"single_payload"`
 	BatchPayload         map[string]interface{}   `json:"batch_payload"`
+	CBIMultiTickPayload  map[string]interface{}   `json:"cbi_multi_tick_payload,omitempty"`
 	CBIHourlyPayload     map[string]interface{}   `json:"cbi_hourly_payload,omitempty"`
 	SparingHourlyPayload map[string]interface{}   `json:"sparing_hourly_payload,omitempty"`
 	CurlBearerCommand    string                   `json:"curl_bearer_command"`
@@ -1564,8 +1676,56 @@ func (s *IngestService) BuildPayloadTemplate(scope tenantctx.Scope, siteID, devi
 	}
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	endpointURL := baseURL + "/api/v1/ingest/telemetry"
+	legacyEndpointURL := baseURL + "/api/v1/ticks/create_multi"
 	mqttEndpointURL := baseURL + "/api/v1/ingest/mqtt"
 	mqttTopic := fmt.Sprintf("datalogger/ingest/%s/%s", siteCode, devCode)
+
+	var legacyModID interface{} = 199
+	if dev != nil {
+		if lm := strings.TrimSpace(dev.LegacyModuleID); lm != "" {
+			if n, pErr := strconv.ParseInt(lm, 10, 64); pErr == nil {
+				legacyModID = n
+			} else {
+				legacyModID = lm
+			}
+		} else if dev.ID > 0 {
+			legacyModID = dev.ID
+		}
+	}
+	var legacyStID interface{} = 202
+	if site != nil {
+		if ls := strings.TrimSpace(site.LegacyStationID); ls != "" {
+			if n, pErr := strconv.ParseInt(ls, 10, 64); pErr == nil {
+				legacyStID = n
+			} else {
+				legacyStID = ls
+			}
+		} else if site.ID > 0 {
+			legacyStID = site.ID
+		}
+	}
+	paramKeys := make([]string, 0, len(values1))
+	for k := range values1 {
+		paramKeys = append(paramKeys, k)
+	}
+	sort.Strings(paramKeys)
+	multiTicks := make([]map[string]interface{}, 0, len(paramKeys))
+	tickTSStr := nowLocal.Format(time.RFC3339)
+	for _, k := range paramKeys {
+		multiTicks = append(multiTicks, map[string]interface{}{
+			"tick": map[string]interface{}{
+				"module_id":   legacyModID,
+				"station_id":  legacyStID,
+				"sensor_name": k,
+				"value":       values1[k],
+				"created_at":  tickTSStr,
+				"updated_at":  tickTSStr,
+			},
+		})
+	}
+	cbiMultiTickPayload := map[string]interface{}{
+		"multi": multiTicks,
+	}
 
 	prettySingle, _ := json.MarshalIndent(singlePayload, "", "  ")
 	curlCmd := fmt.Sprintf(
@@ -1578,12 +1738,14 @@ func (s *IngestService) BuildPayloadTemplate(scope tenantctx.Scope, siteID, devi
 		SiteCode:             siteCode,
 		DeviceCode:           devCode,
 		EndpointURL:          endpointURL,
+		LegacyEndpointURL:    legacyEndpointURL,
 		MQTTEndpointURL:      mqttEndpointURL,
 		MQTTTopic:            mqttTopic,
 		RegisteredParameters: regParams,
 		UsingActualParams:    usingActual,
 		SinglePayload:        singlePayload,
 		BatchPayload:         batchPayload,
+		CBIMultiTickPayload:  cbiMultiTickPayload,
 		CBIHourlyPayload:     cbiHourlyPayload,
 		SparingHourlyPayload: sparingHourlyPayload,
 		CurlBearerCommand:    curlCmd,

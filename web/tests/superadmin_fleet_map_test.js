@@ -95,6 +95,12 @@ assert(
   'FleetMapView must use 100% free no-API-key Esri ArcGIS Online & OpenStreetMap tiles'
 );
 assert(fleetViewCode.includes('fetchFleetOverviewFallback'), 'FleetMapView must gracefully fall back if Go binary has not been restarted yet');
+assert(
+  fleetViewCode.includes('@coordinate-change="onPickStationGps"') &&
+  fleetViewCode.includes('@location-selected="onSelectStationLocation"') &&
+  !fleetViewCode.includes('@pick-coordinates='),
+  'FleetMapView GPS modal must bind StationMapViewer @coordinate-change and @location-selected so searched/selected locations auto-fill Latitude, Longitude, and Address'
+);
 
 // 5. Light-Mode CSS Hygiene Check (No bare text-white without btn-text or badge-text, and no bg-slate-900 + text-white)
 const classRegex = /class="([^"]*)"/g;

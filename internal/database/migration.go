@@ -4310,6 +4310,9 @@ func bootstrapMultiTenantParentTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&model.Site{}); err != nil {
 		return err
 	}
+	if db.Migrator().HasColumn("sites", "ingest_format") {
+		_ = db.Exec("UPDATE sites SET ingest_format = 'AUTO' WHERE ingest_format IS NULL OR ingest_format = ''").Error
+	}
 	if err := ensureDefaultSiteRecord(db); err != nil {
 		return err
 	}
@@ -4324,6 +4327,9 @@ func bootstrapMultiTenantParentTables(db *gorm.DB) error {
 	}
 	if err := db.AutoMigrate(&model.TenantAPIKey{}); err != nil {
 		return err
+	}
+	if db.Migrator().HasColumn("tenant_api_keys", "ingest_format") {
+		_ = db.Exec("UPDATE tenant_api_keys SET ingest_format = 'AUTO' WHERE ingest_format IS NULL OR ingest_format = ''").Error
 	}
 
 	// Sanitize any already-added child FK columns (e.g. recovering from an interrupted upgrade)

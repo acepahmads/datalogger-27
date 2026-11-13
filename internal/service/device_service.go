@@ -51,6 +51,7 @@ type CreateDeviceRequest struct {
 	Model           string                  `json:"model"`
 	SerialNumber    string                  `json:"serial_number"`
 	FirmwareVersion string                  `json:"firmware_version"`
+	LegacyModuleID  string                  `json:"legacy_module_id"`
 	Description     string                  `json:"description"`
 	Location        string                  `json:"location"`
 	Latitude        *float64                `json:"latitude"`
@@ -72,6 +73,7 @@ type UpdateDeviceRequest struct {
 	Model           *string                  `json:"model"`
 	SerialNumber    *string                  `json:"serial_number"`
 	FirmwareVersion *string                  `json:"firmware_version"`
+	LegacyModuleID  *string                  `json:"legacy_module_id"`
 	Description     *string                  `json:"description"`
 	Location        *string                  `json:"location"`
 	Latitude        *float64                 `json:"latitude"`
@@ -788,6 +790,7 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 		Model:            strings.TrimSpace(req.Model),
 		SerialNumber:     strings.TrimSpace(req.SerialNumber),
 		FirmwareVersion:  strings.TrimSpace(req.FirmwareVersion),
+		LegacyModuleID:   strings.TrimSpace(req.LegacyModuleID),
 		Description:      strings.TrimSpace(req.Description),
 		Location:         strings.TrimSpace(req.Location),
 		Latitude:         req.Latitude,
@@ -910,6 +913,9 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 	}
 	if req.FirmwareVersion != nil {
 		device.FirmwareVersion = strings.TrimSpace(*req.FirmwareVersion)
+	}
+	if req.LegacyModuleID != nil {
+		device.LegacyModuleID = strings.TrimSpace(*req.LegacyModuleID)
 	}
 	if req.Description != nil {
 		device.Description = strings.TrimSpace(*req.Description)

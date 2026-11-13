@@ -372,19 +372,12 @@ func (h *TenantHandler) ToggleAPIKey(c *gin.Context) {
 		response.BadRequest(c, "Invalid API key ID")
 		return
 	}
-	var req struct {
-		Enabled       *bool `json:"enabled"`
-		AutoProvision *bool `json:"auto_provision"`
-	}
+	var req service.UpdateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid API key update payload: "+err.Error())
 		return
 	}
-	enabled := true
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-	updated, err := h.tenantService.ToggleAPIKey(uint(id), enabled, req.AutoProvision, scope, c.ClientIP())
+	updated, err := h.tenantService.UpdateAPIKey(uint(id), req, scope, c.ClientIP())
 	if err != nil {
 		lower := strings.ToLower(err.Error())
 		if strings.Contains(lower, "access denied") {

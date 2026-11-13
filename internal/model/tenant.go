@@ -10,7 +10,23 @@ import (
 const (
 	TenantStatusActive    = "ACTIVE"
 	TenantStatusSuspended = "SUSPENDED"
+
+	IngestFormatAuto       = "AUTO"
+	IngestFormatStandardV1 = "STANDARD_V1"
+	IngestFormatCBILegacy  = "CBI_LEGACY"
 )
+
+// NormalizeIngestFormat normalizes an inbound telemetry format mode to AUTO, STANDARD_V1, or CBI_LEGACY.
+func NormalizeIngestFormat(raw string) string {
+	switch strings.ToUpper(strings.TrimSpace(raw)) {
+	case IngestFormatStandardV1, "STANDARD", "V1":
+		return IngestFormatStandardV1
+	case IngestFormatCBILegacy, "LEGACY", "CREATE_MULTI", "CBI_MULTI":
+		return IngestFormatCBILegacy
+	default:
+		return IngestFormatAuto
+	}
+}
 
 // Tenant represents an isolated organization, company, or environmental agency on the platform.
 type Tenant struct {
@@ -64,6 +80,8 @@ type Site struct {
 	Description      string         `gorm:"size:255" json:"description,omitempty"`
 	MonitoringDomain string         `gorm:"size:32;not null;default:'AQMS';index" json:"monitoring_domain"` // AQMS | SPARING | WQMS
 	StationTypeMode  string         `gorm:"size:32;default:'MANUAL'" json:"station_type_mode"`              // MANUAL | AUTO
+	IngestFormat     string         `gorm:"size:32;default:'AUTO'" json:"ingest_format"`                    // AUTO | STANDARD_V1 | CBI_LEGACY
+	LegacyStationID  string         `gorm:"size:64;index" json:"legacy_station_id,omitempty"`               // Legacy Cloud station_id (e.g. "202")
 	Latitude         *float64       `json:"latitude"`
 	Longitude        *float64       `json:"longitude"`
 	LocationSource   string         `gorm:"size:32;default:'UNCONFIGURED'" json:"location_source"`
@@ -95,6 +113,8 @@ func (s *Site) BeforeSave(tx *gorm.DB) error {
 	if strings.TrimSpace(s.StationTypeMode) == "" {
 		s.StationTypeMode = "MANUAL"
 	}
+	s.IngestFormat = NormalizeIngestFormat(s.IngestFormat)
+	s.LegacyStationID = strings.TrimSpace(s.LegacyStationID)
 	if strings.TrimSpace(s.Timezone) == "" {
 		s.Timezone = "Asia/Jakarta"
 	}
@@ -117,6 +137,7 @@ type TenantAPIKey struct {
 	Name          string     `gorm:"size:128;not null" json:"name"`
 	KeyPrefix     string     `gorm:"size:32;index;not null" json:"key_prefix"`
 	KeyHash       string     `gorm:"size:128;uniqueIndex;not null" json:"-"`
+	IngestFormat  string     `gorm:"size:32;default:'AUTO'" json:"ingest_format"` // AUTO | STANDARD_V1 | CBI_LEGACY
 	AutoProvision bool       `gorm:"default:false" json:"auto_provision"`
 	Enabled       bool       `gorm:"default:true;index" json:"enabled"`
 	LastUsedAt    *time.Time `json:"last_used_at,omitempty"`
@@ -129,6 +150,11 @@ type TenantAPIKey struct {
 
 func (TenantAPIKey) TableName() string {
 	return "tenant_api_keys"
+}
+
+func (k *TenantAPIKey) BeforeSave(tx *gorm.DB) error {
+	k.IngestFormat = NormalizeIngestFormat(k.IngestFormat)
+	return nil
 }
 
 // NormalizeSlugCode converts an arbitrary code/slug into lowercase alphanumeric + hyphen format.

@@ -346,3 +346,264 @@ func TestCloudMode_Sparing30x2HourlyIngestFormatsAndAggregationRecalc(t *testing
 			len(stdRecs), len(cbiTplRows), len(klhkTplRows))
 	}
 }
+
+func TestCloudMode_LegacyCBICreateMultiTickAndFormatSwitch(t *testing.T) {
+	env := setupMultiTenantTestEnv(t)
+
+	if g := config.Get(); g != nil {
+		g.CloudMode = true
+		g.MonitoringDomain = "CLOUD"
+		g.SensorPollingEnabled = false
+	}
+
+	// 1. Create Tenant + two AQMS Stations (to verify dynamic station_id: 202 routing on an unlocked token!)
+	wTenant := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
+		"name":   "PT Udara Bersih Legacy CBI",
+		"code":   "pt-udara-cbi",
+		"status": "ACTIVE",
+	})
+	if wTenant.Code != http.StatusCreated && wTenant.Code != http.StatusOK {
+		t.Fatalf("create tenant failed (%d): %s", wTenant.Code, wTenant.Body.String())
+	}
+	var createdTenant struct {
+		Data struct {
+			Tenant model.Tenant `json:"tenant"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wTenant.Body.Bytes(), &createdTenant)
+	tenantID := createdTenant.Data.Tenant.ID
+
+	// Create AQMS station mapped to legacy_station_id = "202"
+	wSite := doJSONReq(t, env.Router, "POST", "/api/sites", env.SuperAdminToken, nil, map[string]interface{}{
+		"tenant_id":         tenantID,
+		"name":              "AQMS Stasiun 202",
+		"code":              "aqms-stasiun-202",
+		"monitoring_domain": "AQMS",
+		"ingest_format":     "AUTO",
+		"legacy_station_id": "202",
+		"timezone":          "Asia/Jakarta",
+		"enabled":           true,
+	})
+	if wSite.Code != http.StatusCreated && wSite.Code != http.StatusOK {
+		t.Fatalf("create AQMS site failed (%d): %s", wSite.Code, wSite.Body.String())
+	}
+	var createdSite struct {
+		Data model.Site `json:"data"`
+	}
+	_ = json.Unmarshal(wSite.Body.Bytes(), &createdSite)
+	siteID := createdSite.Data.ID
+
+	// 2. Create two EDGE_PUSH devices in site 202 so module_id: 199 must route specifically to the second device!
+	_ = doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": fmt.Sprintf("%d", tenantID),
+	}, map[string]interface{}{
+		"site_id":          siteID,
+		"device_code":      "AQMS-OTHER-MOD",
+		"device_name":      "Other Module",
+		"legacy_module_id": "188",
+		"device_type":      "EDGE_PUSH",
+		"enabled":          true,
+		"connection": map[string]interface{}{
+			"protocol":        "EDGE_PUSH",
+			"connection_type": "HTTPS_PUSH",
+			"timeout":         300,
+			"enabled":         true,
+		},
+	})
+
+	wDev := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": fmt.Sprintf("%d", tenantID),
+	}, map[string]interface{}{
+		"site_id":          siteID,
+		"device_code":      "AQMS-MOD-199",
+		"device_name":      "AQMS Main Logger 199",
+		"legacy_module_id": "199",
+		"device_type":      "EDGE_PUSH",
+		"enabled":          true,
+		"connection": map[string]interface{}{
+			"protocol":        "EDGE_PUSH",
+			"connection_type": "HTTPS_PUSH",
+			"timeout":         300,
+			"enabled":         true,
+		},
+	})
+	if wDev.Code != http.StatusCreated && wDev.Code != http.StatusOK {
+		t.Fatalf("create AQMS device 199 failed (%d): %s", wDev.Code, wDev.Body.String())
+	}
+	var devResp struct {
+		Data model.Device `json:"data"`
+	}
+	_ = json.Unmarshal(wDev.Body.Bytes(), &devResp)
+	devID := devResp.Data.ID
+
+	// Register the 14 manual AQMS parameter codes (matching production setup)
+	aqmsParamCodes := []string{
+		"air-pressure", "co", "hc", "humidity", "no2", "o3", "pm10", "pm2.5",
+		"rain-fall", "so2", "temperature", "solar-radiation", "w-speed", "wind-angle",
+	}
+	for _, code := range aqmsParamCodes {
+		wP := doJSONReq(t, env.Router, "POST", fmt.Sprintf("/api/devices/%d/parameters", devID), env.SuperAdminToken, map[string]string{
+			"X-Tenant-ID": fmt.Sprintf("%d", tenantID),
+		}, map[string]interface{}{
+			"parameter_code": code,
+			"parameter_name": code,
+			"unit":           "ug/m3",
+			"data_type":      "FLOAT32",
+			"precision":      3,
+		})
+		if wP.Code != http.StatusCreated && wP.Code != http.StatusOK {
+			t.Fatalf("create param %s failed (%d): %s", code, wP.Code, wP.Body.String())
+		}
+	}
+
+	// 3. Create Bearer Token with Custom Legacy Token + IngestFormat = CBI_LEGACY (Tenant-wide, unlocked site_id!)
+	customBearer := "legacy_cbi_cloud_token_station202_mod199"
+	wKey := doJSONReq(t, env.Router, "POST", "/api/ingest-keys", env.SuperAdminToken, nil, map[string]interface{}{
+		"tenant_id":     tenantID,
+		"name":          "Token Logger Lama 202",
+		"ingest_format": "CBI_LEGACY",
+		"custom_token":  customBearer,
+	})
+	if wKey.Code != http.StatusCreated && wKey.Code != http.StatusOK {
+		t.Fatalf("create custom legacy ingest key failed (%d): %s", wKey.Code, wKey.Body.String())
+	}
+	var keyResp struct {
+		Data struct {
+			Key      model.TenantAPIKey `json:"key"`
+			PlainKey string             `json:"plain_key"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wKey.Body.Bytes(), &keyResp)
+	keyID := keyResp.Data.Key.ID
+	if keyResp.Data.PlainKey != customBearer {
+		t.Fatalf("expected custom plain_key %q, got %q", customBearer, keyResp.Data.PlainKey)
+	}
+	if keyResp.Data.Key.IngestFormat != model.IngestFormatCBILegacy {
+		t.Fatalf("expected key ingest_format=CBI_LEGACY, got %q", keyResp.Data.Key.IngestFormat)
+	}
+
+	// 4. Send exact 15-sensor legacy CBI multi[tick] payload to POST /api/v1/ticks/create_multi with Authorization: Bearer ...
+	tsStr := time.Now().UTC().Add(-1 * time.Minute).Format(time.RFC3339)
+	legacyPayload := map[string]interface{}{
+		"multi": []map[string]interface{}{
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "no2", "value": 14.236, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "so2", "value": 5.673, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "o3", "value": 70.782, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "co", "value": 586.191, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "pm25", "value": 34.811, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "pm10", "value": 66.176, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "temp", "value": 32.941, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "humidity", "value": 63.874, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "pressure", "value": 1007.5, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "wspeed", "value": 3.543, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "intensity", "value": 813.654, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "tprecipitation", "value": 0.4, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "hc", "value": 4.686, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "wind_angle", "value": 237.4, "created_at": tsStr, "updated_at": tsStr}},
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "rain_intensity", "value": 0, "created_at": tsStr, "updated_at": tsStr}},
+		},
+	}
+
+	wLegacy := doJSONReq(t, env.Router, "POST", "/api/v1/ticks/create_multi", customBearer, nil, legacyPayload)
+	if wLegacy.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/ticks/create_multi failed (%d): %s", wLegacy.Code, wLegacy.Body.String())
+	}
+	var legacyResp struct {
+		Data service.EdgeIngestResponse `json:"data"`
+	}
+	_ = json.Unmarshal(wLegacy.Body.Bytes(), &legacyResp)
+	if legacyResp.Data.SiteCode != "aqms-stasiun-202" || legacyResp.Data.DeviceCode != "AQMS-MOD-199" {
+		t.Fatalf("expected routing to aqms-stasiun-202 / AQMS-MOD-199 via station_id:202 & module_id:199, got %s / %s",
+			legacyResp.Data.SiteCode, legacyResp.Data.DeviceCode)
+	}
+	if legacyResp.Data.LoggerType != "AQMS" {
+		t.Fatalf("expected LoggerType=AQMS (inherited from site domain), got %s", legacyResp.Data.LoggerType)
+	}
+	if legacyResp.Data.DetectedFormat != model.IngestFormatCBILegacy {
+		t.Fatalf("expected detected_format=CBI_LEGACY, got %s", legacyResp.Data.DetectedFormat)
+	}
+	if legacyResp.Data.ParametersIngested != 14 || legacyResp.Data.ParametersSkipped != 1 {
+		t.Fatalf("expected 14 parameters_ingested and 1 skipped (duplicate rain_intensity), got ingested=%d skipped=%d",
+			legacyResp.Data.ParametersIngested, legacyResp.Data.ParametersSkipped)
+	}
+
+	// Verify aliased values landed on exact registered parameter codes
+	expectedVals := map[string]float64{
+		"pm2.5":           34.811,
+		"temperature":     32.941,
+		"air-pressure":    1007.5,
+		"w-speed":         3.543,
+		"solar-radiation": 813.654,
+		"rain-fall":       0.4,
+		"wind-angle":      237.4,
+	}
+	for code, want := range expectedVals {
+		var p model.Parameter
+		if err := env.DB.Where("device_id = ? AND parameter_code = ?", devID, code).First(&p).Error; err != nil {
+			t.Fatalf("fetch param %s failed: %v", code, err)
+		}
+		if p.CurrentValue == nil || *p.CurrentValue != want {
+			t.Fatalf("param %s expected CurrentValue=%v, got %v", code, want, p.CurrentValue)
+		}
+	}
+
+	// 5. Verify Format Switch Enforcement:
+	// 5a. Token is currently CBI_LEGACY -> STANDARD_V1 payload MUST be rejected (HTTP 400)
+	stdPayload := map[string]interface{}{
+		"logger_type": "AQMS",
+		"site_code":   "aqms-stasiun-202",
+		"device_code": "AQMS-MOD-199",
+		"timestamp":   tsStr,
+		"values": map[string]interface{}{
+			"no2":   15.1,
+			"pm2.5": 31.2,
+		},
+	}
+	wRejectStd := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", customBearer, nil, stdPayload)
+	if wRejectStd.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400 when pushing STANDARD_V1 to CBI_LEGACY token, got %d: %s", wRejectStd.Code, wRejectStd.Body.String())
+	}
+
+	// 5b. Live-switch Token to STANDARD_V1 via PUT /api/ingest-keys/:id
+	wSwitchStd := doJSONReq(t, env.Router, "PUT", fmt.Sprintf("/api/ingest-keys/%d", keyID), env.SuperAdminToken, nil, map[string]interface{}{
+		"ingest_format": "STANDARD_V1",
+	})
+	if wSwitchStd.Code != http.StatusOK {
+		t.Fatalf("switch token ingest_format to STANDARD_V1 failed (%d): %s", wSwitchStd.Code, wSwitchStd.Body.String())
+	}
+
+	// Legacy multi[tick] MUST now be rejected (HTTP 400), while STANDARD_V1 MUST succeed (HTTP 200)!
+	wRejectLegacy := doJSONReq(t, env.Router, "POST", "/api/v1/ticks/create_multi", customBearer, nil, legacyPayload)
+	if wRejectLegacy.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400 when pushing CBI_LEGACY to STANDARD_V1 token, got %d: %s", wRejectLegacy.Code, wRejectLegacy.Body.String())
+	}
+	wAcceptStd := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", customBearer, nil, stdPayload)
+	if wAcceptStd.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200 when pushing STANDARD_V1 to STANDARD_V1 token, got %d: %s", wAcceptStd.Code, wAcceptStd.Body.String())
+	}
+
+	// 5c. Live-switch Token to AUTO -> BOTH formats succeed!
+	wSwitchAuto := doJSONReq(t, env.Router, "PUT", fmt.Sprintf("/api/ingest-keys/%d", keyID), env.SuperAdminToken, nil, map[string]interface{}{
+		"ingest_format": "AUTO",
+	})
+	if wSwitchAuto.Code != http.StatusOK {
+		t.Fatalf("switch token ingest_format to AUTO failed (%d): %s", wSwitchAuto.Code, wSwitchAuto.Body.String())
+	}
+	if wBoth1 := doJSONReq(t, env.Router, "POST", "/api/ticks/create_multi", customBearer, nil, legacyPayload); wBoth1.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200 on /api/ticks/create_multi in AUTO mode, got %d: %s", wBoth1.Code, wBoth1.Body.String())
+	}
+	if wBoth2 := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", customBearer, nil, stdPayload); wBoth2.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200 on /api/v1/ingest/telemetry in AUTO mode, got %d: %s", wBoth2.Code, wBoth2.Body.String())
+	}
+
+	// 5d. Station-level switch: set Site ingest_format to CBI_LEGACY -> blocks STANDARD_V1 even when token is AUTO
+	wSiteSwitch := doJSONReq(t, env.Router, "PUT", fmt.Sprintf("/api/sites/%d", siteID), env.SuperAdminToken, nil, map[string]interface{}{
+		"ingest_format": "CBI_LEGACY",
+	})
+	if wSiteSwitch.Code != http.StatusOK {
+		t.Fatalf("switch site ingest_format failed (%d): %s", wSiteSwitch.Code, wSiteSwitch.Body.String())
+	}
+	if wSiteBlock := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", customBearer, nil, stdPayload); wSiteBlock.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400 when station ingest_format=CBI_LEGACY receives STANDARD_V1, got %d: %s", wSiteBlock.Code, wSiteBlock.Body.String())
+	}
+}

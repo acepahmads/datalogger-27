@@ -160,6 +160,18 @@ func (r *TenantRepository) GetSiteByCode(tenantID uint, code string) (*model.Sit
 	return &s, nil
 }
 
+func (r *TenantRepository) GetSiteByLegacyStationID(tenantID uint, legacyStationID string) (*model.Site, error) {
+	clean := strings.TrimSpace(legacyStationID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var s model.Site
+	if err := r.db.Where("tenant_id = ? AND LOWER(legacy_station_id) = LOWER(?)", tenantID, clean).Order("id ASC").First(&s).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 func (r *TenantRepository) GetDefaultSiteForTenant(tenantID uint) (*model.Site, error) {
 	var s model.Site
 	if err := r.db.Where("tenant_id = ?", tenantID).Order("id ASC").First(&s).Error; err != nil {

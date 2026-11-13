@@ -386,15 +386,29 @@
                   </div>
                   <div class="text-3xs text-slate-500 truncate max-w-[240px]">{{ s.address || s.timezone || 'Asia/Jakarta' }}</div>
                 </td>
-                <td class="px-4 py-3 font-mono text-2xs text-cyan-700 dark:text-cyan-400 font-semibold">{{ s.code }}</td>
+                <td class="px-4 py-3">
+                  <div class="font-mono text-2xs text-cyan-700 dark:text-cyan-400 font-semibold">{{ s.code }}</div>
+                  <div v-if="s.legacy_station_id" class="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 font-mono text-4xs font-semibold">
+                    station_id: {{ s.legacy_station_id }}
+                  </div>
+                </td>
                 <td v-if="isSuperAdmin" class="px-4 py-3 text-2xs font-medium">{{ tenantNameById(s.tenant_id) }}</td>
                 <td class="px-4 py-3">
-                  <span
-                    class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border"
-                    :class="domainBadgeClass(s.monitoring_domain)"
-                  >
-                    {{ s.monitoring_domain || 'AQMS' }}
-                  </span>
+                  <div class="flex flex-wrap items-center gap-1">
+                    <span
+                      class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border"
+                      :class="domainBadgeClass(s.monitoring_domain)"
+                    >
+                      {{ s.monitoring_domain || 'AQMS' }}
+                    </span>
+                    <span
+                      class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold border"
+                      :class="ingestFormatBadgeClass(s.ingest_format)"
+                      :title="ingestFormatHint(s.ingest_format)"
+                    >
+                      {{ ingestFormatShortLabel(s.ingest_format) }}
+                    </span>
+                  </div>
                 </td>
                 <td class="px-4 py-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
                   <span v-if="s.latitude || s.longitude">{{ Number(s.latitude || 0).toFixed(5) }}, {{ Number(s.longitude || 0).toFixed(5) }}</span>
@@ -522,9 +536,9 @@
       <!-- API Bearer Keys Header -->
       <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 class="text-sm font-bold text-slate-900 dark:text-white">Telemetry Receiver Bearer Tokens (AQMS · SPARING · ONLIMO)</h2>
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white">Telemetry Receiver Bearer Tokens &amp; Switch Format Penerimaan</h2>
           <p class="text-2xs text-slate-500">
-            Kirim JSON standar menggunakan header <code class="font-mono text-emerald-600 dark:text-emerald-400">Authorization: Bearer dlg_live_...</code>. Device dan parameter wajib didaftarkan secara manual terlebih dahulu.
+            Autentikasi via header <code class="font-mono text-emerald-600 dark:text-emerald-400">Authorization: Bearer ...</code> pada endpoint standar <code class="font-mono">/api/v1/ingest/telemetry</code> maupun endpoint Cloud lama <code class="font-mono">/api/v1/ticks/create_multi</code>. Pilih format penerimaan langsung per token.
           </p>
         </div>
         <button
@@ -582,7 +596,7 @@
                 <th class="px-4 py-3">Bearer Prefix</th>
                 <th v-if="isSuperAdmin" class="px-4 py-3">Tenant</th>
                 <th class="px-4 py-3">Target Stasiun</th>
-                <th class="px-4 py-3">Mode Parameter</th>
+                <th class="px-4 py-3">Switch Format Penerimaan</th>
                 <th class="px-4 py-3">Pemakaian Terakhir</th>
                 <th class="px-4 py-3">Status</th>
                 <th class="px-4 py-3 text-right">Aksi</th>
@@ -594,12 +608,22 @@
                 <td class="px-4 py-3 font-mono text-2xs text-emerald-700 dark:text-emerald-400">Bearer {{ k.key_prefix }}••••••</td>
                 <td v-if="isSuperAdmin" class="px-4 py-3 text-2xs">{{ tenantNameById(k.tenant_id) }}</td>
                 <td class="px-4 py-3 text-2xs">
-                  {{ k.site_id ? siteNameById(k.site_id) : 'Semua Stasiun Tenant (via site_code)' }}
+                  {{ k.site_id ? siteNameById(k.site_id) : 'Semua Stasiun Tenant (site_code / station_id)' }}
                 </td>
                 <td class="px-4 py-3">
-                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    STRICT MANUAL
-                  </span>
+                  <div class="flex flex-col gap-1 max-w-[235px]">
+                    <select
+                      :value="normalizeIngestFormat(k.ingest_format)"
+                      @change="updateIngestKeyFormat(k, $event.target.value)"
+                      class="w-full rounded-lg px-2 py-1 text-3xs font-mono font-bold border cursor-pointer focus:outline-none"
+                      :class="ingestFormatBadgeClass(k.ingest_format)"
+                    >
+                      <option value="AUTO">AUTO · Hybrid (Baru + Lama)</option>
+                      <option value="STANDARD_V1">STANDARD_V1 · Format Baru</option>
+                      <option value="CBI_LEGACY">CBI_LEGACY · create_multi</option>
+                    </select>
+                    <span class="text-4xs font-mono text-slate-400">STRICT MANUAL PARAMS</span>
+                  </div>
                 </td>
                 <td class="px-4 py-3 font-mono text-3xs text-slate-500">
                   <div v-if="k.last_used_at">{{ formatDateTime(k.last_used_at) }} ({{ k.usage_count || 0 }}x)</div>
@@ -778,6 +802,46 @@
           >
             💡 <strong>Pengiriman SPARING Per Jam (30 Data × 2 Menit):</strong> Pilih preset <strong>65 Menit (3900s)</strong> lalu klik <strong>Simpan Timeout</strong> agar status perangkat tetap <strong>ONLINE</strong> di antara siklus pengiriman tiap jam.
           </p>
+
+          <!-- Quick Legacy CBI IDs Mapping (station_id & module_id) -->
+          <div class="pt-2.5 border-t border-sky-200/80 dark:border-sky-800/60 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+            <div>
+              <div class="text-2xs font-bold text-sky-950 dark:text-sky-200">
+                🔗 Mapping ID Cloud Lama (<code class="font-mono">create_multi</code>)
+              </div>
+              <p class="text-3xs text-sky-800/90 dark:text-sky-300/80">
+                Cocokkan <code class="font-mono">station_id</code> &amp; <code class="font-mono">module_id</code> dari JSON Cloud lama (misal <code class="font-mono">202</code> &amp; <code class="font-mono">199</code>) ke stasiun &amp; perangkat ini.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div v-if="selectedBuilderSite" class="flex items-center gap-1">
+                <span class="text-3xs font-mono font-semibold text-sky-900 dark:text-sky-300">station_id:</span>
+                <input
+                  v-model.trim="siteLegacyStationId"
+                  type="text"
+                  placeholder="202"
+                  class="w-20 px-2 py-1 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-3xs font-mono font-semibold text-sky-900 dark:text-sky-300">module_id:</span>
+                <input
+                  v-model.trim="deviceLegacyModuleId"
+                  type="text"
+                  placeholder="199"
+                  class="w-20 px-2 py-1 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+              <button
+                type="button"
+                :disabled="savingLegacyMapping"
+                @click="saveBuilderLegacyMapping"
+                class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white btn-text text-3xs font-bold cursor-pointer whitespace-nowrap"
+              >
+                {{ savingLegacyMapping ? 'Menyimpan...' : 'Simpan ID Cloud Lama' }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Registered Parameter Chips Notice -->
@@ -801,28 +865,41 @@
               </span>
             </template>
             <template v-else>
-              Menampilkan <strong>Template Parameter Standar {{ payloadBuilder.loggerType }}</strong>. Buat Device (<code class="font-mono">EDGE_PUSH</code> / <code class="font-mono">MQTT</code>) &amp; Parameter secara manual di menu <strong>Devices</strong> agar key <code class="font-mono">values</code> disesuaikan otomatis.
+              Menampilkan <strong>Template Parameter Standar {{ payloadBuilder.loggerType }}</strong>. Buat Device (<code class="font-mono">EDGE_PUSH</code> / <code class="font-mono">MQTT</code>) &amp; Parameter secara manual di menu <strong>Devices</strong> agar key disesuaikan otomatis.
             </template>
           </div>
-          <button
-            type="button"
-            @click="copyPlainKey(generatedPayloadSnippet)"
-            class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white btn-text text-3xs font-bold cursor-pointer flex-shrink-0"
-          >
-            📋 Salin Payload
-          </button>
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              v-if="payloadBuilder.mode !== 'curl' && payloadBuilder.mode !== 'mqtt'"
+              type="button"
+              @click="copyPlainKey(generatedActiveCurlCommand)"
+              class="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white btn-text text-3xs font-bold cursor-pointer"
+            >
+              ⚡ Salin cURL
+            </button>
+            <button
+              type="button"
+              @click="copyPlainKey(generatedPayloadSnippet)"
+              class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-text text-3xs font-bold cursor-pointer"
+            >
+              📋 Salin Payload
+            </button>
+          </div>
         </div>
 
         <!-- Generated Code Preview -->
         <div class="rounded-xl bg-slate-950 text-emerald-300 border border-slate-800 p-3.5 overflow-x-auto">
-          <div class="flex items-center justify-between text-3xs font-mono text-slate-400 pb-2 mb-2 border-b border-slate-800">
-            <span v-if="payloadBuilder.mode !== 'mqtt'">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-3xs font-mono text-slate-400 pb-2 mb-2 border-b border-slate-800">
+            <span v-if="payloadBuilder.mode === 'cbi_multi_tick' || payloadBuilder.mode === 'cbi_hourly'">
+              POST {{ activeHttpIngestEndpoint }} <span class="text-slate-500">(juga kompatibel di /api/v1/ingest/telemetry)</span> &bull; Authorization: Bearer {{ previewBearerToken }}
+            </span>
+            <span v-else-if="payloadBuilder.mode !== 'mqtt'">
               POST {{ centralIngestEndpoint }} &bull; Authorization: Bearer {{ previewBearerToken }}
             </span>
             <span v-else>
               POST {{ centralMqttIngestEndpoint }} &bull; Topic: datalogger/ingest/{{ resolvedBuilderSiteCode }}/{{ resolvedBuilderDeviceCode }}
             </span>
-            <span class="text-emerald-400 font-bold">{{ payloadBuilder.loggerType }}</span>
+            <span class="text-emerald-400 font-bold">{{ payloadBuilder.loggerType }} &bull; {{ payloadBuilder.mode === 'cbi_multi_tick' || payloadBuilder.mode === 'cbi_hourly' ? 'CBI_LEGACY' : 'STANDARD_V1' }}</span>
           </div>
           <pre class="text-2xs font-mono leading-relaxed whitespace-pre">{{ generatedPayloadSnippet }}</pre>
         </div>
@@ -1031,6 +1108,43 @@
             </div>
           </div>
 
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-[#0B0F19]/70 border border-slate-200 dark:border-slate-800">
+            <div>
+              <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Switch Format Penerimaan Data</label>
+              <select
+                v-model="siteForm.ingest_format"
+                class="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
+              >
+                <option value="AUTO">AUTO — Hybrid (Baru &amp; Cloud Lama)</option>
+                <option value="STANDARD_V1">STANDARD_V1 — Hanya Format Baru</option>
+                <option value="CBI_LEGACY">CBI_LEGACY — Hanya Cloud Lama (create_multi)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Legacy Station ID (station_id)</label>
+              <input
+                v-model.trim="siteForm.legacy_station_id"
+                type="text"
+                placeholder="Contoh: 202 (opsional)"
+                class="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-3xs font-semibold uppercase text-slate-500">Cari Lokasi / Klik Peta GPS Stasiun</label>
+            <div class="h-52 w-full rounded-xl overflow-hidden">
+              <StationMapViewer
+                :latitude="siteFormPickerLat"
+                :longitude="siteFormPickerLng"
+                :editable="true"
+                height="208px"
+                @coordinate-change="onSiteMapCoordinatePicked"
+                @location-selected="onSiteLocationSelected"
+              />
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Latitude</label>
@@ -1085,9 +1199,9 @@
     <!-- MODAL 3: CREATE EDGE INGEST API KEY                                 -->
     <!-- =================================================================== -->
     <div v-if="showCreateKeyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <h3 class="font-bold text-sm text-slate-900 dark:text-white">Buat Edge Ingest API Key Baru</h3>
+          <h3 class="font-bold text-sm text-slate-900 dark:text-white">Buat Bearer Token &amp; Pilih Format Penerimaan</h3>
           <button type="button" @click="showCreateKeyModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg cursor-pointer">&times;</button>
         </div>
 
@@ -1109,7 +1223,7 @@
               v-model="keyForm.name"
               type="text"
               required
-              placeholder="Misal: Edge Panel SPARING Titik #1"
+              placeholder="Misal: Logger AQMS Stasiun 202 (Cloud Lama)"
               class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
             />
           </div>
@@ -1120,20 +1234,56 @@
               v-model.number="keyForm.site_id"
               class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
             >
-              <option :value="0">Semua Stasiun di Tenant (Dinamis via site_code)</option>
+              <option :value="0">Semua Stasiun di Tenant (Dinamis via site_code / station_id)</option>
               <option v-for="s in filteredSitesForKeyModal" :key="'key-s-' + s.id" :value="s.id">
-                {{ s.name }} ({{ s.code }})
+                {{ s.name }} ({{ s.code }}{{ s.legacy_station_id ? ` · station_id:${s.legacy_station_id}` : '' }})
               </option>
             </select>
           </div>
 
+          <!-- Switch Format Penerimaan Data -->
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1.5">Switch Format Penerimaan Data *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                v-for="opt in ingestFormatOptions"
+                :key="'fmt-opt-' + opt.value"
+                type="button"
+                @click="keyForm.ingest_format = opt.value"
+                class="p-2.5 rounded-xl border text-left transition cursor-pointer space-y-0.5"
+                :class="keyForm.ingest_format === opt.value
+                  ? 'bg-emerald-600 text-white btn-text border-emerald-600 shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'"
+              >
+                <div class="font-mono text-2xs font-bold">{{ opt.shortTitle }}</div>
+                <div class="text-4xs opacity-90 leading-snug">{{ opt.desc }}</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Optional Custom Legacy Bearer Token -->
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">
+              Token Bearer Eksisting Cloud Lama (Opsional)
+            </label>
+            <input
+              v-model.trim="keyForm.custom_token"
+              type="text"
+              placeholder="Kosongkan untuk generate otomatis dlg_live_..., atau tempel token lama"
+              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
+            />
+            <p class="text-3xs text-slate-500 mt-1">
+              Jika datalogger lapangan sudah memiliki <code class="font-mono">Authorization: Bearer ...</code> dari Cloud lama, tempel tokennya di sini agar alat langsung terhubung tanpa re-konfigurasi.
+            </p>
+          </div>
+
           <div class="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 space-y-1">
             <div class="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
-              <span>Registrasi Device &amp; Parameter Manual</span>
+              <span>Registrasi Device &amp; Parameter Manual + Auto-Alias</span>
               <span class="text-4xs font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold">STRICT SCHEMA</span>
             </div>
             <div class="text-3xs text-emerald-800/90 dark:text-emerald-300/80 leading-relaxed">
-              Parameter tidak dibuat otomatis. Pastikan Device (<code class="font-mono">EDGE_PUSH</code> / <code class="font-mono">MQTT</code>) dan kode parameter telah didaftarkan secara manual oleh user. Autentikasi menggunakan <code class="font-mono">Authorization: Bearer dlg_live_...</code>.
+              Parameter tidak dibuat otomatis. Pada mode <code class="font-mono">AUTO</code> / <code class="font-mono">CBI_LEGACY</code>, nama sensor lama (<code class="font-mono">temp</code>, <code class="font-mono">pressure</code>, <code class="font-mono">wspeed</code>, <code class="font-mono">intensity</code>, <code class="font-mono">tprecipitation</code>, <code class="font-mono">wind_angle</code>, <code class="font-mono">pm25</code>) otomatis dicocokkan ke parameter terdaftar.
             </div>
           </div>
 
@@ -1142,7 +1292,7 @@
               Batal
             </button>
             <button type="submit" :disabled="savingKey" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-text font-bold cursor-pointer">
-              {{ savingKey ? 'Membuat...' : 'Generate Bearer Token' }}
+              {{ savingKey ? 'Menyimpan...' : (keyForm.custom_token ? 'Simpan Token Eksisting' : 'Generate Bearer Token') }}
             </button>
           </div>
         </form>
@@ -1153,9 +1303,13 @@
 
 <script>
 import axios from 'axios';
+import StationMapViewer from '../components/StationMapViewer.vue';
 
 export default {
   name: 'TenantsManagementView',
+  components: {
+    StationMapViewer,
+  },
   data() {
     return {
       activeTab: 'tenants',
@@ -1173,7 +1327,28 @@ export default {
       savingKey: false,
       savingModules: false,
       savingDeviceTimeout: false,
+      savingLegacyMapping: false,
       deviceTimeoutSeconds: 300,
+      deviceLegacyModuleId: '',
+      siteLegacyStationId: '',
+
+      ingestFormatOptions: [
+        {
+          value: 'AUTO',
+          shortTitle: 'AUTO (Hybrid)',
+          desc: 'Terima Format Baru & Cloud Lama create_multi otomatis.',
+        },
+        {
+          value: 'STANDARD_V1',
+          shortTitle: 'STANDARD_V1',
+          desc: 'Hanya terima JSON format baru (values / records).',
+        },
+        {
+          value: 'CBI_LEGACY',
+          shortTitle: 'CBI_LEGACY',
+          desc: 'Hanya terima format Cloud lama (multi[tick] / hourly_data).',
+        },
+      ],
 
       acqModules: {
         sensor_polling_enabled: true,
@@ -1191,6 +1366,7 @@ export default {
       payloadFormatTabs: [
         { id: 'single', label: 'JSON Real-Time' },
         { id: 'batch', label: 'JSON Batch' },
+        { id: 'cbi_multi_tick', label: 'Cloud Lama (create_multi)' },
         { id: 'curl', label: 'cURL Bearer' },
         { id: 'mqtt', label: 'MQTT' },
       ],
@@ -1232,6 +1408,8 @@ export default {
         name: '',
         code: '',
         monitoring_domain: 'AQMS',
+        ingest_format: 'AUTO',
+        legacy_station_id: '',
         latitude: 0,
         longitude: 0,
         address: '',
@@ -1245,6 +1423,8 @@ export default {
         tenant_id: 1,
         site_id: 0,
         name: '',
+        ingest_format: 'AUTO',
+        custom_token: '',
         auto_provision: false,
       },
     };
@@ -1277,6 +1457,22 @@ export default {
       const found = this.sites.find(s => Number(s.id) === this.activeSiteId);
       return found ? found.name : `Site #${this.activeSiteId}`;
     },
+    siteFormPickerLat() {
+      const la = Number(this.siteForm.latitude);
+      const ln = Number(this.siteForm.longitude);
+      if (!Number.isFinite(la) || !Number.isFinite(ln) || (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001)) {
+        return null;
+      }
+      return la;
+    },
+    siteFormPickerLng() {
+      const la = Number(this.siteForm.latitude);
+      const ln = Number(this.siteForm.longitude);
+      if (!Number.isFinite(la) || !Number.isFinite(ln) || (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001)) {
+        return null;
+      }
+      return ln;
+    },
     filteredTenants() {
       const q = (this.tenantSearch || '').trim().toLowerCase();
       if (!q) return this.tenants;
@@ -1301,6 +1497,19 @@ export default {
     centralIngestEndpoint() {
       const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://central-datalogger.example.com';
       return `${origin}/api/v1/ingest/telemetry`;
+    },
+    centralLegacyCreateMultiEndpoint() {
+      const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://central-datalogger.example.com';
+      if (this.payloadBuilder.mode === 'cbi_hourly') {
+        return `${origin}/api/v1/sparing_logs/create_multi`;
+      }
+      return `${origin}/api/v1/ticks/create_multi`;
+    },
+    activeHttpIngestEndpoint() {
+      if (this.payloadBuilder.mode === 'cbi_multi_tick' || this.payloadBuilder.mode === 'cbi_hourly') {
+        return this.centralLegacyCreateMultiEndpoint;
+      }
+      return this.centralIngestEndpoint;
     },
     centralMqttIngestEndpoint() {
       const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://central-datalogger.example.com';
@@ -1339,6 +1548,7 @@ export default {
         return [
           { id: 'single', label: 'Per 2m' },
           { id: 'batch', label: '30×2m Standar' },
+          { id: 'cbi_multi_tick', label: 'multi[tick] Lama' },
           { id: 'cbi_hourly', label: '30×2m CBI' },
           { id: 'klhk_hourly', label: '30×2m KLHK' },
           { id: 'curl', label: 'cURL' },
@@ -1402,8 +1612,8 @@ export default {
             hourlyData.push(row);
           }
           return {
-            module_id: String((this.selectedBuilderDevice && this.selectedBuilderDevice.id) || '4'),
-            station_id: String((this.selectedBuilderSite && this.selectedBuilderSite.id) || '3'),
+            module_id: String((this.selectedBuilderDevice && (this.selectedBuilderDevice.legacy_module_id || this.selectedBuilderDevice.id)) || '4'),
+            station_id: String((this.selectedBuilderSite && (this.selectedBuilderSite.legacy_station_id || this.selectedBuilderSite.id)) || '3'),
             hourly_data: hourlyData,
           };
         }
@@ -1445,8 +1655,80 @@ export default {
         };
       }
 
-      const nowIso = '2026-11-09T16:00:00+07:00';
-      const prevIso = '2026-11-09T15:55:00+07:00';
+      const nowIso = '2026-11-13T10:08:38+07:00';
+      const prevIso = '2026-11-13T10:03:38+07:00';
+
+      if (this.payloadBuilder.mode === 'cbi_multi_tick') {
+        const rawModId = (this.selectedBuilderDevice && (this.selectedBuilderDevice.legacy_module_id || this.selectedBuilderDevice.id)) || 199;
+        const rawStaId = (this.selectedBuilderSite && (this.selectedBuilderSite.legacy_station_id || this.selectedBuilderSite.id)) || 202;
+        const parsedModId = /^\d+$/.test(String(rawModId)) ? Number(rawModId) : rawModId;
+        const parsedStaId = /^\d+$/.test(String(rawStaId)) ? Number(rawStaId) : rawStaId;
+
+        const toLegacySensorName = (code) => {
+          const norm = String(code || '').trim().toLowerCase();
+          const legacyMap = {
+            'pm2.5': 'pm25',
+            'pm_25': 'pm25',
+            temperature: 'temp',
+            'air-pressure': 'pressure',
+            air_pressure: 'pressure',
+            'w-speed': 'wspeed',
+            ws: 'wspeed',
+            'solar-radiation': 'intensity',
+            sr: 'intensity',
+            'rain-fall': 'tprecipitation',
+            rainfall: 'tprecipitation',
+            rain: 'tprecipitation',
+            'wind-angle': 'wind_angle',
+            wd: 'wind_angle',
+          };
+          return legacyMap[norm] || code;
+        };
+
+        let tickEntries = [];
+        if (this.selectedBuilderDeviceParams.length > 0) {
+          tickEntries = Object.keys(values1).map((k) => ({
+            sensor_name: toLegacySensorName(k),
+            value: values1[k],
+          }));
+        } else if (lt === 'AQMS') {
+          tickEntries = [
+            { sensor_name: 'no2', value: 14.236 },
+            { sensor_name: 'so2', value: 5.673 },
+            { sensor_name: 'o3', value: 70.782 },
+            { sensor_name: 'co', value: 586.191 },
+            { sensor_name: 'pm25', value: 34.811 },
+            { sensor_name: 'pm10', value: 66.176 },
+            { sensor_name: 'temp', value: 32.941 },
+            { sensor_name: 'humidity', value: 63.874 },
+            { sensor_name: 'pressure', value: 1007.5 },
+            { sensor_name: 'wspeed', value: 3.543 },
+            { sensor_name: 'intensity', value: 813.654 },
+            { sensor_name: 'tprecipitation', value: 0 },
+            { sensor_name: 'hc', value: 4.686 },
+            { sensor_name: 'wind_angle', value: 237.4 },
+            { sensor_name: 'rain_intensity', value: 0 },
+          ];
+        } else {
+          tickEntries = Object.keys(values1).map((k) => ({
+            sensor_name: k,
+            value: values1[k],
+          }));
+        }
+
+        return {
+          multi: tickEntries.map((entry) => ({
+            tick: {
+              module_id: parsedModId,
+              station_id: parsedStaId,
+              sensor_name: entry.sensor_name,
+              value: entry.value,
+              created_at: nowIso,
+              updated_at: nowIso,
+            },
+          })),
+        };
+      }
 
       if (this.payloadBuilder.mode === 'batch') {
         return {
@@ -1467,6 +1749,10 @@ export default {
         timestamp: nowIso,
         values: values1,
       };
+    },
+    generatedActiveCurlCommand() {
+      const jsonPretty = JSON.stringify(this.generatedPayloadObject, null, 2);
+      return `curl -X POST "${this.activeHttpIngestEndpoint}" \\\n  -H "Authorization: Bearer ${this.previewBearerToken}" \\\n  -H "Content-Type: application/json" \\\n  -d '${jsonPretty}'`;
     },
     generatedPayloadSnippet() {
       const jsonPretty = JSON.stringify(this.generatedPayloadObject, null, 2);
@@ -1536,11 +1822,15 @@ export default {
       }
     },
     syncSelectedBuilderDeviceTimeout() {
+      const site = this.selectedBuilderSite;
+      this.siteLegacyStationId = (site && site.legacy_station_id) || '';
       const dev = this.selectedBuilderDevice;
       if (!dev) {
         this.deviceTimeoutSeconds = 300;
+        this.deviceLegacyModuleId = '';
         return;
       }
+      this.deviceLegacyModuleId = dev.legacy_module_id || '';
       const connTimeout = Number(dev.connection && (dev.connection.timeout || dev.connection.timeout_ms)) || 0;
       if (connTimeout >= 10 && connTimeout !== 1000) {
         this.deviceTimeoutSeconds = connTimeout;
@@ -1549,6 +1839,34 @@ export default {
       const params = Array.isArray(dev.parameters) ? dev.parameters : [];
       const maxParamStale = params.reduce((mx, p) => Math.max(mx, Number(p.stale_timeout_seconds) || 0), 0);
       this.deviceTimeoutSeconds = maxParamStale >= 180 ? maxParamStale : 300;
+    },
+    async saveBuilderLegacyMapping() {
+      const dev = this.selectedBuilderDevice;
+      const site = this.selectedBuilderSite;
+      if (!dev && !site) return;
+      this.savingLegacyMapping = true;
+      try {
+        if (site && site.id) {
+          await axios.put(`/api/sites/${site.id}`, {
+            legacy_station_id: (this.siteLegacyStationId || '').trim(),
+          });
+        }
+        if (dev && dev.id) {
+          await axios.put(`/api/devices/${dev.id}`, {
+            legacy_module_id: (this.deviceLegacyModuleId || '').trim(),
+          });
+        }
+        await Promise.all([
+          this.loadSites(),
+          this.loadRegisteredDevices(),
+          this.$store.dispatch('fetchDevices'),
+        ]);
+        this.showToast('Mapping ID Cloud lama (station_id & module_id) berhasil disimpan.');
+      } catch (err) {
+        this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
+      } finally {
+        this.savingLegacyMapping = false;
+      }
     },
     async saveBuilderDeviceTimeout() {
       const dev = this.selectedBuilderDevice;
@@ -1711,6 +2029,29 @@ export default {
       if (d === 'WQMS') return 'bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/30';
       return 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/30';
     },
+    normalizeIngestFormat(fmt) {
+      const v = String(fmt || '').trim().toUpperCase();
+      if (v === 'STANDARD_V1' || v === 'CBI_LEGACY') return v;
+      return 'AUTO';
+    },
+    ingestFormatShortLabel(fmt) {
+      const v = this.normalizeIngestFormat(fmt);
+      if (v === 'CBI_LEGACY') return 'create_multi';
+      if (v === 'STANDARD_V1') return 'STANDARD_V1';
+      return 'AUTO';
+    },
+    ingestFormatHint(fmt) {
+      const v = this.normalizeIngestFormat(fmt);
+      if (v === 'CBI_LEGACY') return 'Hanya menerima format Cloud lama (multi[tick] / hourly_data)';
+      if (v === 'STANDARD_V1') return 'Hanya menerima format standar baru (values / records)';
+      return 'Menerima format standar baru dan Cloud lama create_multi sekaligus';
+    },
+    ingestFormatBadgeClass(fmt) {
+      const v = this.normalizeIngestFormat(fmt);
+      if (v === 'CBI_LEGACY') return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/35';
+      if (v === 'STANDARD_V1') return 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/35';
+      return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/35';
+    },
     formatDateTime(val) {
       if (!val) return '-';
       return new Date(val).toLocaleString('en-GB', { hour12: false });
@@ -1817,6 +2158,8 @@ export default {
         name: '',
         code: '',
         monitoring_domain: 'AQMS',
+        ingest_format: 'AUTO',
+        legacy_station_id: '',
         latitude: 0,
         longitude: 0,
         address: '',
@@ -1832,6 +2175,8 @@ export default {
         name: s.name || '',
         code: s.code || '',
         monitoring_domain: s.monitoring_domain || 'AQMS',
+        ingest_format: this.normalizeIngestFormat(s.ingest_format),
+        legacy_station_id: s.legacy_station_id || '',
         latitude: s.latitude || 0,
         longitude: s.longitude || 0,
         address: s.address || '',
@@ -1839,6 +2184,39 @@ export default {
         enabled: s.enabled !== false,
       };
       this.showSiteModal = true;
+    },
+    async onSiteMapCoordinatePicked(coords) {
+      if (!coords) return;
+      const rawLat = coords.lat !== undefined ? coords.lat : coords.latitude;
+      const rawLng = coords.lng !== undefined ? coords.lng : coords.longitude;
+      if (rawLat !== null && rawLat !== undefined && Number.isFinite(Number(rawLat))) {
+        this.siteForm.latitude = Number(Number(rawLat).toFixed(6));
+      }
+      if (rawLng !== null && rawLng !== undefined && Number.isFinite(Number(rawLng))) {
+        this.siteForm.longitude = Number(Number(rawLng).toFixed(6));
+      }
+      if (coords.source === 'MAP' && Number.isFinite(Number(this.siteForm.latitude)) && Number.isFinite(Number(this.siteForm.longitude))) {
+        try {
+          const res = await axios.get('/api/system/location/reverse', {
+            params: { lat: this.siteForm.latitude, lng: this.siteForm.longitude },
+          });
+          const geo = res && res.data && res.data.data;
+          const revAddr = (geo && (geo.display_name || geo.place_name)) || '';
+          if (revAddr) {
+            this.siteForm.address = revAddr;
+          }
+        } catch (_) {
+          // ignore reverse geocode network errors
+        }
+      }
+    },
+    onSiteLocationSelected(loc) {
+      if (!loc) return;
+      this.onSiteMapCoordinatePicked(loc);
+      const resolvedAddress = loc.displayName || loc.display_name || loc.name || '';
+      if (resolvedAddress) {
+        this.siteForm.address = resolvedAddress;
+      }
     },
     async submitSiteModal() {
       this.savingSite = true;
@@ -1875,10 +2253,13 @@ export default {
     },
     openCreateKeyModal() {
       const defaultTid = this.activeTenantId || (this.tenants[0] && this.tenants[0].id) || 1;
+      const currentSite = this.sites.find(s => Number(s.id) === Number(this.activeSiteId));
       this.keyForm = {
         tenant_id: defaultTid,
         site_id: this.activeSiteId || 0,
         name: '',
+        ingest_format: currentSite ? this.normalizeIngestFormat(currentSite.ingest_format) : 'AUTO',
+        custom_token: '',
         auto_provision: false,
       };
       this.showCreateKeyModal = true;
@@ -1889,6 +2270,8 @@ export default {
         const payload = {
           tenant_id: this.keyForm.tenant_id,
           name: this.keyForm.name,
+          ingest_format: this.normalizeIngestFormat(this.keyForm.ingest_format),
+          custom_token: (this.keyForm.custom_token || '').trim(),
           auto_provision: false,
           site_id: this.keyForm.site_id > 0 ? this.keyForm.site_id : null,
         };
@@ -1896,13 +2279,24 @@ export default {
         if (res.data && res.data.data) {
           this.newlyCreatedPlainKey = res.data.data.plain_key || '';
           this.showCreateKeyModal = false;
-          this.showToast('Bearer Token berhasil dibuat! Salin token sebelum menutup banner.');
+          this.showToast('Bearer Token berhasil disimpan! Salin token sebelum menutup banner.');
           await this.loadIngestKeys();
         }
       } catch (err) {
         this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
       } finally {
         this.savingKey = false;
+      }
+    },
+    async updateIngestKeyFormat(k, nextFormat) {
+      const normalized = this.normalizeIngestFormat(nextFormat);
+      try {
+        await axios.put(`/api/ingest-keys/${k.id}`, { ingest_format: normalized });
+        await this.loadIngestKeys();
+        this.showToast(`Format penerimaan untuk token '${k.name}' dialihkan ke ${normalized}.`);
+      } catch (err) {
+        this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
+        await this.loadIngestKeys();
       }
     },
     async toggleIngestKey(k) {
