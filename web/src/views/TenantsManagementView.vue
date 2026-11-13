@@ -534,21 +534,31 @@
       </div>
 
       <!-- API Bearer Keys Header -->
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
           <h2 class="text-sm font-bold text-slate-900 dark:text-white">Telemetry Receiver Bearer Tokens &amp; Switch Format Penerimaan</h2>
           <p class="text-2xs text-slate-500">
-            Autentikasi via header <code class="font-mono text-emerald-600 dark:text-emerald-400">Authorization: Bearer ...</code> pada endpoint standar <code class="font-mono">/api/v1/ingest/telemetry</code> maupun endpoint Cloud lama <code class="font-mono">/api/v1/ticks/create_multi</code>. Pilih format penerimaan langsung per token.
+            Mendukung <code class="font-mono text-emerald-600 dark:text-emerald-400">Authorization: Bearer ...</code>, <code class="font-mono text-amber-600 dark:text-amber-400">Authorization: Token ...</code>, maupun <code class="font-mono">X-API-Key</code> pada <code class="font-mono">/api/v1/ingest/telemetry</code> &amp; <code class="font-mono">/api/v1/ticks/create_multi</code>. Daftarkan <strong>token lama datalogger</strong> agar alat di lapangan tidak perlu diubah.
           </p>
         </div>
-        <button
-          id="btn-create-ingest-key"
-          type="button"
-          @click="openCreateKeyModal"
-          class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer self-start sm:self-auto"
-        >
-          + Buat Bearer Token Baru
-        </button>
+        <div class="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+          <button
+            id="btn-register-legacy-token"
+            type="button"
+            @click="openCreateKeyModal('LEGACY_CUSTOM')"
+            class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            ♻️ Daftarkan Token Datalogger Lama
+          </button>
+          <button
+            id="btn-create-ingest-key"
+            type="button"
+            @click="openCreateKeyModal('GENERATE')"
+            class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            + Buat Bearer Token Baru
+          </button>
+        </div>
       </div>
 
       <!-- Newly Minted Key One-Time Banner -->
@@ -606,9 +616,22 @@
               <tr v-for="k in ingestKeys" :key="k.id" class="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
                 <td class="px-4 py-3 font-bold text-slate-900 dark:text-white">{{ k.name }}</td>
                 <td class="px-4 py-3 font-mono text-2xs text-emerald-700 dark:text-emerald-400">Bearer {{ k.key_prefix }}••••••</td>
-                <td v-if="isSuperAdmin" class="px-4 py-3 text-2xs">{{ tenantNameById(k.tenant_id) }}</td>
+                <td v-if="isSuperAdmin" class="px-4 py-3 text-2xs">
+                  <span
+                    v-if="k.is_global"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/30"
+                  >
+                    🌐 GLOBAL LINTAS-TENANT
+                  </span>
+                  <span v-else>{{ tenantNameById(k.tenant_id) }}</span>
+                </td>
                 <td class="px-4 py-3 text-2xs">
-                  {{ k.site_id ? siteNameById(k.site_id) : 'Semua Stasiun Tenant (site_code / station_id)' }}
+                  <span v-if="k.is_global" class="font-mono text-3xs text-purple-700 dark:text-purple-300">
+                    Otomatis via station_id / module_id / site_code
+                  </span>
+                  <span v-else>
+                    {{ k.site_id ? siteNameById(k.site_id) : 'Semua Stasiun Tenant (site_code / station_id)' }}
+                  </span>
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex flex-col gap-1 max-w-[235px]">
@@ -626,7 +649,7 @@
                   </div>
                 </td>
                 <td class="px-4 py-3 font-mono text-3xs text-slate-500">
-                  <div v-if="k.last_used_at">{{ formatDateTime(k.last_used_at) }} ({{ k.usage_count || 0 }}x)</div>
+                  <div v-if="k.last_used_at">{{ formatDateTime(k.last_used_at) }} ({{ k.usage_count || k.total_ingested || 0 }}x)</div>
                   <div v-else>Belum pernah dipakai</div>
                 </td>
                 <td class="px-4 py-3">
@@ -642,13 +665,23 @@
                   </button>
                 </td>
                 <td class="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    @click="revokeIngestKey(k)"
-                    class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-3xs font-semibold cursor-pointer"
-                  >
-                    Cabut Token
-                  </button>
+                  <div class="inline-flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      @click="openReplaceTokenModal(k)"
+                      title="Tempel / ganti dengan token lama dari datalogger lapangan"
+                      class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-3xs font-semibold cursor-pointer whitespace-nowrap"
+                    >
+                      🔑 Set Token Lama
+                    </button>
+                    <button
+                      type="button"
+                      @click="revokeIngestKey(k)"
+                      class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-3xs font-semibold cursor-pointer whitespace-nowrap"
+                    >
+                      Cabut Token
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="ingestKeys.length === 0">
@@ -1201,20 +1234,75 @@
     <div v-if="showCreateKeyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <h3 class="font-bold text-sm text-slate-900 dark:text-white">Buat Bearer Token &amp; Pilih Format Penerimaan</h3>
+          <h3 class="font-bold text-sm text-slate-900 dark:text-white">
+            {{ keyForm.token_mode === 'LEGACY_CUSTOM' ? '♻️ Daftarkan Token Datalogger Lama (Tanpa Ubah Alat)' : 'Buat Bearer Token & Pilih Format Penerimaan' }}
+          </h3>
           <button type="button" @click="showCreateKeyModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg cursor-pointer">&times;</button>
         </div>
 
         <form @submit.prevent="submitCreateKey" class="space-y-3 text-xs">
+          <!-- Switch Sumber Token: Generate Baru vs Pakai Token Lama -->
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1.5">Sumber Token Autentikasi *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                @click="keyForm.token_mode = 'GENERATE'; keyForm.custom_token = ''"
+                class="p-2.5 rounded-xl border text-left transition cursor-pointer space-y-0.5"
+                :class="keyForm.token_mode !== 'LEGACY_CUSTOM'
+                  ? 'bg-emerald-600 text-white btn-text border-emerald-600 shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'"
+              >
+                <div class="font-mono text-2xs font-bold">✨ Generate Token Baru</div>
+                <div class="text-4xs opacity-90 leading-snug">Buat token acak baru (<code class="font-mono">dlg_live_...</code>) untuk alat baru.</div>
+              </button>
+              <button
+                type="button"
+                @click="keyForm.token_mode = 'LEGACY_CUSTOM'"
+                class="p-2.5 rounded-xl border text-left transition cursor-pointer space-y-0.5"
+                :class="keyForm.token_mode === 'LEGACY_CUSTOM'
+                  ? 'bg-amber-600 text-white btn-text border-amber-600 shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'"
+              >
+                <div class="font-mono text-2xs font-bold">♻️ Pakai Token Datalogger Lama</div>
+                <div class="text-4xs opacity-90 leading-snug">Tempel token lama dari alat lapangan tanpa re-konfigurasi logger.</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Input Token Lama jika memilih LEGACY_CUSTOM -->
+          <div
+            v-if="keyForm.token_mode === 'LEGACY_CUSTOM'"
+            class="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/25 border border-amber-300 dark:border-amber-800/70 space-y-1.5"
+          >
+            <label class="block text-3xs font-bold uppercase text-amber-900 dark:text-amber-300">
+              Tempel Token Eksisting dari Datalogger Lama *
+            </label>
+            <input
+              v-model.trim="keyForm.custom_token"
+              type="text"
+              required
+              placeholder="Contoh: eyJhbGci... atau Bearer abc123... atau Token xyz789..."
+              class="w-full bg-white dark:bg-[#0B0F19] border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
+            />
+            <p class="text-3xs text-amber-800 dark:text-amber-300/90 leading-relaxed">
+              Datalogger lama tetap mengirim <code class="font-mono">Authorization: Bearer &lt;token_lama&gt;</code> atau <code class="font-mono">Authorization: Token &lt;token_lama&gt;</code> seperti biasa — tidak perlu ubah setting token di alat lapangan.
+            </p>
+          </div>
+
           <div v-if="isSuperAdmin">
-            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Tenant Target *</label>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Cakupan Tenant Target *</label>
             <select
               v-model.number="keyForm.tenant_id"
-              required
+              @change="if (Number(keyForm.tenant_id) === 0) keyForm.site_id = 0"
               class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
             >
+              <option :value="0">🌐 Global Semua Tenant (1 Token Master Lama via station_id / module_id)</option>
               <option v-for="t in tenants" :key="'key-t-' + t.id" :value="t.id">{{ t.name }} ({{ t.code }})</option>
             </select>
+            <p v-if="Number(keyForm.tenant_id) === 0" class="text-3xs text-purple-700 dark:text-purple-300 mt-1 leading-relaxed">
+              Mode <strong>Global Lintas-Tenant</strong>: cocok bila di Cloud lama 1 token dipakai bersama oleh banyak datalogger berbeda tenant. Sistem merutekan data otomatis berdasarkan <code class="font-mono">station_id</code> (<code class="font-mono">legacy_station_id</code>) atau <code class="font-mono">module_id</code> (<code class="font-mono">legacy_module_id</code>).
+            </p>
           </div>
 
           <div>
@@ -1228,7 +1316,7 @@
             />
           </div>
 
-          <div>
+          <div v-if="!isSuperAdmin || Number(keyForm.tenant_id) > 0">
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Kunci ke Stasiun Tertentu (Opsional)</label>
             <select
               v-model.number="keyForm.site_id"
@@ -1261,22 +1349,6 @@
             </div>
           </div>
 
-          <!-- Optional Custom Legacy Bearer Token -->
-          <div>
-            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">
-              Token Bearer Eksisting Cloud Lama (Opsional)
-            </label>
-            <input
-              v-model.trim="keyForm.custom_token"
-              type="text"
-              placeholder="Kosongkan untuk generate otomatis dlg_live_..., atau tempel token lama"
-              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
-            />
-            <p class="text-3xs text-slate-500 mt-1">
-              Jika datalogger lapangan sudah memiliki <code class="font-mono">Authorization: Bearer ...</code> dari Cloud lama, tempel tokennya di sini agar alat langsung terhubung tanpa re-konfigurasi.
-            </p>
-          </div>
-
           <div class="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 space-y-1">
             <div class="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
               <span>Registrasi Device &amp; Parameter Manual + Auto-Alias</span>
@@ -1291,8 +1363,60 @@
             <button type="button" @click="showCreateKeyModal = false" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer">
               Batal
             </button>
-            <button type="submit" :disabled="savingKey" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-text font-bold cursor-pointer">
-              {{ savingKey ? 'Menyimpan...' : (keyForm.custom_token ? 'Simpan Token Eksisting' : 'Generate Bearer Token') }}
+            <button
+              type="submit"
+              :disabled="savingKey"
+              class="px-4 py-2 rounded-xl text-white btn-text font-bold cursor-pointer"
+              :class="keyForm.token_mode === 'LEGACY_CUSTOM' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'"
+            >
+              {{ savingKey ? 'Menyimpan...' : (keyForm.token_mode === 'LEGACY_CUSTOM' ? 'Simpan Token Datalogger Lama' : 'Generate Bearer Token') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- MODAL 4: SET / REPLACE EXISTING KEY WITH LEGACY DATALOGGER TOKEN    -->
+    <!-- =================================================================== -->
+    <div v-if="showReplaceTokenModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <h3 class="font-bold text-sm text-slate-900 dark:text-white">
+            🔑 Pasang Token Datalogger Lama
+          </h3>
+          <button type="button" @click="showReplaceTokenModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg cursor-pointer">&times;</button>
+        </div>
+
+        <form @submit.prevent="submitReplaceLegacyToken" class="space-y-3 text-xs">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 space-y-0.5">
+            <div class="text-3xs uppercase font-semibold text-slate-500">Target Kunci</div>
+            <div class="font-bold text-slate-900 dark:text-white">{{ replaceTokenForm.keyName }}</div>
+            <div class="font-mono text-3xs text-slate-500">Prefix saat ini: {{ replaceTokenForm.currentPrefix }}••••••</div>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold uppercase text-amber-800 dark:text-amber-300 mb-1">
+              Token dari Datalogger Lapangan *
+            </label>
+            <input
+              v-model.trim="replaceTokenForm.custom_token"
+              type="text"
+              required
+              placeholder="Tempel token lama (misal: Bearer xxx / Token xxx / nilai token)"
+              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
+            />
+            <p class="text-3xs text-slate-500 mt-1 leading-relaxed">
+              Hash token pada kunci ini akan diganti mengikuti token datalogger lama Anda, sehingga perangkat di lapangan langsung diterima tanpa mengubah konfigurasi di alat.
+            </p>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button type="button" @click="showReplaceTokenModal = false" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer">
+              Batal
+            </button>
+            <button type="submit" :disabled="savingReplaceToken" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white btn-text font-bold cursor-pointer">
+              {{ savingReplaceToken ? 'Menyimpan...' : 'Simpan Token Lama' }}
             </button>
           </div>
         </form>
@@ -1420,12 +1544,22 @@ export default {
       showCreateKeyModal: false,
       newlyCreatedPlainKey: '',
       keyForm: {
+        token_mode: 'GENERATE',
         tenant_id: 1,
         site_id: 0,
         name: '',
         ingest_format: 'AUTO',
         custom_token: '',
         auto_provision: false,
+      },
+
+      showReplaceTokenModal: false,
+      savingReplaceToken: false,
+      replaceTokenForm: {
+        keyId: 0,
+        keyName: '',
+        currentPrefix: '',
+        custom_token: '',
       },
     };
   },
@@ -2251,10 +2385,12 @@ export default {
         this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
       }
     },
-    openCreateKeyModal() {
+    openCreateKeyModal(initialMode = 'GENERATE') {
+      const mode = initialMode === 'LEGACY_CUSTOM' ? 'LEGACY_CUSTOM' : 'GENERATE';
       const defaultTid = this.activeTenantId || (this.tenants[0] && this.tenants[0].id) || 1;
       const currentSite = this.sites.find(s => Number(s.id) === Number(this.activeSiteId));
       this.keyForm = {
+        token_mode: mode,
         tenant_id: defaultTid,
         site_id: this.activeSiteId || 0,
         name: '',
@@ -2267,25 +2403,66 @@ export default {
     async submitCreateKey() {
       this.savingKey = true;
       try {
+        const isGlobal = this.isSuperAdmin && Number(this.keyForm.tenant_id) === 0;
+        const customTok = this.keyForm.token_mode === 'LEGACY_CUSTOM'
+          ? (this.keyForm.custom_token || '').trim()
+          : '';
+        if (this.keyForm.token_mode === 'LEGACY_CUSTOM' && !customTok) {
+          this.showToast('Silakan tempel token lama dari datalogger lapangan terlebih dahulu.', 'error');
+          this.savingKey = false;
+          return;
+        }
         const payload = {
-          tenant_id: this.keyForm.tenant_id,
+          tenant_id: isGlobal ? 0 : this.keyForm.tenant_id,
+          is_global: isGlobal,
           name: this.keyForm.name,
           ingest_format: this.normalizeIngestFormat(this.keyForm.ingest_format),
-          custom_token: (this.keyForm.custom_token || '').trim(),
+          custom_token: customTok,
           auto_provision: false,
-          site_id: this.keyForm.site_id > 0 ? this.keyForm.site_id : null,
+          site_id: !isGlobal && this.keyForm.site_id > 0 ? this.keyForm.site_id : null,
         };
         const res = await axios.post('/api/ingest-keys', payload);
         if (res.data && res.data.data) {
           this.newlyCreatedPlainKey = res.data.data.plain_key || '';
           this.showCreateKeyModal = false;
-          this.showToast('Bearer Token berhasil disimpan! Salin token sebelum menutup banner.');
+          this.showToast(
+            customTok
+              ? 'Token datalogger lama berhasil didaftarkan! Perangkat di lapangan langsung terhubung tanpa ubah token.'
+              : 'Bearer Token baru berhasil dibuat! Salin token sebelum menutup banner.'
+          );
           await this.loadIngestKeys();
         }
       } catch (err) {
         this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
       } finally {
         this.savingKey = false;
+      }
+    },
+    openReplaceTokenModal(k) {
+      if (!k) return;
+      this.replaceTokenForm = {
+        keyId: k.id,
+        keyName: k.name || `Key #${k.id}`,
+        currentPrefix: k.key_prefix || '',
+        custom_token: '',
+      };
+      this.showReplaceTokenModal = true;
+    },
+    async submitReplaceLegacyToken() {
+      const rawTok = (this.replaceTokenForm.custom_token || '').trim();
+      if (!this.replaceTokenForm.keyId || !rawTok) return;
+      this.savingReplaceToken = true;
+      try {
+        await axios.put(`/api/ingest-keys/${this.replaceTokenForm.keyId}`, {
+          custom_token: rawTok,
+        });
+        this.showReplaceTokenModal = false;
+        await this.loadIngestKeys();
+        this.showToast(`Token pada '${this.replaceTokenForm.keyName}' berhasil disesuaikan dengan token datalogger lama!`);
+      } catch (err) {
+        this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
+      } finally {
+        this.savingReplaceToken = false;
       }
     },
     async updateIngestKeyFormat(k, nextFormat) {

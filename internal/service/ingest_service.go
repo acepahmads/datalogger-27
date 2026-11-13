@@ -889,7 +889,56 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 
 		// 1. Strict Manual Site Resolution (NO Auto-Create)
 		var site *model.Site
-		if apiKey.SiteID != nil && *apiKey.SiteID > 0 {
+		if apiKey.IsGlobal {
+			// Cross-Tenant Legacy Master Token: dynamically route to target Site & Tenant via station_id, site_code, or module_id
+			if batch.SiteCode != "" {
+				site, _ = s.tenantService.GetRepo().GetSiteByCodeGlobal(batch.SiteCode)
+			}
+			if site == nil {
+				if sHint := strings.TrimSpace(batch.StationHint); sHint != "" {
+					site, _ = s.tenantService.GetRepo().GetSiteByLegacyStationIDGlobal(sHint)
+					if site == nil {
+						site, _ = s.tenantService.GetRepo().GetSiteByCodeGlobal(sHint)
+					}
+					if site == nil {
+						if parsedSiteID, pErr := strconv.ParseUint(sHint, 10, 64); pErr == nil && parsedSiteID > 0 {
+							if st, _ := s.tenantService.GetRepo().GetSiteByID(uint(parsedSiteID)); st != nil && st.Enabled {
+								site = st
+							}
+						}
+					}
+				}
+			}
+			if site == nil {
+				if dHint := strings.TrimSpace(batch.DeviceHint); dHint != "" {
+					if d, _ := s.deviceRepo.GetByLegacyModuleIDGlobal(dHint); d != nil && d.SiteID > 0 {
+						if st, _ := s.tenantService.GetRepo().GetSiteByID(d.SiteID); st != nil && st.Enabled {
+							site = st
+						}
+					}
+				}
+			}
+			if site == nil {
+				return nil, &IngestHTTPError{
+					StatusCode: 404,
+					Message:    fmt.Sprintf("Token Global Lintas-Tenant tidak menemukan stasiun tujuan untuk station_id='%s' / module_id='%s' / site_code='%s'. Isi kolom Legacy Station ID (station_id) pada Stasiun atau Legacy Module ID (module_id) pada Device terlebih dahulu.", batch.StationHint, batch.DeviceHint, batch.SiteCode),
+				}
+			}
+			if site.Tenant != nil && strings.EqualFold(site.Tenant.Status, model.TenantStatusSuspended) {
+				return nil, &IngestHTTPError{
+					StatusCode: 403,
+					Message:    "tenant account is suspended",
+				}
+			}
+			if site.Tenant == nil {
+				if tgtTenant, tErr := s.tenantService.GetRepo().GetTenantByID(site.TenantID); tErr == nil && tgtTenant != nil && strings.EqualFold(tgtTenant.Status, model.TenantStatusSuspended) {
+					return nil, &IngestHTTPError{
+						StatusCode: 403,
+						Message:    "tenant account is suspended",
+					}
+				}
+			}
+		} else if apiKey.SiteID != nil && *apiKey.SiteID > 0 {
 			site, _ = s.tenantService.GetRepo().GetSiteByID(*apiKey.SiteID)
 			if site == nil || site.TenantID != tenantID {
 				return nil, &IngestHTTPError{
@@ -961,7 +1010,12 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			}
 		}
 
-		if site.TenantID != tenantID || !site.Enabled {
+		batchTenantID := tenantID
+		if apiKey.IsGlobal {
+			batchTenantID = site.TenantID
+		}
+
+		if (!apiKey.IsGlobal && site.TenantID != tenantID) || !site.Enabled {
 			return nil, &IngestHTTPError{
 				StatusCode: 403,
 				Message:    fmt.Sprintf("Station '%s' is disabled or inaccessible", site.Code),
@@ -977,7 +1031,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		var dev *model.Device
 		devCode := strings.TrimSpace(batch.DeviceCode)
 		if devCode != "" {
-			dev, _ = s.deviceRepo.GetByCodeInTenant(tenantID, devCode)
+			dev, _ = s.deviceRepo.GetByCodeInTenant(batchTenantID, devCode)
 			if dev == nil {
 				return nil, &IngestHTTPError{
 					StatusCode: 404,
@@ -993,12 +1047,12 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		} else {
 			devHint := strings.TrimSpace(batch.DeviceHint)
 			if devHint != "" {
-				if d, _ := s.deviceRepo.GetByLegacyModuleIDInSite(tenantID, site.ID, devHint); d != nil && d.Enabled {
+				if d, _ := s.deviceRepo.GetByLegacyModuleIDInSite(batchTenantID, site.ID, devHint); d != nil && d.Enabled {
 					dev = d
-				} else if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, devHint); d != nil && d.SiteID == site.ID && d.Enabled {
+				} else if d, _ := s.deviceRepo.GetByCodeInTenant(batchTenantID, devHint); d != nil && d.SiteID == site.ID && d.Enabled {
 					dev = d
 				} else if parsedDevID, pErr := strconv.ParseUint(devHint, 10, 64); pErr == nil && parsedDevID > 0 {
-					if dByID, _ := s.deviceRepo.GetByID(uint(parsedDevID)); dByID != nil && dByID.TenantID == tenantID && dByID.SiteID == site.ID && dByID.Enabled {
+					if dByID, _ := s.deviceRepo.GetByID(uint(parsedDevID)); dByID != nil && dByID.TenantID == batchTenantID && dByID.SiteID == site.ID && dByID.Enabled {
 						dev = dByID
 					}
 				}
@@ -1006,7 +1060,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			if dev == nil {
 				enabledFlag := true
 				siteDevs, _, _ := s.deviceRepo.List(repository.DeviceFilterParams{
-					TenantID: tenantID,
+					TenantID: batchTenantID,
 					SiteID:   site.ID,
 					Enabled:  &enabledFlag,
 					PageSize: 10,
@@ -1132,6 +1186,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		ingestedList     []string
 		unregisteredSet  = make(map[string]bool)
 		unregisteredList []string
+		lastTenantID     = tenantID
 		lastSiteID       uint
 		lastSiteCode     string
 		lastDevCode      string
@@ -1140,6 +1195,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 	)
 
 	for _, item := range resolved {
+		lastTenantID = item.site.TenantID
 		lastSiteID = item.site.ID
 		lastSiteCode = item.site.Code
 		lastDevCode = item.dev.DeviceCode
@@ -1242,7 +1298,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			if s.telemetryService != nil {
 				tsCopy := recTS
 				_ = s.telemetryService.Ingest(&TelemetryIngestPayload{
-					TenantID:          tenantID,
+					TenantID:          item.site.TenantID,
 					SiteID:            item.site.ID,
 					DeviceID:          item.dev.ID,
 					DeviceCode:        item.dev.DeviceCode,
@@ -1317,7 +1373,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 
 	resp := &EdgeIngestResponse{
 		Accepted:               totalIngested > 0,
-		TenantID:               tenantID,
+		TenantID:               lastTenantID,
 		SiteID:                 lastSiteID,
 		SiteCode:               lastSiteCode,
 		DeviceCode:             lastDevCode,

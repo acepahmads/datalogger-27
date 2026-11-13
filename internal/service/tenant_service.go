@@ -111,6 +111,7 @@ type UpdateSiteRequest struct {
 type CreateAPIKeyRequest struct {
 	TenantID      uint   `json:"tenant_id"`
 	SiteID        *uint  `json:"site_id"`
+	IsGlobal      bool   `json:"is_global"`
 	Name          string `json:"name" binding:"required"`
 	IngestFormat  string `json:"ingest_format"`
 	CustomToken   string `json:"custom_token"`
@@ -122,7 +123,9 @@ type UpdateAPIKeyRequest struct {
 	IngestFormat  *string `json:"ingest_format"`
 	SiteID        *uint   `json:"site_id"`
 	ClearSiteID   bool    `json:"clear_site_id"`
+	IsGlobal      *bool   `json:"is_global"`
 	Name          *string `json:"name"`
+	CustomToken   *string `json:"custom_token"`
 	AutoProvision *bool   `json:"auto_provision"`
 }
 
@@ -643,6 +646,36 @@ func hashIngestKey(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func cleanRawCustomToken(raw string) string {
+	val := strings.TrimSpace(raw)
+	if strings.HasPrefix(strings.ToLower(val), "authorization:") {
+		val = strings.TrimSpace(val[len("authorization:"):])
+	}
+	lower := strings.ToLower(val)
+	switch {
+	case strings.HasPrefix(lower, "bearer "):
+		val = strings.TrimSpace(val[7:])
+	case strings.HasPrefix(lower, "token "):
+		rest := strings.TrimSpace(val[6:])
+		if strings.HasPrefix(strings.ToLower(rest), "token=") {
+			rest = strings.TrimSpace(rest[6:])
+		}
+		val = rest
+	}
+	val = strings.Trim(val, `"'`)
+	return strings.TrimSpace(val)
+}
+
+func formatKeyPrefix(rawKey string) string {
+	if len(rawKey) > 14 {
+		return rawKey[:10] + "..."
+	}
+	if len(rawKey) > 4 {
+		return rawKey[:4] + "..."
+	}
+	return rawKey + "..."
+}
+
 func (s *TenantService) invalidateKeyCache() {
 	s.keyMu.Lock()
 	s.keyCache = make(map[string]cachedIngestKey)
@@ -656,7 +689,7 @@ func (s *TenantService) ListAPIKeys(scope tenantctx.Scope, explicitTenantID uint
 	} else if !scope.IsSuperAdmin && tid == 0 {
 		tid = tenantctx.DefaultTenantID
 	}
-	return s.repo.ListAPIKeys(tid)
+	return s.repo.ListAPIKeysScoped(tid, scope.IsSuperAdmin)
 }
 
 func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Scope, ip string) (*model.TenantAPIKey, string, error) {
@@ -664,38 +697,46 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 	if name == "" {
 		return nil, "", errors.New("API key name is required")
 	}
-	tenantID := scope.WriteTenantID(req.TenantID)
-	if _, err := s.repo.GetTenantByID(tenantID); err != nil {
-		return nil, "", errors.New("target tenant not found")
-	}
 
+	isGlobal := req.IsGlobal
+	var tenantID uint
 	var siteID *uint
-	if req.SiteID != nil && *req.SiteID > 0 {
-		st, err := s.repo.GetSiteByID(*req.SiteID)
-		if err != nil || st == nil || st.TenantID != tenantID {
-			return nil, "", errors.New("selected site does not belong to target tenant")
+	if isGlobal {
+		if !scope.IsSuperAdmin {
+			return nil, "", errors.New("access denied: hanya Superadmin yang dapat membuat Token Global Lintas-Tenant")
 		}
-		sid := st.ID
-		siteID = &sid
+		tenantID = tenantctx.DefaultTenantID
+		if _, err := s.repo.GetTenantByID(tenantID); err != nil {
+			tenants, _ := s.repo.ListTenants(true)
+			if len(tenants) > 0 {
+				tenantID = tenants[0].ID
+			}
+		}
+	} else {
+		tenantID = scope.WriteTenantID(req.TenantID)
+		if _, err := s.repo.GetTenantByID(tenantID); err != nil {
+			return nil, "", errors.New("target tenant not found")
+		}
+		if req.SiteID != nil && *req.SiteID > 0 {
+			st, err := s.repo.GetSiteByID(*req.SiteID)
+			if err != nil || st == nil || st.TenantID != tenantID {
+				return nil, "", errors.New("selected site does not belong to target tenant")
+			}
+			sid := st.ID
+			siteID = &sid
+		}
 	}
 
-	rawKey := strings.TrimSpace(req.CustomToken)
-	if strings.HasPrefix(strings.ToLower(rawKey), "bearer ") {
-		rawKey = strings.TrimSpace(rawKey[7:])
-	}
+	rawKey := cleanRawCustomToken(req.CustomToken)
 	var prefix string
 	if rawKey != "" {
-		if len(rawKey) < 8 {
-			return nil, "", errors.New("custom Bearer token minimal 8 karakter")
+		if len(rawKey) < 4 {
+			return nil, "", errors.New("token datalogger minimal 4 karakter")
 		}
 		if existing, _ := s.repo.GetAPIKeyByHash(hashIngestKey(rawKey)); existing != nil {
-			return nil, "", errors.New("Bearer token tersebut sudah terdaftar pada kunci lain")
+			return nil, "", errors.New("token tersebut sudah terdaftar pada kunci lain (gunakan mode Global Lintas-Tenant jika 1 token lama dipakai banyak tenant)")
 		}
-		if len(rawKey) > 14 {
-			prefix = rawKey[:10] + "..."
-		} else {
-			prefix = rawKey[:4] + "..."
-		}
+		prefix = formatKeyPrefix(rawKey)
 	} else {
 		rawBytes := make([]byte, 20)
 		if _, err := rand.Read(rawBytes); err != nil {
@@ -711,6 +752,7 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 	k := &model.TenantAPIKey{
 		TenantID:      tenantID,
 		SiteID:        siteID,
+		IsGlobal:      isGlobal,
 		Name:          name,
 		KeyPrefix:     prefix,
 		KeyHash:       hashIngestKey(rawKey),
@@ -730,7 +772,7 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 			Username:  scope.Username,
 			Action:    "INGEST_KEY_CREATE",
 			Resource:  "INGEST_KEY",
-			Details:   fmt.Sprintf("Generated Edge Ingest API key '%s' (%s, format=%s)", k.Name, k.KeyPrefix, k.IngestFormat),
+			Details:   fmt.Sprintf("Generated Edge Ingest API key '%s' (%s, format=%s, global=%v)", k.Name, k.KeyPrefix, k.IngestFormat, k.IsGlobal),
 			IPAddress: ip,
 			CreatedAt: time.Now(),
 		})
@@ -748,6 +790,9 @@ func (s *TenantService) UpdateAPIKey(id uint, req UpdateAPIKeyRequest, scope ten
 	if err != nil || k == nil {
 		return nil, errors.New("API key not found")
 	}
+	if k.IsGlobal && !scope.IsSuperAdmin {
+		return nil, errors.New("access denied: global cross-tenant API key requires superadmin")
+	}
 	if !scope.CanAccessTenant(k.TenantID) {
 		return nil, errors.New("access denied: API key belongs to another tenant")
 	}
@@ -760,18 +805,44 @@ func (s *TenantService) UpdateAPIKey(id uint, req UpdateAPIKeyRequest, scope ten
 	if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
 		k.Name = strings.TrimSpace(*req.Name)
 	}
-	if req.ClearSiteID {
-		k.SiteID = nil
-	} else if req.SiteID != nil {
-		if *req.SiteID == 0 {
+	if req.IsGlobal != nil {
+		if !scope.IsSuperAdmin {
+			return nil, errors.New("access denied: hanya Superadmin yang dapat mengatur mode Global Lintas-Tenant")
+		}
+		k.IsGlobal = *req.IsGlobal
+		if k.IsGlobal {
 			k.SiteID = nil
-		} else {
-			st, sErr := s.repo.GetSiteByID(*req.SiteID)
-			if sErr != nil || st == nil || st.TenantID != k.TenantID {
-				return nil, errors.New("selected site does not belong to target tenant")
+		}
+	}
+	if req.CustomToken != nil {
+		cleaned := cleanRawCustomToken(*req.CustomToken)
+		if cleaned == "" {
+			return nil, errors.New("token pengganti tidak boleh kosong")
+		}
+		if len(cleaned) < 4 {
+			return nil, errors.New("token datalogger minimal 4 karakter")
+		}
+		newHash := hashIngestKey(cleaned)
+		if existing, _ := s.repo.GetAPIKeyByHash(newHash); existing != nil && existing.ID != k.ID {
+			return nil, errors.New("token tersebut sudah terdaftar pada kunci lain")
+		}
+		k.KeyHash = newHash
+		k.KeyPrefix = formatKeyPrefix(cleaned)
+	}
+	if !k.IsGlobal {
+		if req.ClearSiteID {
+			k.SiteID = nil
+		} else if req.SiteID != nil {
+			if *req.SiteID == 0 {
+				k.SiteID = nil
+			} else {
+				st, sErr := s.repo.GetSiteByID(*req.SiteID)
+				if sErr != nil || st == nil || st.TenantID != k.TenantID {
+					return nil, errors.New("selected site does not belong to target tenant")
+				}
+				sid := st.ID
+				k.SiteID = &sid
 			}
-			sid := st.ID
-			k.SiteID = &sid
 		}
 	}
 	k.AutoProvision = false
@@ -797,6 +868,9 @@ func (s *TenantService) DeleteAPIKey(id uint, scope tenantctx.Scope, ip string) 
 	if err != nil || k == nil {
 		return errors.New("API key not found")
 	}
+	if k.IsGlobal && !scope.IsSuperAdmin {
+		return errors.New("access denied: global cross-tenant API key requires superadmin")
+	}
 	if !scope.CanAccessTenant(k.TenantID) {
 		return errors.New("access denied: API key belongs to another tenant")
 	}
@@ -819,7 +893,7 @@ func (s *TenantService) DeleteAPIKey(id uint, scope tenantctx.Scope, ip string) 
 }
 
 func (s *TenantService) ValidateIngestKey(rawKey string) (*model.TenantAPIKey, error) {
-	rawKey = strings.TrimSpace(rawKey)
+	rawKey = cleanRawCustomToken(rawKey)
 	if rawKey == "" {
 		return nil, errors.New("missing Edge Ingest API key")
 	}
@@ -833,7 +907,7 @@ func (s *TenantService) ValidateIngestKey(rawKey string) (*model.TenantAPIKey, e
 		if k == nil || !k.Enabled {
 			return nil, errors.New("invalid or disabled Edge Ingest API key")
 		}
-		if k.Tenant != nil && strings.EqualFold(k.Tenant.Status, model.TenantStatusSuspended) {
+		if !k.IsGlobal && k.Tenant != nil && strings.EqualFold(k.Tenant.Status, model.TenantStatusSuspended) {
 			return nil, errors.New("tenant account is suspended")
 		}
 		return k, nil
@@ -844,7 +918,7 @@ func (s *TenantService) ValidateIngestKey(rawKey string) (*model.TenantAPIKey, e
 	if err != nil || k == nil || !k.Enabled {
 		return nil, errors.New("invalid or disabled Edge Ingest API key")
 	}
-	if k.Tenant != nil && strings.EqualFold(k.Tenant.Status, model.TenantStatusSuspended) {
+	if !k.IsGlobal && k.Tenant != nil && strings.EqualFold(k.Tenant.Status, model.TenantStatusSuspended) {
 		return nil, errors.New("tenant account is suspended")
 	}
 

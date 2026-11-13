@@ -607,3 +607,187 @@ func TestCloudMode_LegacyCBICreateMultiTickAndFormatSwitch(t *testing.T) {
 		t.Fatalf("expected HTTP 400 when station ingest_format=CBI_LEGACY receives STANDARD_V1, got %d: %s", wSiteBlock.Code, wSiteBlock.Body.String())
 	}
 }
+
+func TestCloudMode_LegacyTokenPreservation_ReplaceAndGlobalMultiTenant(t *testing.T) {
+	env := setupMultiTenantTestEnv(t)
+
+	if g := config.Get(); g != nil {
+		g.CloudMode = true
+		g.MonitoringDomain = "CLOUD"
+		g.SensorPollingEnabled = false
+	}
+
+	// Create Tenant A & Tenant B
+	createTenantAndStation := func(tenantName, tenantCode, siteCode, legacyStaID, devCode, legacyModID string) (uint, uint, uint) {
+		wT := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
+			"name":   tenantName,
+			"code":   tenantCode,
+			"status": "ACTIVE",
+		})
+		if wT.Code != http.StatusCreated && wT.Code != http.StatusOK {
+			t.Fatalf("create tenant %s failed (%d): %s", tenantCode, wT.Code, wT.Body.String())
+		}
+		var tr struct {
+			Data model.Tenant `json:"data"`
+		}
+		_ = json.Unmarshal(wT.Body.Bytes(), &tr)
+		tid := tr.Data.ID
+		if tid <= 1 {
+			t.Fatalf("expected distinct new tenant ID > 1, got %d (%s)", tid, wT.Body.String())
+		}
+
+		wS := doJSONReq(t, env.Router, "POST", "/api/sites", env.SuperAdminToken, nil, map[string]interface{}{
+			"tenant_id":         tid,
+			"name":              "Stasiun " + legacyStaID,
+			"code":              siteCode,
+			"monitoring_domain": "AQMS",
+			"ingest_format":     "AUTO",
+			"legacy_station_id": legacyStaID,
+			"timezone":          "Asia/Jakarta",
+			"enabled":           true,
+		})
+		if wS.Code != http.StatusCreated && wS.Code != http.StatusOK {
+			t.Fatalf("create site %s failed (%d): %s", siteCode, wS.Code, wS.Body.String())
+		}
+		var sr struct {
+			Data model.Site `json:"data"`
+		}
+		_ = json.Unmarshal(wS.Body.Bytes(), &sr)
+		sid := sr.Data.ID
+
+		tHeaders := map[string]string{
+			"X-Tenant-ID": fmt.Sprintf("%d", tid),
+			"X-Site-ID":   fmt.Sprintf("%d", sid),
+		}
+		wD := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, tHeaders, map[string]interface{}{
+			"tenant_id":        tid,
+			"site_id":          sid,
+			"device_code":      devCode,
+			"device_name":      "Logger " + devCode,
+			"device_type":      "EDGE_PUSH",
+			"legacy_module_id": legacyModID,
+			"status":           "ACTIVE",
+			"enabled":          true,
+		})
+		if wD.Code != http.StatusCreated && wD.Code != http.StatusOK {
+			t.Fatalf("create device %s failed (%d): %s", devCode, wD.Code, wD.Body.String())
+		}
+		var dr struct {
+			Data model.Device `json:"data"`
+		}
+		_ = json.Unmarshal(wD.Body.Bytes(), &dr)
+		did := dr.Data.ID
+
+		wP := doJSONReq(t, env.Router, "POST", fmt.Sprintf("/api/devices/%d/parameters", did), env.SuperAdminToken, tHeaders, map[string]interface{}{
+			"parameter_code": "pm2.5",
+			"parameter_name": "PM2.5",
+			"unit":           "ug/m3",
+			"category":       "TELEMETRY",
+			"data_type":      "FLOAT32",
+			"scale":          1,
+			"precision":      2,
+			"enabled":        true,
+		})
+		if wP.Code != http.StatusCreated && wP.Code != http.StatusOK {
+			t.Fatalf("create param pm2.5 on %s failed (%d): %s", devCode, wP.Code, wP.Body.String())
+		}
+		return tid, sid, did
+	}
+
+	tenantAID, siteAID, devAID := createTenantAndStation("DLH Kota A", "dlh-kota-a", "sta-a-202", "202", "LOGGER-A-199", "199")
+	tenantBID, _, devBID := createTenantAndStation("DLH Kota B", "dlh-kota-b", "sta-b-305", "305", "LOGGER-B-288", "288")
+
+	// Scenario 1: Key initially created as generated token, then Admin pastes old field logger token via PUT /api/ingest-keys/:id
+	wGenKey := doJSONReq(t, env.Router, "POST", "/api/ingest-keys", env.SuperAdminToken, nil, map[string]interface{}{
+		"tenant_id":     tenantAID,
+		"site_id":       siteAID,
+		"name":          "Logger A Key",
+		"ingest_format": "CBI_LEGACY",
+	})
+	if wGenKey.Code != http.StatusCreated && wGenKey.Code != http.StatusOK {
+		t.Fatalf("create initial generated key failed (%d): %s", wGenKey.Code, wGenKey.Body.String())
+	}
+	var genKeyResp struct {
+		Data struct {
+			Key model.TenantAPIKey `json:"key"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wGenKey.Body.Bytes(), &genKeyResp)
+
+	oldFieldTokenA := "old_field_tok_a_9911"
+	wReplace := doJSONReq(t, env.Router, "PUT", fmt.Sprintf("/api/ingest-keys/%d", genKeyResp.Data.Key.ID), env.SuperAdminToken, nil, map[string]interface{}{
+		"custom_token": "Bearer " + oldFieldTokenA,
+	})
+	if wReplace.Code != http.StatusOK {
+		t.Fatalf("replace key with old field token failed (%d): %s", wReplace.Code, wReplace.Body.String())
+	}
+
+	tsStr := time.Now().UTC().Add(-30 * time.Second).Format(time.RFC3339)
+	payloadA := map[string]interface{}{
+		"multi": []map[string]interface{}{
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "pm25", "value": 41.25, "created_at": tsStr, "updated_at": tsStr}},
+		},
+	}
+
+	// Verify Rails-style `Authorization: Token token="<old_token>"` works without touching the field datalogger!
+	wPushRailsHdr := doJSONReq(t, env.Router, "POST", "/api/v1/ticks/create_multi", "", map[string]string{
+		"Authorization": fmt.Sprintf(`Token token="%s"`, oldFieldTokenA),
+	}, payloadA)
+	if wPushRailsHdr.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200 with Rails Authorization: Token token=\"...\" header, got %d: %s", wPushRailsHdr.Code, wPushRailsHdr.Body.String())
+	}
+
+	// Scenario 2: Global Shared Master Legacy Token (`is_global: true`) used by multiple dataloggers across Tenant A & Tenant B
+	sharedMasterLegacyToken := "cbi_master_shared_2019"
+	wGlobalKey := doJSONReq(t, env.Router, "POST", "/api/ingest-keys", env.SuperAdminToken, nil, map[string]interface{}{
+		"is_global":     true,
+		"name":          "Master Legacy CBI Cloud Token",
+		"ingest_format": "CBI_LEGACY",
+		"custom_token":  sharedMasterLegacyToken,
+	})
+	if wGlobalKey.Code != http.StatusCreated && wGlobalKey.Code != http.StatusOK {
+		t.Fatalf("create global master legacy token failed (%d): %s", wGlobalKey.Code, wGlobalKey.Body.String())
+	}
+
+	payloadGlobalA := map[string]interface{}{
+		"multi": []map[string]interface{}{
+			{"tick": map[string]interface{}{"module_id": 199, "station_id": 202, "sensor_name": "pm25", "value": 52.5, "created_at": tsStr, "updated_at": tsStr}},
+		},
+	}
+	payloadGlobalB := map[string]interface{}{
+		"multi": []map[string]interface{}{
+			{"tick": map[string]interface{}{"module_id": 288, "station_id": 305, "sensor_name": "pm25", "value": 19.75, "created_at": tsStr, "updated_at": tsStr}},
+		},
+	}
+
+	wGA := doJSONReq(t, env.Router, "POST", "/api/v1/ticks/create_multi", sharedMasterLegacyToken, nil, payloadGlobalA)
+	if wGA.Code != http.StatusOK {
+		t.Fatalf("global legacy token push for Tenant A (station_id=202) failed (%d): %s", wGA.Code, wGA.Body.String())
+	}
+	wGB := doJSONReq(t, env.Router, "POST", "/api/v1/ticks/create_multi", sharedMasterLegacyToken, nil, payloadGlobalB)
+	if wGB.Code != http.StatusOK {
+		t.Fatalf("global legacy token push for Tenant B (station_id=305) failed (%d): %s", wGB.Code, wGB.Body.String())
+	}
+
+	var paramA, paramB model.Parameter
+	_ = env.DB.Where("device_id = ? AND parameter_code = ?", devAID, "pm2.5").First(&paramA).Error
+	_ = env.DB.Where("device_id = ? AND parameter_code = ?", devBID, "pm2.5").First(&paramB).Error
+	if paramA.CurrentValue == nil || *paramA.CurrentValue != 52.5 {
+		t.Fatalf("Tenant A pm2.5 expected 52.5, got %v", paramA.CurrentValue)
+	}
+	if paramB.CurrentValue == nil || *paramB.CurrentValue != 19.75 {
+		t.Fatalf("Tenant B pm2.5 expected 19.75, got %v", paramB.CurrentValue)
+	}
+
+	// Verify suspended tenant is still strictly blocked even when pushing via Global Master Legacy Token
+	wSuspendB := doJSONReq(t, env.Router, "PUT", fmt.Sprintf("/api/tenants/%d", tenantBID), env.SuperAdminToken, nil, map[string]interface{}{
+		"status": "SUSPENDED",
+	})
+	if wSuspendB.Code != http.StatusOK {
+		t.Fatalf("suspend Tenant B failed (%d): %s", wSuspendB.Code, wSuspendB.Body.String())
+	}
+	wBlockedB := doJSONReq(t, env.Router, "POST", "/api/v1/ticks/create_multi", sharedMasterLegacyToken, nil, payloadGlobalB)
+	if wBlockedB.Code != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 when suspended Tenant B pushes via global token, got %d: %s", wBlockedB.Code, wBlockedB.Body.String())
+	}
+}

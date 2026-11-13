@@ -137,6 +137,7 @@ type TenantAPIKey struct {
 	Name          string     `gorm:"size:128;not null" json:"name"`
 	KeyPrefix     string     `gorm:"size:32;index;not null" json:"key_prefix"`
 	KeyHash       string     `gorm:"size:128;uniqueIndex;not null" json:"-"`
+	IsGlobal      bool       `gorm:"default:false;index" json:"is_global"`          // SUPERADMIN master legacy token routing across all tenants via station_id / module_id
 	IngestFormat  string     `gorm:"size:32;default:'AUTO'" json:"ingest_format"` // AUTO | STANDARD_V1 | CBI_LEGACY
 	AutoProvision bool       `gorm:"default:false" json:"auto_provision"`
 	Enabled       bool       `gorm:"default:true;index" json:"enabled"`

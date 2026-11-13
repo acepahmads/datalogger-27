@@ -206,6 +206,27 @@ func (r *DeviceRepository) GetByLegacyModuleIDInSite(tenantID, siteID uint, lega
 	return &dev, nil
 }
 
+// GetByLegacyModuleIDGlobal fetches an active device by its legacy Cloud module_id across any tenant (used for global master legacy tokens).
+func (r *DeviceRepository) GetByLegacyModuleIDGlobal(legacyModuleID string) (*model.Device, error) {
+	clean := strings.TrimSpace(legacyModuleID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var dev model.Device
+	err := r.db.Where("deleted_at IS NULL AND enabled = ? AND LOWER(legacy_module_id) = LOWER(?)", true, clean).
+		Preload("Tenant").
+		Preload("Site").
+		Preload("Connection").
+		Preload("Parameters", "deleted_at IS NULL").
+		Preload("Parameters.Category").
+		Order("id ASC").
+		First(&dev).Error
+	if err != nil {
+		return nil, err
+	}
+	return &dev, nil
+}
+
 // GetByLegacyModuleIDInTenant fetches an active device by its legacy Cloud module_id within a tenant.
 func (r *DeviceRepository) GetByLegacyModuleIDInTenant(tenantID uint, legacyModuleID string) (*model.Device, error) {
 	clean := strings.TrimSpace(legacyModuleID)

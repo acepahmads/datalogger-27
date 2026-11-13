@@ -23,17 +23,36 @@ func NewIngestHandler(ingestService *service.IngestService) *IngestHandler {
 	return &IngestHandler{ingestService: ingestService}
 }
 
-// extractRawIngestKey extracts Bearer Token first (Authorization: Bearer dlg_live_...),
+// extractRawIngestKey extracts Bearer / Legacy Token first (Authorization: Bearer ..., Token ..., or Token token="..."),
 // with backward compatibility for X-Ingest-Key, X-API-Key, and X-MQTT-Token headers.
 func extractRawIngestKey(c *gin.Context) string {
 	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
-	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
-		if candidate := strings.TrimSpace(authHeader[7:]); candidate != "" {
-			return candidate
+	if authHeader != "" {
+		lower := strings.ToLower(authHeader)
+		switch {
+		case strings.HasPrefix(lower, "bearer "):
+			if candidate := strings.Trim(strings.TrimSpace(authHeader[7:]), `"'`); candidate != "" {
+				return candidate
+			}
+		case strings.HasPrefix(lower, "token "):
+			rest := strings.TrimSpace(authHeader[6:])
+			if strings.HasPrefix(strings.ToLower(rest), "token=") {
+				rest = strings.TrimSpace(rest[6:])
+			}
+			if idx := strings.Index(rest, ","); idx > 0 {
+				rest = strings.TrimSpace(rest[:idx])
+			}
+			if candidate := strings.Trim(rest, `"'`); candidate != "" {
+				return candidate
+			}
+		case !strings.Contains(authHeader, " "):
+			if candidate := strings.Trim(authHeader, `"'`); candidate != "" {
+				return candidate
+			}
 		}
 	}
 	for _, hdr := range []string{"X-Ingest-Key", "X-API-Key", "X-MQTT-Token"} {
-		if k := strings.TrimSpace(c.GetHeader(hdr)); k != "" {
+		if k := strings.Trim(strings.TrimSpace(c.GetHeader(hdr)), `"'`); k != "" {
 			return k
 		}
 	}

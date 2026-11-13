@@ -241,4 +241,10 @@ assert(tenantsViewCode.includes('custom_token'), 'TenantsManagementView must sup
 assert(tenantsViewCode.includes('saveBuilderLegacyMapping'), 'TenantsManagementView must allow quick-saving station_id & module_id mapping');
 assert(deviceModalCode.includes('input-edge-push-legacy-module-id') && deviceModalCode.includes('legacy_module_id'), 'DeviceModal must expose optional legacy_module_id for passive push devices');
 
+// 20. Zero-Reconfig Legacy Datalogger Token Preservation (Custom Token Switch, Replace Token Modal, & Global Cross-Tenant Token)
+assert(tenantsViewCode.includes("openCreateKeyModal('LEGACY_CUSTOM')"), 'TenantsManagementView must expose quick action button to register an existing legacy datalogger token');
+assert(tenantsViewCode.includes("keyForm.token_mode === 'LEGACY_CUSTOM'"), 'TenantsManagementView create key modal must provide explicit LEGACY_CUSTOM token mode switch');
+assert(tenantsViewCode.includes('is_global'), 'TenantsManagementView must support Superadmin Global Cross-Tenant legacy token (is_global)');
+assert(tenantsViewCode.includes('showReplaceTokenModal') && tenantsViewCode.includes('submitReplaceLegacyToken'), 'TenantsManagementView must allow replacing an existing key hash with an old datalogger token');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

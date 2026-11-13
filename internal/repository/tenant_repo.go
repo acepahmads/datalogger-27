@@ -172,6 +172,30 @@ func (r *TenantRepository) GetSiteByLegacyStationID(tenantID uint, legacyStation
 	return &s, nil
 }
 
+func (r *TenantRepository) GetSiteByLegacyStationIDGlobal(legacyStationID string) (*model.Site, error) {
+	clean := strings.TrimSpace(legacyStationID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var s model.Site
+	if err := r.db.Preload("Tenant").Where("enabled = ? AND LOWER(legacy_station_id) = LOWER(?)", true, clean).Order("id ASC").First(&s).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *TenantRepository) GetSiteByCodeGlobal(code string) (*model.Site, error) {
+	clean := model.NormalizeSlugCode(code)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var s model.Site
+	if err := r.db.Preload("Tenant").Where("enabled = ? AND LOWER(code) = LOWER(?)", true, clean).Order("id ASC").First(&s).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 func (r *TenantRepository) GetDefaultSiteForTenant(tenantID uint) (*model.Site, error) {
 	var s model.Site
 	if err := r.db.Where("tenant_id = ?", tenantID).Order("id ASC").First(&s).Error; err != nil {
@@ -227,10 +251,18 @@ func (r *TenantRepository) populateSiteCounts(sites []model.Site) {
 // --- Tenant Ingest API Keys ---
 
 func (r *TenantRepository) ListAPIKeys(tenantID uint) ([]model.TenantAPIKey, error) {
+	return r.ListAPIKeysScoped(tenantID, tenantID == 0)
+}
+
+func (r *TenantRepository) ListAPIKeysScoped(tenantID uint, isSuperAdmin bool) ([]model.TenantAPIKey, error) {
 	var keys []model.TenantAPIKey
-	q := r.db.Model(&model.TenantAPIKey{}).Preload("Tenant").Preload("Site").Order("id DESC")
-	if tenantID > 0 {
-		q = q.Where("tenant_id = ?", tenantID)
+	q := r.db.Model(&model.TenantAPIKey{}).Preload("Tenant").Preload("Site").Order("is_global DESC, id DESC")
+	if isSuperAdmin {
+		if tenantID > 0 {
+			q = q.Where("tenant_id = ? OR is_global = ?", tenantID, true)
+		}
+	} else {
+		q = q.Where("tenant_id = ? AND (is_global = ? OR is_global IS NULL)", tenantID, false)
 	}
 	err := q.Find(&keys).Error
 	return keys, err
