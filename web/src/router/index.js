@@ -39,6 +39,13 @@ const routes = [
   { path: '/monitoring/operator', name: 'OperatorCommandCenter', component: OperatorCommandCenterView },
   { path: '/monitoring/dashboard-operator', name: 'DashboardOperator', component: DashboardOperatorView },
   {
+    path: '/monitoring/fleet-map',
+    name: 'FleetMap',
+    component: () => import('../views/FleetMapView.vue'),
+    meta: { roles: ['SUPERADMIN'] },
+  },
+  { path: '/fleet-map', redirect: '/monitoring/fleet-map' },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: DashboardView,
@@ -298,7 +305,7 @@ router.beforeEach(async (to, from, next) => {
   // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to role default landing
   if (isAuth && isLoginPage && !to.query.switch) {
     return next({
-      path: isSuper ? '/dashboard' : (usesDashboardOperatorLanding ? '/monitoring/dashboard-operator' : '/monitoring/operator'),
+      path: isSuper ? '/monitoring/fleet-map' : (usesDashboardOperatorLanding ? '/monitoring/dashboard-operator' : '/monitoring/operator'),
       replace: true,
     });
   }

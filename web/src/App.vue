@@ -91,7 +91,7 @@
       <!-- Viewport / Route Views -->
       <main
         class="flex-1 min-w-0 transition-colors duration-150"
-        :class="(isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-2.5 sm:p-4 overflow-y-auto bg-transparent dark:bg-slate-950')"
+        :class="(isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isFleetMapRoute ? 'p-2 sm:p-2.5 overflow-hidden flex flex-col min-h-0 bg-slate-50 dark:bg-slate-950' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-2.5 sm:p-4 overflow-y-auto bg-transparent dark:bg-slate-950'))"
       >
         <router-view
           :key="'ctx-' + ($store.state.contextRevision || 0)"
@@ -195,6 +195,9 @@ export default {
     },
     isTelemetryRoute() {
       return this.$route && (this.$route.path === '/monitoring/telemetry' || this.$route.name === 'LiveTelemetry');
+    },
+    isFleetMapRoute() {
+      return this.$route && (this.$route.path === '/monitoring/fleet-map' || this.$route.name === 'FleetMap');
     },
     sidebarAutoHide() {
       return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);

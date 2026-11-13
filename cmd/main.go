@@ -407,6 +407,7 @@ func main() {
 		tenantsGroup.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGroup.GET("/context", tenantHandler.GetContext)
+			tenantsGroup.GET("/fleet-overview", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR"), tenantHandler.GetFleetOverview)
 			tenantsGroup.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.GetCurrentTenant)
 			tenantsGroup.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ListTenants)
 			tenantsGroup.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)

@@ -322,7 +322,7 @@ export default {
         const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
         const isCloudMode = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
         const defaultLanding = isSuper
-          ? '/dashboard'
+          ? '/monitoring/fleet-map'
           : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator');
 
         if (redirect && redirect !== '/login') {
@@ -331,7 +331,13 @@ export default {
           const isUsersRoute = redirect.startsWith('/administration/users');
           const isRolesRoute = redirect.startsWith('/administration/roles');
           const isTenantsRoute = redirect.startsWith('/administration/tenants');
-          const isQualityRoute = redirect === '/dashboard' || redirect.startsWith('/dashboard') || redirect === '/quality' || redirect.startsWith('/monitoring/quality');
+          const isQualityRoute =
+            redirect === '/dashboard' ||
+            redirect.startsWith('/dashboard') ||
+            redirect === '/quality' ||
+            redirect.startsWith('/monitoring/quality') ||
+            redirect === '/fleet-map' ||
+            redirect.startsWith('/monitoring/fleet-map');
           const isCloudAdminRestrictedRoute =
             isCloudMode && (
               redirect === '/' ||

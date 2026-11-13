@@ -551,6 +551,38 @@ export default new Vuex.Store({
         }));
       }
     },
+    async setActiveTenantAndSite({ commit, dispatch, state }, { tenantId = 0, siteId = 0 } = {}) {
+      const nextTenantId = Number(tenantId) || 0;
+      const nextSiteId = Number(siteId) || 0;
+      commit('SET_ACTIVE_TENANT_ID', nextTenantId);
+      commit('SET_ACTIVE_SITE_ID', nextSiteId);
+      commit('CLEAR_SENSITIVE_DATA');
+      if (state.ws && state.ws.readyState === 1) {
+        try {
+          state.ws.send(JSON.stringify({
+            type: 'SET_SCOPE',
+            tenant_id: nextTenantId,
+            site_id: nextSiteId,
+          }));
+        } catch (e) {}
+      }
+      await dispatch('fetchTenantContext');
+      if (nextSiteId > 0 && Number(state.activeSiteId) !== nextSiteId) {
+        commit('SET_ACTIVE_SITE_ID', nextSiteId);
+      }
+      await Promise.all([
+        dispatch('fetchSystemStatus'),
+        dispatch('fetchDevices'),
+        dispatch('fetchAlarms'),
+        dispatch('fetchActiveAlarms'),
+      ]);
+      commit('INCREMENT_CONTEXT_REVISION');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tenant-context-changed', {
+          detail: { tenantId: nextTenantId, siteId: nextSiteId },
+        }));
+      }
+    },
     async login({ commit, dispatch }, { username, password }) {
       const res = await axios.post(`${API_BASE}/auth/login`, { username, password });
       if (res.data && res.data.data) {

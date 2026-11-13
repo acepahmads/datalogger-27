@@ -33,6 +33,7 @@ export default {
     "edgeDatabase": "Database MariaDB Edge",
     "operatorConsole": "Konsol Operator",
     "dashboardOperator": "Dashboard Operator",
+    "fleetMap": "Peta Tenant & Stasiun",
     "ispuAnalysis": "Analisis ISPU",
     "wqmsAnalysis": "Analisis WQMS (IP & IKA)",
     "edgeSystem": "Sistem Edge Aktif",

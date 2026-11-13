@@ -88,6 +88,23 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
           </svg>
         </router-link>
+
+        <!-- Superadmin Global Fleet & Tenant Map Shortcut (SUPERADMIN Only) -->
+        <router-link
+          v-if="isSuperAdmin"
+          id="header-fleet-map-shortcut"
+          to="/monitoring/fleet-map"
+          class="flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs flex-shrink-0"
+          :class="$route.path === '/monitoring/fleet-map'
+            ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/50 ring-1 ring-emerald-500/30'
+            : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 border-slate-200 dark:border-slate-700/60'"
+          title="Buka Peta Global Semua Tenant & Stasiun"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 000 18M12 3a14.5 14.5 0 010 18" />
+          </svg>
+        </router-link>
       </div>
     </div>
 

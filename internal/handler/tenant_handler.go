@@ -46,6 +46,21 @@ func (h *TenantHandler) GetContext(c *gin.Context) {
 	})
 }
 
+// GetFleetOverview returns the cross-tenant global station map overview (Strictly SUPERADMIN only).
+func (h *TenantHandler) GetFleetOverview(c *gin.Context) {
+	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin platform yang memiliki akses ke Global Fleet & Tenant Map")
+		return
+	}
+	overview, err := h.tenantService.GetFleetOverview()
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, overview)
+}
+
 func isTenantAdminOrSuper(scope tenantctx.Scope) bool {
 	if scope.IsSuperAdmin || strings.EqualFold(scope.Role, "ADMIN") {
 		return true

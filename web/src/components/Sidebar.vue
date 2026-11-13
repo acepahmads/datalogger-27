@@ -112,6 +112,25 @@
           <span>{{ $t('navigation.monitoring') }}</span>
         </div>
         <div class="space-y-1">
+          <!-- Superadmin Global Fleet & Multi-Tenant Map Dashboard (STRICTLY SUPERADMIN ONLY) -->
+          <router-link
+            v-if="isSuperAdmin"
+            id="nav-fleet-map"
+            to="/monitoring/fleet-map"
+            class="nav-item"
+            :class="{ 'nav-active': $route.path === '/monitoring/fleet-map' || $route.path === '/fleet-map' }"
+          >
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-emerald-500 dark:text-emerald-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <circle cx="12" cy="12" r="9" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 000 18M12 3a14.5 14.5 0 010 18" />
+            </svg>
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ $t('navigation.fleetMap') || 'Peta Tenant & Stasiun' }}</span>
+            <span class="ml-auto text-4xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+              MAP
+            </span>
+          </router-link>
+
           <!-- Operator Command Center / SCADA Console (Hidden for Operator role, and hidden for Admin & Engineer in Cloud mode) -->
           <router-link v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
             <span class="active-indicator"></span>
