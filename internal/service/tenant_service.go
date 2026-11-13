@@ -793,7 +793,7 @@ func (s *TenantService) UpdateAPIKey(id uint, req UpdateAPIKeyRequest, scope ten
 	if k.IsGlobal && !scope.IsSuperAdmin {
 		return nil, errors.New("access denied: global cross-tenant API key requires superadmin")
 	}
-	if !scope.CanAccessTenant(k.TenantID) {
+	if !k.IsGlobal && !scope.CanAccessTenant(k.TenantID) {
 		return nil, errors.New("access denied: API key belongs to another tenant")
 	}
 	if req.Enabled != nil {
@@ -871,7 +871,7 @@ func (s *TenantService) DeleteAPIKey(id uint, scope tenantctx.Scope, ip string) 
 	if k.IsGlobal && !scope.IsSuperAdmin {
 		return errors.New("access denied: global cross-tenant API key requires superadmin")
 	}
-	if !scope.CanAccessTenant(k.TenantID) {
+	if !k.IsGlobal && !scope.CanAccessTenant(k.TenantID) {
 		return errors.New("access denied: API key belongs to another tenant")
 	}
 	if err := s.repo.DeleteAPIKey(id); err != nil {

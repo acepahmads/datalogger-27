@@ -2385,6 +2385,28 @@ export default {
         this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
       }
     },
+    cleanCustomTokenClient(raw) {
+      let val = String(raw || '').trim();
+      if (val.toLowerCase().startsWith('authorization:')) {
+        val = val.slice('authorization:'.length).trim();
+      }
+      const lower = val.toLowerCase();
+      if (lower.startsWith('bearer ')) {
+        val = val.slice(7).trim();
+      } else if (lower.startsWith('token ')) {
+        let rest = val.slice(6).trim();
+        if (rest.toLowerCase().startsWith('token=')) {
+          rest = rest.slice(6).trim();
+        }
+        val = rest;
+      }
+      return val.replace(/^["']+|["']+$/g, '').trim();
+    },
+    expectedPrefixForToken(cleaned) {
+      if (cleaned.length > 14) return `${cleaned.slice(0, 10)}...`;
+      if (cleaned.length > 4) return `${cleaned.slice(0, 4)}...`;
+      return `${cleaned}...`;
+    },
     openCreateKeyModal(initialMode = 'GENERATE') {
       const mode = initialMode === 'LEGACY_CUSTOM' ? 'LEGACY_CUSTOM' : 'GENERATE';
       const defaultTid = this.activeTenantId || (this.tenants[0] && this.tenants[0].id) || 1;
@@ -2405,7 +2427,7 @@ export default {
       try {
         const isGlobal = this.isSuperAdmin && Number(this.keyForm.tenant_id) === 0;
         const customTok = this.keyForm.token_mode === 'LEGACY_CUSTOM'
-          ? (this.keyForm.custom_token || '').trim()
+          ? this.cleanCustomTokenClient(this.keyForm.custom_token)
           : '';
         if (this.keyForm.token_mode === 'LEGACY_CUSTOM' && !customTok) {
           this.showToast('Silakan tempel token lama dari datalogger lapangan terlebih dahulu.', 'error');
@@ -2423,14 +2445,22 @@ export default {
         };
         const res = await axios.post('/api/ingest-keys', payload);
         if (res.data && res.data.data) {
-          this.newlyCreatedPlainKey = res.data.data.plain_key || '';
+          const plain = res.data.data.plain_key || '';
+          await this.loadIngestKeys();
+          if (customTok && plain && plain !== customTok) {
+            this.showToast(
+              'PERHATIAN: Server backend masih menjalankan binary versi lama sehingga token kustom diabaikan (malah membuat dlg_live_...). Jalankan update binary / restart service datalogger di server terlebih dahulu!',
+              'error'
+            );
+            return;
+          }
+          this.newlyCreatedPlainKey = plain;
           this.showCreateKeyModal = false;
           this.showToast(
             customTok
-              ? 'Token datalogger lama berhasil didaftarkan! Perangkat di lapangan langsung terhubung tanpa ubah token.'
+              ? `Token datalogger lama (${this.expectedPrefixForToken(customTok)}) berhasil didaftarkan!`
               : 'Bearer Token baru berhasil dibuat! Salin token sebelum menutup banner.'
           );
-          await this.loadIngestKeys();
         }
       } catch (err) {
         this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
@@ -2449,16 +2479,25 @@ export default {
       this.showReplaceTokenModal = true;
     },
     async submitReplaceLegacyToken() {
-      const rawTok = (this.replaceTokenForm.custom_token || '').trim();
-      if (!this.replaceTokenForm.keyId || !rawTok) return;
+      const cleaned = this.cleanCustomTokenClient(this.replaceTokenForm.custom_token);
+      if (!this.replaceTokenForm.keyId || !cleaned) return;
       this.savingReplaceToken = true;
       try {
-        await axios.put(`/api/ingest-keys/${this.replaceTokenForm.keyId}`, {
-          custom_token: rawTok,
+        const res = await axios.put(`/api/ingest-keys/${this.replaceTokenForm.keyId}`, {
+          custom_token: cleaned,
         });
-        this.showReplaceTokenModal = false;
+        const updatedKey = res && res.data && res.data.data;
+        const wantPrefix = this.expectedPrefixForToken(cleaned);
         await this.loadIngestKeys();
-        this.showToast(`Token pada '${this.replaceTokenForm.keyName}' berhasil disesuaikan dengan token datalogger lama!`);
+        if (updatedKey && updatedKey.key_prefix && updatedKey.key_prefix !== wantPrefix) {
+          this.showToast(
+            `PERHATIAN: Server backend masih memakai binary versi lama (prefix tetap '${updatedKey.key_prefix}', bukan '${wantPrefix}'). Jalankan update binary / restart service datalogger di server terlebih dahulu!`,
+            'error'
+          );
+          return;
+        }
+        this.showReplaceTokenModal = false;
+        this.showToast(`Token pada '${this.replaceTokenForm.keyName}' berhasil diubah ke prefix '${wantPrefix}'!`);
       } catch (err) {
         this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
       } finally {

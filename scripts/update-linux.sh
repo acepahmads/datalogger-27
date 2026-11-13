@@ -55,17 +55,33 @@ if [ -d "$INSTALL_DIR" ]; then
 fi
 
 UPDATED=0
+CANDIDATE_BIN=""
 if [ -f "./bin/datalogger-linux-arm64" ] && [ "$ARCH" = "aarch64" -o "$ARCH" = "arm64" ]; then
-  echo "Deploying ARM64 binary to $TARGET_BIN..."
-  sudo cp "./bin/datalogger-linux-arm64" "$TARGET_BIN"
-  UPDATED=1
+  CANDIDATE_BIN="./bin/datalogger-linux-arm64"
 elif [ -f "./bin/datalogger-linux-armv7" ] && [ "$ARCH" = "armv7l" -o "$ARCH" = "armhf" ]; then
-  echo "Deploying ARMv7 binary to $TARGET_BIN..."
-  sudo cp "./bin/datalogger-linux-armv7" "$TARGET_BIN"
-  UPDATED=1
+  CANDIDATE_BIN="./bin/datalogger-linux-armv7"
 elif [ -f "./bin/datalogger-linux-amd64" ] && [ "$ARCH" = "x86_64" ]; then
-  echo "Deploying Linux x86_64 binary to $TARGET_BIN..."
-  sudo cp "./bin/datalogger-linux-amd64" "$TARGET_BIN"
+  CANDIDATE_BIN="./bin/datalogger-linux-amd64"
+fi
+
+# If Go compiler is installed and .go sources have newer commits than prebuilt binary, compile fresh binary
+PREFER_NATIVE_BUILD=0
+if [ -d ".git" ] && [ -n "$CANDIDATE_BIN" ] && command -v go &> /dev/null; then
+  LAST_GO_COMMIT=$(run_git log -n 1 --format=%H -- cmd internal pkg 2>/dev/null || echo "")
+  LAST_BIN_COMMIT=$(run_git log -n 1 --format=%H -- "$CANDIDATE_BIN" 2>/dev/null || echo "")
+  if [ -n "$LAST_GO_COMMIT" ] && [ "$LAST_GO_COMMIT" != "$LAST_BIN_COMMIT" ]; then
+    ANCESTOR_CHECK=0
+    run_git merge-base --is-ancestor "$LAST_GO_COMMIT" "$LAST_BIN_COMMIT" 2>/dev/null && ANCESTOR_CHECK=1 || true
+    if [ "$ANCESTOR_CHECK" -eq 0 ]; then
+      echo "Detected Go source commits newer than $CANDIDATE_BIN; compiling fresh native binary..."
+      PREFER_NATIVE_BUILD=1
+    fi
+  fi
+fi
+
+if [ "$PREFER_NATIVE_BUILD" -eq 0 ] && [ -n "$CANDIDATE_BIN" ]; then
+  echo "Deploying pre-built binary ($CANDIDATE_BIN) to $TARGET_BIN..."
+  sudo cp "$CANDIDATE_BIN" "$TARGET_BIN"
   UPDATED=1
 fi
 
@@ -73,6 +89,9 @@ if [ "$UPDATED" -eq 0 ]; then
   if command -v go &> /dev/null; then
     echo "Compiling native binary on target machine using Go..."
     sudo CGO_ENABLED=0 go build -ldflags "-s -w" -o "$TARGET_BIN" ./cmd/main.go
+  elif [ -n "$CANDIDATE_BIN" ]; then
+    echo "Go compiler not found; falling back to pre-built binary ($CANDIDATE_BIN)..."
+    sudo cp "$CANDIDATE_BIN" "$TARGET_BIN"
   else
     echo "Error: Pre-built binary not matched and Go compiler not found."
     exit 1

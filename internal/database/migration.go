@@ -4331,6 +4331,9 @@ func bootstrapMultiTenantParentTables(db *gorm.DB) error {
 	if db.Migrator().HasColumn("tenant_api_keys", "ingest_format") {
 		_ = db.Exec("UPDATE tenant_api_keys SET ingest_format = 'AUTO' WHERE ingest_format IS NULL OR ingest_format = ''").Error
 	}
+	if db.Migrator().HasColumn("tenant_api_keys", "is_global") {
+		_ = db.Exec("UPDATE tenant_api_keys SET is_global = 0 WHERE is_global IS NULL").Error
+	}
 
 	// Sanitize any already-added child FK columns (e.g. recovering from an interrupted upgrade)
 	if db.Migrator().HasTable("users") && db.Migrator().HasColumn("users", "tenant_id") {
