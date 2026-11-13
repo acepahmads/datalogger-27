@@ -1,12 +1,111 @@
 <template>
-  <div class="space-y-4 p-3 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100 font-sans">
-    <!-- Breadcrumb & Top Bar -->
-    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-[#20354B]">
+  <div class="space-y-3.5 sm:space-y-4 p-2.5 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100 font-sans">
+    <!-- MOBILE UNIFIED HEADER & CONTROL CARD (< 768px) -->
+    <div
+      id="ispu-mobile-control-card"
+      class="md:hidden p-3 rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs space-y-2.5"
+    >
+      <!-- Row 1: Back + Title + Regulatory Pill -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <router-link
+            :to="backRoutePath"
+            class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#20354B] flex items-center justify-center shrink-0 transition"
+            title="Kembali ke Dashboard"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </router-link>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0"></span>
+              <h1 class="text-[15px] font-extrabold tracking-tight text-slate-900 dark:text-white truncate">
+                Analisis ISPU
+              </h1>
+            </div>
+            <p class="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">
+              Stasiun AQMS · Semua Device Aktif
+            </p>
+          </div>
+        </div>
+        <span class="px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 shrink-0 whitespace-nowrap">
+          Permen 14/2020
+        </span>
+      </div>
+
+      <!-- Row 2: Symmetrical 2-Column Mode Segmented Switcher -->
+      <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-[11px]">
+        <button
+          type="button"
+          @click="setMode('REGULATORY')"
+          class="py-1.5 px-2 rounded-lg transition font-bold text-center truncate"
+          :class="ispuMode === 'REGULATORY'
+            ? 'bg-white dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-slate-200/80 dark:border-cyan-500/40 shadow-xs'
+            : 'text-slate-500 dark:text-slate-400'"
+        >
+          📅 24-Jam (Regulasi)
+        </button>
+        <button
+          type="button"
+          @click="setMode('OPERATIONAL')"
+          class="py-1.5 px-2 rounded-lg transition font-bold text-center truncate"
+          :class="ispuMode === 'OPERATIONAL'
+            ? 'bg-white dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-slate-200/80 dark:border-cyan-500/40 shadow-xs'
+            : 'text-slate-500 dark:text-slate-400'"
+        >
+          ⏱️ Agregasi ({{ aggregationIntervalLabel }})
+        </button>
+      </div>
+
+      <!-- Row 3: Symmetrical Equal-Column Action Bar (Zero Orphan Wrapping) -->
+      <div class="grid gap-1.5" :class="canManageMapping ? 'grid-cols-4' : 'grid-cols-3'">
+        <button
+          v-if="canManageMapping"
+          type="button"
+          @click="openMappingsModal"
+          class="h-8 px-1.5 rounded-xl text-[11px] font-bold transition border flex items-center justify-center gap-1 bg-slate-50 dark:bg-[#101B2B] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-[#20354B] active:scale-[0.98]"
+        >
+          <span>⚙️</span>
+          <span class="truncate">Map</span>
+        </button>
+        <button
+          type="button"
+          @click="triggerRecalculation"
+          :disabled="recalculating"
+          class="h-8 px-1.5 rounded-xl text-[11px] font-bold transition border flex items-center justify-center gap-1 bg-slate-50 dark:bg-[#101B2B] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-[#20354B] disabled:opacity-50 active:scale-[0.98]"
+        >
+          <svg class="w-3.5 h-3.5 shrink-0" :class="{ 'animate-spin': recalculating }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span class="truncate">Hitung</span>
+        </button>
+        <button
+          type="button"
+          @click="exportData('csv')"
+          class="h-8 px-1.5 rounded-xl text-[11px] font-bold transition border flex items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-500 shadow-xs active:scale-[0.98]"
+        >
+          <span>⬇️</span>
+          <span>CSV</span>
+        </button>
+        <button
+          type="button"
+          @click="exportData('excel')"
+          class="h-8 px-1.5 rounded-xl text-[11px] font-bold transition border flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-xs active:scale-[0.98]"
+        >
+          <span>📊</span>
+          <span>Excel</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- DESKTOP Breadcrumb & Top Bar (>= 768px — 100% Preserved) -->
+    <div class="hidden md:flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-[#20354B]">
       <div class="flex items-center space-x-3">
         <router-link
-          to="/monitoring/operator"
+          :to="backRoutePath"
           class="p-1.5 rounded-lg bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#20354B] transition"
-          title="Back to Operator Command Center"
+          title="Back to Dashboard"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -116,26 +215,26 @@
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <!-- Station Main ISPU Gauge Card (approx 5 cols) -->
         <div
-          class="lg:col-span-5 p-4 rounded-2xl border transition-all duration-300 flex flex-col justify-between shadow-xs"
+          class="lg:col-span-5 min-w-0 p-3.5 sm:p-4 rounded-2xl border transition-all duration-300 flex flex-col justify-between shadow-xs"
           :class="kpiCardClass"
         >
           <div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-2">
+            <div class="flex items-start sm:items-center justify-between gap-2">
+              <div class="flex flex-wrap items-center gap-1.5 min-w-0">
                 <span class="text-3xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  {{ isOverallMode ? (ispuMode === 'OPERATIONAL' ? `LATEST STATION ISPU — PER AGREGASI (${aggregationIntervalLabel})` : 'LATEST STATION ISPU — 24-JAM REGULASI') : `LATEST ISPU — ${selectedPollutant} (${ispuMode === 'OPERATIONAL' ? 'PER AGREGASI' : '24-JAM REGULASI'})` }}
+                  {{ isOverallMode ? (ispuMode === 'OPERATIONAL' ? `ISPU STASIUN — AGREGASI (${aggregationIntervalLabel})` : 'ISPU STASIUN TERKINI — 24 JAM') : `ISPU ${formatPollutantLabel(selectedPollutant)} (${ispuMode === 'OPERATIONAL' ? 'AGREGASI' : '24 JAM'})` }}
                 </span>
                 <button
                   v-if="!isOverallMode"
                   @click="selectPollutant('OVERALL')"
-                  class="px-1.5 py-0.2 rounded text-4xs font-semibold bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
+                  class="px-1.5 py-0.5 rounded text-4xs font-semibold bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
                   title="Kembali ke ISPU Stasiun (Dominan)"
                 >
-                  ← Overall
+                  ← Dominan
                 </button>
               </div>
               <span
-                class="px-2 py-0.5 rounded text-4xs font-mono font-bold uppercase border"
+                class="px-2 py-0.5 rounded text-4xs font-mono font-bold uppercase border shrink-0"
                 :class="statusBadgeClass"
               >
                 {{ latestData?.calculation_status || (ispuMode === 'OPERATIONAL' ? 'OPERATIONAL' : 'PROVISIONAL') }}
@@ -148,19 +247,19 @@
             </div>
 
             <!-- Main Metric Display -->
-            <div class="flex items-baseline space-x-3 mt-2.5">
-              <span class="text-5xl sm:text-6xl font-black font-mono tracking-tight tabular-nums" :class="categoryTextClass">
+            <div class="flex items-center space-x-3.5 mt-2.5">
+              <span class="text-5xl sm:text-6xl font-black font-mono tracking-tight tabular-nums leading-none" :class="categoryTextClass">
                 {{ displayISPU }}
               </span>
-              <div>
-                <div class="text-lg font-bold uppercase tracking-wide" :class="categoryTextClass">
-                  {{ ispuCategory }}
+              <div class="min-w-0">
+                <div class="text-base sm:text-lg font-extrabold uppercase tracking-wide leading-tight" :class="categoryTextClass">
+                  {{ formatCategoryLabel(ispuCategory) }}
                 </div>
-                <div class="text-3xs text-slate-500 dark:text-slate-400">
+                <div class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
                   <template v-if="isOverallMode">
-                    Dominant: <strong class="font-mono text-slate-900 dark:text-white">{{ dominantPollutant === '-' ? 'None' : dominantPollutant }}</strong>
+                    Dominan: <strong class="font-mono text-slate-900 dark:text-white">{{ dominantPollutant === '-' ? 'None' : formatPollutantLabel(dominantPollutant) }}</strong>
                     <span v-if="latestData?.tied_pollutants" class="text-4xs font-mono text-amber-500 ml-1">
-                      (Tied: {{ latestData.tied_pollutants }})
+                      (Seri: {{ latestData.tied_pollutants }})
                     </span>
                   </template>
                   <template v-else-if="!selectedPollutantResult">
@@ -170,7 +269,7 @@
                     <span class="text-slate-400 italic">Tidak Tersedia (0 Data Valid)</span>
                   </template>
                   <template v-else>
-                    Conc: <strong class="font-mono tabular-nums text-slate-900 dark:text-white">{{ Number(activeConcentration || 0).toFixed(2) }}</strong> µg/m³
+                    Konsentrasi: <strong class="font-mono tabular-nums text-slate-900 dark:text-white">{{ Number(activeConcentration || 0).toFixed(2) }}</strong> µg/m³
                     <span v-if="selectedPollutantResult?.xb !== undefined" class="text-4xs font-mono tabular-nums text-slate-400 ml-1">
                       [Bp: {{ selectedPollutantResult.xb }} - {{ selectedPollutantResult.xa }}]
                     </span>
@@ -178,31 +277,61 @@
                 </div>
               </div>
             </div>
+
+            <!-- 5-Zone ISPU Spectrum Scale Bar with Live Marker -->
+            <div class="mt-3.5 pt-1">
+              <div class="relative">
+                <div
+                  v-if="displayISPU !== '-'"
+                  class="absolute -top-2.5 transform -translate-x-1/2 transition-all duration-300"
+                  :style="{ left: `${ispuScaleMarkerPct}%` }"
+                >
+                  <div class="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-900 dark:border-t-white"></div>
+                </div>
+                <div class="grid grid-cols-5 h-2 rounded-full overflow-hidden gap-0.5 bg-slate-200/60 dark:bg-slate-800">
+                  <div class="bg-emerald-500" title="0 - 50: Baik"></div>
+                  <div class="bg-sky-500" title="51 - 100: Sedang"></div>
+                  <div class="bg-amber-500" title="101 - 200: Tidak Sehat"></div>
+                  <div class="bg-rose-500" title="201 - 300: Sangat Tidak Sehat"></div>
+                  <div class="bg-purple-700" title="> 300: Berbahaya"></div>
+                </div>
+                <div class="grid grid-cols-5 text-center text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-1 leading-tight">
+                  <div>0–50<span class="block text-[8px] font-normal opacity-80">Baik</span></div>
+                  <div>51–100<span class="block text-[8px] font-normal opacity-80">Sedang</span></div>
+                  <div>101–200<span class="block text-[8px] font-normal opacity-80">Tdk Sehat</span></div>
+                  <div>201–300<span class="block text-[8px] font-normal opacity-80">Sgt Tdk</span></div>
+                  <div>&gt;300<span class="block text-[8px] font-normal opacity-80">Bahaya</span></div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Measurement Period & Completeness Bar -->
-          <div class="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 text-3xs">
-            <div class="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <span>{{ ispuMode === 'OPERATIONAL' ? 'Bucket Window:' : '24h Rolling Window:' }}</span>
-              <span class="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{{ formattedPeriod }}</span>
+          <div class="mt-3.5 pt-2.5 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 text-3xs">
+            <div class="flex items-center justify-between gap-2 text-slate-500 dark:text-slate-400">
+              <span class="shrink-0">{{ ispuMode === 'OPERATIONAL' ? 'Jendela Bucket:' : 'Jendela 24 Jam:' }}</span>
+              <span class="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200 text-right truncate">
+                <span class="sm:hidden">{{ formattedPeriodCompact }}</span>
+                <span class="hidden sm:inline">{{ formattedPeriod }}</span>
+              </span>
             </div>
             <div>
-              <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-                <span>
-                  {{ ispuMode === 'OPERATIONAL' ? 'Bucket Completeness:' : (isOverallMode ? 'Data Completeness (Pasal 7 ayat 3):' : 'Hourly Data Samples:') }}
+              <div class="flex items-center justify-between gap-2 text-slate-500 dark:text-slate-400 mb-1">
+                <span class="truncate">
+                  {{ ispuMode === 'OPERATIONAL' ? 'Kelengkapan Bucket:' : (isOverallMode ? 'Kelengkapan Data (≥75%):' : 'Sampel Data Jam:') }}
                 </span>
-                <span class="font-mono tabular-nums font-bold" :class="ispuMode === 'OPERATIONAL' || completenessPercent >= 75 ? 'text-emerald-500' : 'text-amber-500'">
+                <span class="font-mono tabular-nums font-bold shrink-0" :class="ispuMode === 'OPERATIONAL' || completenessPercent >= 75 ? 'text-emerald-500' : 'text-amber-500'">
                   <template v-if="ispuMode === 'OPERATIONAL'">
                     100.0% (Lengkap)
                   </template>
                   <template v-else-if="!isOverallMode && !selectedPollutantResult">
-                    0.0% (Tidak Terpasang)
+                    0.0% (Unmapped)
                   </template>
                   <template v-else-if="!isOverallMode">
                     {{ selectedPollutantResult?.valid_samples || 0 }}/24h ({{ completenessPercent.toFixed(1) }}%)
                   </template>
                   <template v-else>
-                    {{ completenessPercent.toFixed(1) }}% (Req: ≥ 75%)
+                    {{ completenessPercent.toFixed(1) }}% (Syarat ≥75%)
                   </template>
                 </span>
               </div>
@@ -214,17 +343,17 @@
                 ></div>
               </div>
             </div>
-            <div class="flex items-center justify-between text-4xs text-slate-400 dark:text-slate-500 pt-1">
-              <span>
-                {{ ispuMode === 'OPERATIONAL' ? `Data Source: Single Bucket (${latestData?.source_bucket_identifier || '-'})` : `Data Source: 24h Aggregations (${latestData?.aggregation_interval_seconds || 120}s)` }}
+            <div class="flex items-center justify-between gap-2 text-4xs text-slate-400 dark:text-slate-500 pt-0.5">
+              <span class="truncate">
+                {{ ispuMode === 'OPERATIONAL' ? `Sumber: Bucket (${latestData?.source_bucket_identifier || '-'})` : `Sumber: Agregasi 24j (${latestData?.aggregation_interval_seconds || 120}s)` }}
               </span>
-              <span>Timezone: <span class="font-mono">{{ latestData?.timezone || 'Asia/Jakarta' }}</span></span>
+              <span class="shrink-0">TZ: <span class="font-mono">{{ latestData?.timezone || 'Asia/Jakarta' }}</span></span>
             </div>
           </div>
         </div>
 
         <!-- Historical Trend Chart (approx 7 cols) -->
-        <div class="lg:col-span-7 p-3.5 rounded-2xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-xs flex flex-col justify-between">
+        <div class="lg:col-span-7 min-w-0 p-3 sm:p-3.5 rounded-2xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-xs flex flex-col justify-between overflow-hidden">
           <ISPUTrendChart
             :records="trendRecords"
             :loading="trendLoading"
@@ -235,6 +364,7 @@
             :is-dark="isDark"
             :aggregation-interval-seconds="latestData?.aggregation_interval_seconds || 120"
             @range-change="handleRangeChange"
+            @pollutant-change="selectPollutant"
           />
 
         </div>
@@ -243,16 +373,27 @@
       <!-- Quick Concentrate Selector & 7 Official ISPU Pollutants Breakdown -->
       <div class="space-y-2.5">
         <div class="flex flex-wrap items-center justify-between gap-2 text-2xs">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
-            <span class="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-              OFFICIAL 7 PARAMETERS EVALUATION BREAKDOWN
+          <div class="flex items-center space-x-2 min-w-0">
+            <span class="w-2 h-2 rounded-full bg-cyan-500 shrink-0"></span>
+            <span class="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 truncate">
+              <span class="sm:hidden">Rincian 7 Parameter Resmi ISPU</span>
+              <span class="hidden sm:inline">OFFICIAL 7 PARAMETERS EVALUATION BREAKDOWN</span>
             </span>
             <span class="text-slate-400 hidden sm:inline text-3xs">(Permen LHK No. 14/2020 Lampiran I & II)</span>
           </div>
 
-          <!-- Quick Selector Buttons -->
-          <div class="flex flex-wrap items-center gap-1">
+          <!-- Mobile Reset Pill when a single pollutant is selected -->
+          <button
+            v-if="!isOverallMode"
+            type="button"
+            @click="selectPollutant('OVERALL')"
+            class="sm:hidden px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-cyan-500 text-slate-950 shadow-xs"
+          >
+            ★ Tampilkan Dominan
+          </button>
+
+          <!-- Desktop Quick Selector Buttons (>= 640px) -->
+          <div class="hidden sm:flex flex-wrap items-center gap-1">
             <button
               @click="selectPollutant('OVERALL')"
               class="px-2 py-0.5 rounded text-3xs font-semibold transition border flex items-center space-x-1"
@@ -271,57 +412,61 @@
                 ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs ring-1 ring-cyan-400'
                 : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-white'"
             >
-              {{ p.code }}
+              {{ formatPollutantLabel(p.code) }}
             </button>
           </div>
         </div>
 
-        <!-- 7 Cards Grid (Clickable to display concentrate on large card & chart) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
+        <!-- 7 Cards Grid (2-col Bento on Mobile, 2/4/7-col on Tablet/Desktop) -->
+        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2 sm:gap-2.5">
           <div
-            v-for="p in sevenOfficialParameters"
+            v-for="(p, pIdx) in sevenOfficialParameters"
             :key="p.code"
             @click="selectPollutant(p.code)"
-            class="p-3 rounded-xl border flex flex-col justify-between transition cursor-pointer select-none shadow-xs"
-            :class="getParameterCardClass(p.code)"
+            class="p-2.5 sm:p-3 rounded-xl border flex flex-col justify-between transition cursor-pointer select-none shadow-xs min-w-0"
+            :class="[
+              getParameterCardClass(p.code),
+              pIdx === 6 ? 'col-span-2 sm:col-span-1' : ''
+            ]"
             :title="`Click to display ${p.code} ISPU on main card & trend chart`"
           >
             <div>
               <!-- Header: Code & Category Badge -->
-              <div class="flex items-start justify-between">
-                <div>
-                  <div class="flex items-center space-x-1.5">
-                    <span class="text-sm font-bold font-mono tracking-tight text-slate-900 dark:text-white">
-                      {{ p.code }}
+              <div class="flex items-start justify-between gap-1">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs sm:text-sm font-bold font-mono tracking-tight text-slate-900 dark:text-white">
+                      {{ formatPollutantLabel(p.code) }}
                     </span>
                     <span
                       v-if="selectedPollutant === p.code"
-                      class="px-1 py-0.2 rounded text-[8px] font-bold bg-cyan-500 text-slate-950 uppercase"
+                      class="px-1 py-0.2 rounded text-[8px] font-bold bg-cyan-500 text-slate-950 uppercase shrink-0"
                     >
-                      Active
+                      Aktif
                     </span>
                   </div>
-                  <div class="text-[10px] text-slate-400 truncate max-w-[110px]" :title="p.name">
+                  <div class="text-[9.5px] sm:text-[10px] text-slate-400 truncate" :title="p.name">
                     {{ p.name }}
                   </div>
                 </div>
                 <span
-                  class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase border"
+                  class="px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] font-bold uppercase border shrink-0 text-right whitespace-nowrap"
                   :class="getParameterBadgeClass(p.code)"
                 >
-                  {{ getParameterBadgeLabel(p.code) }}
+                  <span class="sm:hidden">{{ getParameterBadgeShortLabel(p.code) }}</span>
+                  <span class="hidden sm:inline">{{ getParameterBadgeLabel(p.code) }}</span>
                 </span>
               </div>
 
               <!-- Main ISPU Index & Concentration -->
-              <div class="mt-2.5">
+              <div class="mt-2 sm:mt-2.5">
                 <div class="flex items-baseline space-x-1">
-                  <span class="text-2xl font-black font-mono tabular-nums text-slate-900 dark:text-white">
+                  <span class="text-xl sm:text-2xl font-black font-mono tabular-nums text-slate-900 dark:text-white leading-none">
                     {{ getParameterDisplayISPU(p.code) }}
                   </span>
-                  <span class="text-3xs font-semibold text-slate-400">ISPU</span>
+                  <span class="text-[9.5px] sm:text-3xs font-semibold text-slate-400">ISPU</span>
                 </div>
-                <div class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <div class="text-[10px] sm:text-3xs text-slate-500 dark:text-slate-400 mt-1 truncate">
                   <template v-if="!isParameterMapped(p.code)">
                     Conc: <strong class="font-mono text-slate-400">-</strong>
                   </template>
@@ -329,20 +474,20 @@
                     Conc: <strong class="font-mono text-slate-400">-</strong>
                   </template>
                   <template v-else>
-                    Conc: <strong class="font-mono tabular-nums text-slate-700 dark:text-slate-200">{{ getParameterDisplayConc(p.code) }}</strong> µg/m³
+                    <strong class="font-mono tabular-nums text-slate-700 dark:text-slate-200">{{ getParameterDisplayConc(p.code) }}</strong> µg/m³
                   </template>
                 </div>
               </div>
             </div>
 
             <!-- Footer: Breakpoints & Inspect Math -->
-            <div class="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-[10px]">
-              <span class="text-slate-400">
+            <div class="mt-2.5 sm:mt-3 pt-1.5 sm:pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-1 text-[9.5px] sm:text-[10px]">
+              <span class="text-slate-400 truncate">
                 <template v-if="!isParameterMapped(p.code)">
                   <span class="text-slate-400 italic">Unmapped</span>
                 </template>
                 <template v-else-if="getParameterResult(p.code)?.valid_samples === 0 || getParameterResult(p.code)?.category === 'TIDAK_TERSEDIA'">
-                  <span class="text-amber-500 font-semibold" title="Data agregasi belum tersedia untuk parameter ini">0 Data Agregasi</span>
+                  <span class="text-amber-500 font-semibold" title="Data agregasi belum tersedia untuk parameter ini">0 Agregasi</span>
                 </template>
                 <template v-else-if="ispuMode === 'OPERATIONAL'">
                   <span class="font-mono tabular-nums">{{ getParameterResult(p.code)?.source_aggregation_count || 1 }}</span> bucket
@@ -354,7 +499,7 @@
               <button
                 v-if="isParameterMapped(p.code)"
                 @click.stop="openFormulaModal(p.code)"
-                class="text-cyan-600 dark:text-cyan-400 font-medium hover:underline cursor-pointer"
+                class="text-cyan-600 dark:text-cyan-400 font-semibold hover:underline cursor-pointer shrink-0"
                 title="Inspect regulatory interpolation formula"
               >
                 Inspect →
@@ -362,7 +507,7 @@
               <button
                 v-else-if="canManageMapping"
                 @click.stop="openMappingsModal"
-                class="text-slate-400 hover:text-cyan-400 font-medium hover:underline cursor-pointer"
+                class="text-slate-400 hover:text-cyan-400 font-semibold hover:underline cursor-pointer shrink-0"
                 title="Map datalogger sensor to this pollutant"
               >
                 + Map
@@ -373,32 +518,35 @@
         </div>
       </div>
 
-      <!-- Historical Records Table & Server Filters -->
-      <div class="p-3.5 rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-white">
-              HISTORICAL ISPU CALCULATION RECORDS
-            </h3>
-            <span class="text-3xs text-slate-400 tabular-nums">
-              ({{ historyTotal }} records found)
+      <!-- Historical Records Section & Server Filters -->
+      <div class="p-3 sm:p-3.5 rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs space-y-3">
+        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-2">
+          <div class="flex items-center justify-between sm:justify-start gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-white">
+                <span class="sm:hidden">Riwayat Perhitungan ISPU</span>
+                <span class="hidden sm:inline">HISTORICAL ISPU CALCULATION RECORDS</span>
+              </h3>
+            </div>
+            <span class="text-3xs text-slate-400 tabular-nums font-semibold">
+              ({{ historyTotal }} rekaman)
             </span>
           </div>
 
-          <!-- Filters -->
-          <div class="flex flex-wrap items-center gap-1.5 text-2xs">
+          <!-- Symmetrical 3-Column Filters on Mobile, Flex on Desktop -->
+          <div class="grid grid-cols-3 sm:flex items-center gap-1.5 text-[11px] sm:text-2xs w-full sm:w-auto">
             <!-- Category Filter -->
             <select
               v-model="filterCategory"
               @change="fetchHistory(1)"
-              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium"
+              class="w-full sm:w-auto px-2 py-1.5 sm:py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium truncate"
             >
-              <option value="">All Categories</option>
+              <option value="">Semua Kategori</option>
               <option value="BAIK">Baik</option>
               <option value="SEDANG">Sedang</option>
               <option value="TIDAK_SEHAT">Tidak Sehat</option>
-              <option value="SANGAT_TIDAK_SEHAT">Sangat Tidak Sehat</option>
+              <option value="SANGAT_TIDAK_SEHAT">Sgt Tdk Sehat</option>
               <option value="BERBAHAYA">Berbahaya</option>
             </select>
 
@@ -406,9 +554,9 @@
             <select
               v-model="filterStatus"
               @change="fetchHistory(1)"
-              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium"
+              class="w-full sm:w-auto px-2 py-1.5 sm:py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium truncate"
             >
-              <option value="">All Status</option>
+              <option value="">Semua Status</option>
               <option value="VALID">Valid (≥75%)</option>
               <option value="PROVISIONAL">Provisional (&lt;75%)</option>
               <option value="INVALID">Invalid</option>
@@ -418,18 +566,90 @@
             <select
               v-model="filterDominant"
               @change="fetchHistory(1)"
-              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium"
+              class="w-full sm:w-auto px-2 py-1.5 sm:py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium truncate"
             >
-              <option value="">All Pollutants</option>
+              <option value="">Semua Polutan</option>
               <option v-for="p in sevenOfficialParameters" :key="p.code" :value="p.code">
-                {{ p.code }}
+                {{ formatPollutantLabel(p.code) }}
               </option>
             </select>
           </div>
         </div>
 
-        <!-- Table -->
-        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#20354B]">
+        <!-- MOBILE AUDIT CARDS (< 768px — Zero Horizontal Table Scroll) -->
+        <div class="md:hidden space-y-2">
+          <div v-if="historyLoading" class="py-8 text-center text-xs text-slate-400">
+            Memuat riwayat perhitungan ISPU...
+          </div>
+          <div v-else-if="!historyRecords || historyRecords.length === 0" class="py-8 text-center text-xs text-slate-400">
+            Tidak ada rekaman ISPU yang sesuai filter.
+          </div>
+          <div
+            v-else
+            v-for="r in historyRecords"
+            :key="'mob-hist-' + r.id"
+            @click="openDetailModal(r)"
+            class="p-3 rounded-xl border border-slate-200 dark:border-[#20354B] bg-slate-50/70 dark:bg-[#101B2B]/60 active:scale-[0.99] transition cursor-pointer space-y-2"
+          >
+            <!-- Card Top: Window & Status -->
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-xs font-bold font-mono tabular-nums text-slate-800 dark:text-slate-100 truncate">
+                  {{ formatDate(r.period_end) }}
+                </div>
+                <div class="text-[10px] font-mono text-slate-400 truncate">
+                  {{ r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL' ? `${r.aggregation_interval_seconds || 120}s: ${formatShortTime(r.period_start)} → ${formatShortTime(r.period_end)}` : `24j: ${formatShortTime(r.period_start)} → ${formatShortTime(r.period_end)}` }}
+                </div>
+              </div>
+              <span
+                class="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase shrink-0"
+                :class="r.calculation_status === 'VALID' ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : (r.calculation_status === 'OPERATIONAL' ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400')"
+              >
+                {{ r.calculation_status || (r.calculation_mode === 'OPERATIONAL' ? 'OPERATIONAL' : 'PROVISIONAL') }}
+              </span>
+            </div>
+
+            <!-- Card Middle: Big ISPU Score, Category, Dominant & Coverage -->
+            <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/80">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="text-2xl font-black font-mono tabular-nums leading-none" :style="{ color: getRowDisplayColor(r) }">
+                  {{ getRowDisplayISPU(r) }}
+                </span>
+                <div class="min-w-0">
+                  <span class="inline-block px-1.5 py-0.5 rounded text-[9.5px] font-bold border" :class="getCategoryPillClass(getRowDisplayCategory(r))">
+                    {{ formatCategoryLabel(getRowDisplayCategory(r)) }}
+                  </span>
+                  <div class="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                    Dominan: <strong class="font-mono text-slate-800 dark:text-slate-200">{{ formatPollutantLabel(r.dominant_pollutant) }}</strong>
+                    · Data:
+                    <strong :class="(r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL') || (r.completeness_percent || 0) >= 75 ? 'text-emerald-500' : 'text-amber-500'">
+                      {{ r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL' ? '100%' : `${(r.completeness_percent || 0).toFixed(0)}%` }}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+              <span class="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10.5px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
+                Audit →
+              </span>
+            </div>
+
+            <!-- Card Bottom: Mini 7-Pollutant Summary Strip -->
+            <div class="grid grid-cols-7 gap-1 pt-1 text-center">
+              <div
+                v-for="p in sevenOfficialParameters"
+                :key="'mob-cell-' + r.id + '-' + p.code"
+                class="py-1 rounded bg-white/80 dark:bg-[#0B1422] border border-slate-200/70 dark:border-slate-800 text-[9.5px] font-mono"
+                :class="selectedPollutant === p.code ? 'ring-1 ring-cyan-400 text-cyan-500 font-bold' : ''"
+              >
+                <div class="text-[8px] text-slate-400 leading-none">{{ p.code === 'PM25' ? '2.5' : p.code }}</div>
+                <div class="font-bold text-slate-700 dark:text-slate-200 mt-0.5 leading-none">{{ getParamVal(r, p.code) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DESKTOP Table (>= 768px — 100% Preserved) -->
+        <div class="hidden md:block overflow-x-auto rounded-xl border border-slate-200 dark:border-[#20354B]">
           <table class="w-full text-left text-3xs select-none">
             <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-[#20354B] font-semibold">
               <tr>
@@ -576,18 +796,18 @@
     <!-- DETAIL / FORMULA INSPECTOR MODAL -->
     <div
       v-if="showDetailModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/75 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 bg-slate-950/75 backdrop-blur-sm"
       @click.self="showDetailModal = false"
     >
-      <div class="w-full max-w-4xl bg-white dark:bg-[#0B1422] rounded-2xl border border-slate-200 dark:border-[#20354B] shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#20354B]">
-          <div class="flex items-center space-x-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">
-              ISPU CALCULATION REPRODUCTION & AUDIT DETAILS
+      <div class="w-full max-w-4xl bg-white dark:bg-[#0B1422] rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-[#20354B] shadow-2xl p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 max-h-[92vh] overflow-y-auto">
+        <div class="flex items-center justify-between gap-2 pb-2.5 sm:pb-3 border-b border-slate-200 dark:border-[#20354B]">
+          <div class="flex items-center space-x-2 min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
+            <h3 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white uppercase truncate">
+              ISPU CALCULATION REPRODUCTION &amp; AUDIT DETAILS
             </h3>
           </div>
-          <button @click="showDetailModal = false" class="text-slate-400 hover:text-white text-lg">✕</button>
+          <button @click="showDetailModal = false" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center shrink-0">✕</button>
         </div>
 
         <!-- Traceability & Provenance Information Card -->
@@ -779,11 +999,11 @@
         </div>
 
         <!-- Formula Box -->
-        <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] text-xs space-y-1.5">
-          <div class="text-cyan-600 dark:text-cyan-400 font-bold">
+        <div class="p-3 sm:p-3.5 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] text-xs space-y-1.5">
+          <div class="text-cyan-600 dark:text-cyan-400 font-bold text-[11px] sm:text-xs">
             Mathematical Equation (Permen LHK No. 14 Tahun 2020 Lampiran I Persamaan 1):
           </div>
-          <div class="text-slate-700 dark:text-slate-300 font-mono font-bold text-sm bg-white dark:bg-[#0B1422] p-2 rounded border border-slate-200 dark:border-slate-800">
+          <div class="text-slate-700 dark:text-slate-300 font-mono font-bold text-xs sm:text-sm bg-white dark:bg-[#0B1422] p-2 rounded border border-slate-200 dark:border-slate-800 overflow-x-auto">
             I = [ (Ia - Ib) / (Xa - Xb) ] × (Xx - Xb) + Ib
           </div>
           <div class="text-3xs text-slate-400">
@@ -871,26 +1091,54 @@
     <!-- PARAMETER MAPPINGS MODAL (Admin/Superadmin) -->
     <div
       v-if="showMappingsModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/75 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 bg-slate-950/75 backdrop-blur-sm"
       @click.self="showMappingsModal = false"
     >
-      <div class="w-full max-w-2xl bg-white dark:bg-[#0B1422] rounded-2xl border border-slate-200 dark:border-[#20354B] shadow-2xl p-5 space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#20354B]">
-          <div class="flex items-center space-x-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">
-              STATION PARAMETER MAPPINGS (ISPU COMPLIANCE)
+      <div class="w-full max-w-2xl bg-white dark:bg-[#0B1422] rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-[#20354B] shadow-2xl p-4 sm:p-5 space-y-3.5 sm:space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between gap-2 pb-2.5 sm:pb-3 border-b border-slate-200 dark:border-[#20354B]">
+          <div class="flex items-center space-x-2 min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
+            <h3 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white uppercase truncate">
+              STATION PARAMETER MAPPINGS (ISPU)
             </h3>
           </div>
-          <button @click="showMappingsModal = false" class="text-slate-400 hover:text-white text-lg">✕</button>
+          <button @click="showMappingsModal = false" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center shrink-0">✕</button>
         </div>
 
         <p class="text-2xs text-slate-500 dark:text-slate-400">
           Explicitly map physical datalogger telemetry parameters to the seven official pollutants regulated by Permen LHK No. 14 Tahun 2020.
         </p>
 
-        <!-- Current Mappings Table -->
-        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#20354B]">
+        <!-- Mobile Mappings Cards (< 640px) -->
+        <div class="sm:hidden space-y-2">
+          <div v-if="stationMappings.length === 0" class="p-4 text-center text-xs text-slate-400 rounded-xl border border-slate-200 dark:border-[#20354B]">
+            Belum ada pemetaan parameter ISPU.
+          </div>
+          <div
+            v-for="m in stationMappings"
+            :key="'mob-map-' + m.id"
+            class="p-2.5 rounded-xl border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B]/60 flex items-center justify-between gap-2 text-xs"
+          >
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono font-extrabold text-cyan-600 dark:text-cyan-400">{{ formatPollutantLabel(m.pollutant_code) }}</span>
+                <span class="text-slate-400">→</span>
+                <span class="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                  {{ m.parameter?.parameter_name || m.parameter?.name || m.parameter?.parameter_code || m.parameter_id }}
+                </span>
+              </div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                {{ m.source_unit }} · Mulai {{ formatStartHour(m.daily_start_hour) }} · Min {{ m.min_completeness }}%
+              </div>
+            </div>
+            <button @click="deleteMapping(m.id)" class="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-500 font-bold text-[10.5px] shrink-0">
+              Hapus
+            </button>
+          </div>
+        </div>
+
+        <!-- Current Mappings Table (>= 640px) -->
+        <div class="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-[#20354B]">
           <table class="w-full text-left text-3xs">
             <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-b border-slate-200 dark:border-[#20354B] font-semibold">
               <tr>
@@ -1060,6 +1308,37 @@ export default {
     };
   },
   computed: {
+    userRole() {
+      const u = this.$store && this.$store.state && this.$store.state.user;
+      return String((u && (u.role_name || u.role)) || '').toUpperCase();
+    },
+    isOperator() {
+      if (this.userRole === 'OPERATOR') return true;
+      return Boolean(this.$store && this.$store.getters && this.$store.getters.isOperator);
+    },
+    backRoutePath() {
+      return this.isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator';
+    },
+    ispuScaleMarkerPct() {
+      const v = Number(this.displayISPU);
+      if (isNaN(v) || v < 0) return 0;
+      if (v <= 50) return (v / 50) * 20;
+      if (v <= 100) return 20 + ((v - 50) / 50) * 20;
+      if (v <= 200) return 40 + ((v - 100) / 100) * 20;
+      if (v <= 300) return 60 + ((v - 200) / 100) * 20;
+      return Math.min(98, 80 + ((v - 300) / 200) * 20);
+    },
+    formattedPeriodCompact() {
+      if (!this.latestData || !this.latestData.period_end) return '-';
+      const end = new Date(this.latestData.period_end);
+      const start = new Date(this.latestData.period_start || (end.getTime() - 24 * 3600 * 1000));
+      const fmtDate = d => d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+      const fmtTime = d => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      if (this.ispuMode === 'OPERATIONAL') {
+        return `${fmtDate(end)} ${fmtTime(start)} → ${fmtTime(end)}`;
+      }
+      return `${fmtDate(start)} ${fmtTime(start)} → ${fmtDate(end)} ${fmtTime(end)}`;
+    },
     isDark() {
       const pref = this.$store && this.$store.state && this.$store.state.uiPreferences;
       if (pref && pref.effectiveTheme) {
@@ -1211,6 +1490,24 @@ export default {
     },
     selectPollutant(code) {
       this.selectedPollutant = code;
+    },
+    formatPollutantLabel(code) {
+      if (!code || code === '-') return '-';
+      if (String(code).toUpperCase() === 'PM25') return 'PM2.5';
+      return code;
+    },
+    formatCategoryLabel(cat) {
+      if (!cat) return 'Tidak Tersedia';
+      const map = {
+        BAIK: 'Baik',
+        SEDANG: 'Sedang',
+        TIDAK_SEHAT: 'Tidak Sehat',
+        SANGAT_TIDAK_SEHAT: 'Sangat Tidak Sehat',
+        BERBAHAYA: 'Berbahaya',
+        TIDAK_TERSEDIA: 'Tidak Tersedia',
+        UNMEASURED: 'Belum Terpasang',
+      };
+      return map[cat] || String(cat).replace(/_/g, ' ');
     },
     getAuthToken() {
       return localStorage.getItem('datalogger_token') || localStorage.getItem('token') || (this.$store?.state?.token) || '';
@@ -1370,6 +1667,15 @@ export default {
       if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return 'TIDAK TERSEDIA';
       const cat = res.category || 'TIDAK TERSEDIA';
       if (cat === 'SANGAT_TIDAK_SEHAT') return 'SGT TDK SEHAT';
+      return cat.replace(/_/g, ' ');
+    },
+    getParameterBadgeShortLabel(pollutantCode) {
+      const res = this.getParameterResult(pollutantCode);
+      if (!res) return 'UNMAPPED';
+      if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return 'NO DATA';
+      const cat = res.category || 'TIDAK TERSEDIA';
+      if (cat === 'TIDAK_SEHAT') return 'TDK SEHAT';
+      if (cat === 'SANGAT_TIDAK_SEHAT') return 'SGT TDK';
       return cat.replace(/_/g, ' ');
     },
     getParameterCardClass(pollutantCode) {

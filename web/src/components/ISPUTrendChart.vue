@@ -1,14 +1,15 @@
 <template>
-  <div class="relative w-full flex flex-col space-y-2">
+  <div class="relative w-full min-w-0 flex flex-col space-y-2">
     <!-- Chart Header & Time Range Controls (Reference Design Target) -->
-    <div class="flex flex-wrap items-start justify-between gap-3 pb-1">
-      <div>
-        <div class="flex items-center space-x-2">
-          <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide uppercase font-sans">
-            {{ displayTitle }}
+    <div class="flex flex-col md:flex-row md:flex-wrap items-stretch md:items-start justify-between gap-2.5 pb-1 min-w-0">
+      <div class="min-w-0">
+        <div class="flex items-center justify-between sm:justify-start gap-2">
+          <h3 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white tracking-wide uppercase font-sans truncate">
+            <span class="sm:hidden">{{ isRegulatoryMode ? 'Tren Historis ISPU (24 Jam)' : `Tren ISPU (${aggIntervalLabel})` }}</span>
+            <span class="hidden sm:inline">{{ displayTitle }}</span>
           </h3>
           <span
-            class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border"
+            class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border shrink-0 whitespace-nowrap"
             :class="isRegulatoryMode
               ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'
               : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'"
@@ -18,26 +19,25 @@
         </div>
         <div
           @click="toggleBandOrientation"
-          class="text-xs text-slate-500 dark:text-slate-400 font-normal mt-0.5 font-sans cursor-pointer hover:underline"
+          class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-normal mt-0.5 font-sans cursor-pointer hover:underline leading-snug"
           title="Click to toggle between Regulatory Cartesian Scale and Reference Mockup Layout"
         >
           {{ displaySubtitle }}
           <span v-if="!isOverallMode" class="text-cyan-600 dark:text-cyan-400 font-medium ml-1">
-            · {{ activePollutantCode }} ({{ activePollutantName || 'Pollutant Trend' }})
+            · {{ activePollutantCode === 'PM25' ? 'PM2.5' : activePollutantCode }} ({{ activePollutantName || 'Pollutant Trend' }})
           </span>
         </div>
       </div>
 
-
       <!-- Right Side Controls: Parameter Selector, Capsule Range Switcher & Close Icon -->
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full md:w-auto min-w-0">
         <!-- Parameter Selector Capsule Buttons (★ Dominant | PM2.5 | PM10 | SO2 | CO | O3 | NO2 | HC) -->
-        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] shadow-xs overflow-x-auto no-scrollbar">
+        <div class="flex items-center gap-0.5 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] shadow-xs w-full sm:w-auto max-w-full min-w-0 overflow-x-auto no-scrollbar">
           <button
             v-for="p in availablePollutantOptions"
             :key="p.code"
             @click="selectPollutant(p.code)"
-            class="px-2 py-1 rounded-md text-xs font-semibold transition cursor-pointer select-none whitespace-nowrap"
+            class="px-2 py-1 rounded-md text-[11px] sm:text-xs font-semibold transition cursor-pointer select-none whitespace-nowrap shrink-0"
             :class="activePollutantCode === p.code
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
@@ -47,42 +47,47 @@
           </button>
         </div>
 
-        <!-- Time Range Selector Capsule Buttons (24 Hours | 7 Days | 30 Days) -->
-        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] shadow-xs">
+        <!-- Time Range Selector Capsule Buttons (24 Hours | 7 Days | 30 Days) + Reset Hover -->
+        <div class="flex items-center gap-1.5 w-full sm:w-auto min-w-0">
+          <div class="grid grid-cols-3 sm:flex items-center gap-0.5 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] shadow-xs flex-1 sm:flex-initial">
+            <button
+              v-for="r in rangeOptions"
+              :key="r.value"
+              @click="selectRange(r.value)"
+              class="px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-bold text-center transition cursor-pointer select-none"
+              :class="currentRange === r.value
+                ? 'bg-cyan-500 text-slate-950 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+            >
+              {{ r.label }}
+            </button>
+          </div>
+
+          <!-- Subtle Close / Reset Hover Button (Hidden on mobile unless active hover exists) -->
           <button
-            v-for="r in rangeOptions"
-            :key="r.value"
-            @click="selectRange(r.value)"
-            class="px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer select-none"
-            :class="currentRange === r.value
-              ? 'bg-cyan-500 text-slate-950 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+            @click="resetHover"
+            :class="hoveredPoint ? 'flex' : 'hidden sm:flex'"
+            class="p-1.5 sm:p-1 rounded-lg sm:rounded bg-slate-100 sm:bg-transparent dark:bg-[#101B2B] sm:dark:bg-transparent border sm:border-0 border-slate-200 dark:border-[#20354B] text-slate-400 hover:text-slate-700 dark:hover:text-white items-center justify-center transition cursor-pointer shrink-0"
+            title="Reset hover selection"
           >
-            {{ r.label }}
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
-
-        <!-- Subtle Close / Reset Hover Button (Matching Reference Icon) -->
-        <button
-          @click="resetHover"
-          class="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white transition cursor-pointer"
-          title="Reset hover selection"
-        >
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
       </div>
     </div>
 
     <!-- Chart Canvas Container (Theme adaptive: Light Mode #F8FCFF border #B7D8EC, Dark Mode #0B1322) -->
     <div
       ref="chartContainer"
-      class="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden select-none transition-colors duration-200 shadow-md"
+      class="relative w-full h-60 sm:h-72 rounded-xl overflow-hidden select-none transition-colors duration-200 shadow-md"
       :class="resolvedIsDark
         ? 'bg-[#0B1322] border border-slate-700/60'
         : 'bg-[#F8FCFF] border border-[#B7D8EC]'"
       @mousemove="handleMouseMove"
+      @touchstart.passive="handleTouchMove"
+      @touchmove.passive="handleTouchMove"
       @mouseleave="hoveredPoint = null"
     >
       <!-- Loading State -->
@@ -203,18 +208,18 @@
         </g>
 
         <!-- Category Labels Inside the Left Side of Each Band (High-Contrast White with Shadow) -->
-        <g class="band-labels text-[11px] font-mono font-black select-none">
+        <g class="band-labels text-[9.5px] sm:text-[11px] font-mono font-black select-none">
           <text
             v-for="b in computedBands"
             :key="`lbl-${b.key}`"
             v-if="b.height >= 14"
-            :x="padLeft + 12"
-            :y="b.y + b.height / 2 + 4"
+            :x="padLeft + 10"
+            :y="b.y + b.height / 2 + 3.5"
             fill="#FFFFFF"
-            letter-spacing="0.6"
+            letter-spacing="0.4"
             style="text-shadow: 0 1px 3px rgba(0,0,0,0.85); font-weight: 900;"
           >
-            {{ b.label }}
+            {{ chartWidth < 400 && b.shortLabel ? b.shortLabel : b.label }}
           </text>
         </g>
 
@@ -320,7 +325,7 @@
       <!-- Compact Adaptive Tooltip (Theme Adaptive: White in Light Mode, Slate in Dark Mode) -->
       <div
         v-if="hoveredPoint"
-        class="absolute z-30 pointer-events-none p-3 rounded-xl backdrop-blur-md text-[11px] font-mono transition-all duration-75 select-none"
+        class="absolute z-30 pointer-events-none p-2 sm:p-3 max-w-[calc(100%-16px)] rounded-xl backdrop-blur-md text-[10px] sm:text-[11px] font-mono transition-all duration-75 select-none"
         :class="[
           resolvedIsDark
             ? 'bg-[#0B1C2B]/95 text-white border border-[#244356] shadow-2xl'
@@ -332,7 +337,7 @@
           top: `${tooltipTop}px`
         }"
       >
-        <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 whitespace-nowrap">
+        <div class="grid grid-cols-[auto_1fr] gap-x-2 sm:gap-x-3 gap-y-1 sm:gap-y-1.5">
           <span :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Mode:</span>
           <span class="font-bold" :class="resolvedIsDark ? 'text-cyan-400' : 'text-cyan-600'">
             {{ isRegulatoryMode ? '24-Jam Rolling Regulasi' : `Per Agregasi (${aggIntervalLabel})` }}
@@ -523,11 +528,11 @@ export default {
         // Reference Mockup visual layout: Green at top, Blue 2nd, Yellow 3rd, Red 4th, Dark Red at bottom
         const h5 = this.plotHeight / 5;
         return [
-          { key: 'baik', id: 'bandBaik', label: 'BAIK (0-50)', colorLight: '#064E3B', textColorLight: '#14532D', y: this.padTop, height: h5 },
-          { key: 'sedang', id: 'bandSedang', label: 'SEDANG (51-100)', colorLight: '#1E3A8A', textColorLight: '#1E40AF', y: this.padTop + h5, height: h5 },
-          { key: 'tidak_sehat', id: 'bandTidakSehat', label: 'TIDAK SEHAT (101-200)', colorLight: '#78350F', textColorLight: '#854D0E', y: this.padTop + 2 * h5, height: h5 },
-          { key: 'sangat_tidak_sehat', id: 'bandSangatTidakSehat', label: 'SANGAT TIDAK SEHAT (201-300)', colorLight: '#7F1D1D', textColorLight: '#991B1B', y: this.padTop + 3 * h5, height: h5 },
-          { key: 'berbahaya', id: 'bandBerbahaya', label: 'BERBAHAYA (>300)', colorLight: '#450A0A', textColorLight: '#701A28', y: this.padTop + 4 * h5, height: h5 }
+          { key: 'baik', id: 'bandBaik', label: 'BAIK (0-50)', shortLabel: 'BAIK (0-50)', colorLight: '#064E3B', textColorLight: '#14532D', y: this.padTop, height: h5 },
+          { key: 'sedang', id: 'bandSedang', label: 'SEDANG (51-100)', shortLabel: 'SEDANG (51-100)', colorLight: '#1E3A8A', textColorLight: '#1E40AF', y: this.padTop + h5, height: h5 },
+          { key: 'tidak_sehat', id: 'bandTidakSehat', label: 'TIDAK SEHAT (101-200)', shortLabel: 'TDK SEHAT (101-200)', colorLight: '#78350F', textColorLight: '#854D0E', y: this.padTop + 2 * h5, height: h5 },
+          { key: 'sangat_tidak_sehat', id: 'bandSangatTidakSehat', label: 'SANGAT TIDAK SEHAT (201-300)', shortLabel: 'SGT TDK SEHAT (201-300)', colorLight: '#7F1D1D', textColorLight: '#991B1B', y: this.padTop + 3 * h5, height: h5 },
+          { key: 'berbahaya', id: 'bandBerbahaya', label: 'BERBAHAYA (>300)', shortLabel: 'BERBAHAYA (>300)', colorLight: '#450A0A', textColorLight: '#701A28', y: this.padTop + 4 * h5, height: h5 }
         ];
       }
 
@@ -544,6 +549,7 @@ export default {
           key: 'berbahaya',
           id: 'bandBerbahaya',
           label: 'BERBAHAYA (>300)',
+          shortLabel: 'BERBAHAYA (>300)',
           colorLight: '#450A0A',
           textColorLight: '#701A28',
           y: yTop,
@@ -553,6 +559,7 @@ export default {
           key: 'sangat_tidak_sehat',
           id: 'bandSangatTidakSehat',
           label: 'SANGAT TIDAK SEHAT (201-300)',
+          shortLabel: 'SGT TDK SEHAT (201-300)',
           colorLight: '#7F1D1D',
           textColorLight: '#991B1B',
           y: y300,
@@ -562,6 +569,7 @@ export default {
           key: 'tidak_sehat',
           id: 'bandTidakSehat',
           label: 'TIDAK SEHAT (101-200)',
+          shortLabel: 'TDK SEHAT (101-200)',
           colorLight: '#78350F',
           textColorLight: '#854D0E',
           y: y200,
@@ -571,6 +579,7 @@ export default {
           key: 'sedang',
           id: 'bandSedang',
           label: 'SEDANG (51-100)',
+          shortLabel: 'SEDANG (51-100)',
           colorLight: '#1E3A8A',
           textColorLight: '#1E40AF',
           y: y100,
@@ -580,6 +589,7 @@ export default {
           key: 'baik',
           id: 'bandBaik',
           label: 'BAIK (0-50)',
+          shortLabel: 'BAIK (0-50)',
           colorLight: '#064E3B',
           textColorLight: '#14532D',
           y: y50,
@@ -803,6 +813,9 @@ export default {
     tooltipTransformClass() {
       const yTransform = this.isTooltipBelow ? 'translate-y-0' : '-translate-y-full';
       if (!this.hoveredPoint) return `-translate-x-1/2 ${yTransform}`;
+      if (this.chartWidth < 440) {
+        return `translate-x-0 ${yTransform}`;
+      }
       const cx = this.hoveredPoint.clientX || 0;
       if (cx > this.chartWidth - 150) {
         return `-translate-x-full ${yTransform}`;
@@ -814,6 +827,9 @@ export default {
     },
     tooltipLeft() {
       if (!this.hoveredPoint) return 0;
+      if (this.chartWidth < 440) {
+        return 8;
+      }
       const cx = this.hoveredPoint.clientX || 0;
       if (cx > this.chartWidth - 150) {
         return Math.min(this.chartWidth - 14, cx - 10);
@@ -963,6 +979,11 @@ export default {
         d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
       }
       return d;
+    },
+    handleTouchMove(e) {
+      if (!e.touches || e.touches.length === 0) return;
+      const touch = e.touches[0];
+      this.handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
     },
     handleMouseMove(e) {
       if (!this.points || this.points.length === 0) return;

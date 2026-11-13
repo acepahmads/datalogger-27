@@ -1,9 +1,9 @@
 <template>
-  <header class="relative bg-white/95 dark:bg-[#0B0F19]/95 border-b border-slate-200 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 px-2.5 sm:px-4 py-1.5 flex items-center justify-between gap-1.5 sticky top-0 z-40 select-none transition-colors duration-150">
+  <header class="relative bg-white/95 dark:bg-[#0B0F19]/95 border-b border-slate-200 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 px-2 sm:px-4 py-1.5 flex items-center justify-between gap-1 sm:gap-1.5 sticky top-0 z-40 select-none transition-colors duration-150">
     <!-- Backdrop Blur Layer (Isolated sibling so header does not form a containing block for modals) -->
     <div class="absolute inset-0 backdrop-blur-md -z-10 pointer-events-none"></div>
     <!-- Left: Mobile Hamburger, Logo & Workspace Switcher -->
-    <div class="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+    <div class="flex items-center gap-1 sm:gap-2.5 min-w-0 flex-1">
       <!-- Mobile Hamburger Menu Trigger (< 768px) -->
       <button
         type="button"
@@ -31,14 +31,14 @@
       </div>
 
       <!-- Multi-Tenant & Multi-Site Workspace Switcher -->
-      <div class="flex items-center gap-1 sm:gap-1.5 pl-1.5 sm:pl-2 ml-0.5 sm:ml-1 border-l border-slate-200 dark:border-slate-800 min-w-0 flex-1 sm:flex-initial">
+      <div class="flex items-center gap-1 sm:gap-1.5 pl-1 sm:pl-2 ml-0 sm:ml-1 border-l border-slate-200 dark:border-slate-800 min-w-0 flex-1 sm:flex-initial">
         <!-- SUPERADMIN Global / Tenant Switcher -->
         <div v-if="isSuperAdmin" class="flex items-center gap-1 min-w-0" :class="availableSites.length > 0 && activeTenantId > 0 ? 'max-w-[46%] sm:max-w-none' : 'flex-1 sm:flex-initial'">
           <select
             id="header-tenant-switcher"
             :value="activeTenantId"
             @change="onHeaderTenantChange($event.target.value)"
-            class="h-7 w-full sm:w-auto max-w-[160px] sm:max-w-[230px] px-2 rounded-lg text-2xs font-semibold bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/60 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer truncate"
+            class="h-7 w-full sm:w-auto max-w-[135px] sm:max-w-[230px] px-1.5 sm:px-2 rounded-lg text-2xs font-semibold bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/60 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer truncate"
             title="Pilih Workspace Tenant (SUPERADMIN Global Switcher)"
           >
             <option :value="0">🌐 Semua Tenant (Global)</option>
@@ -52,7 +52,7 @@
         <div
           v-else-if="currentTenantLabel"
           :class="availableSites.length > 0 ? 'hidden md:flex' : 'flex'"
-          class="h-7 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/70 items-center gap-1.5 text-2xs font-semibold text-slate-700 dark:text-slate-200 min-w-0 max-w-[165px] sm:max-w-[180px] truncate"
+          class="h-7 px-2 sm:px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/70 items-center gap-1.5 text-2xs font-semibold text-slate-700 dark:text-slate-200 min-w-0 max-w-[140px] sm:max-w-[180px] truncate"
           :title="'Organisasi Tenant: ' + currentTenantLabel"
         >
           <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
@@ -65,7 +65,7 @@
           id="header-site-switcher"
           :value="activeSiteId"
           @change="onHeaderSiteChange($event.target.value)"
-          class="h-7 min-w-0 flex-1 sm:flex-initial max-w-[175px] sm:max-w-[215px] px-2 rounded-lg text-2xs font-semibold bg-cyan-50 hover:bg-cyan-100/80 dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer truncate"
+          class="h-7 min-w-0 flex-1 sm:flex-initial max-w-[140px] sm:max-w-[215px] px-1.5 sm:px-2 rounded-lg text-2xs font-semibold bg-cyan-50 hover:bg-cyan-100/80 dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer truncate"
           title="Filter Stasiun / Titik Pantau"
         >
           <option :value="0">📍 Semua Stasiun ({{ availableSites.length }})</option>
@@ -222,7 +222,7 @@
       </button>
 
       <!-- 5. User Profile Badge & Quick Role Switcher -->
-      <div class="relative pl-1.5 sm:pl-2.5 border-l border-slate-200 dark:border-slate-800 flex-shrink-0" ref="userDropdown">
+      <div class="relative pl-1 sm:pl-2.5 border-l border-slate-200 dark:border-slate-800 flex-shrink-0" ref="userDropdown">
         <button
           type="button"
           @click="isUserMenuOpen = !isUserMenuOpen"
