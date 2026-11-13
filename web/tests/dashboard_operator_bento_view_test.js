@@ -369,11 +369,11 @@ check('16.1: All 5 toolbar control popovers (viewOptions, performanceSettings, i
   }
 });
 
-check('16.2: ISPU toolbar control is strictly rendered only in AQMS mode (hidden in WQMS and SPARING)', () => {
+check('16.2: ISPU toolbar control is strictly rendered only for non-Operator roles in AQMS mode (hidden in Operator, WQMS, and SPARING)', () => {
   assert(
-    viewContent.includes('<div v-if="isAQMSDomain" class="relative toolbar-popover-anchor">') &&
-    viewContent.indexOf('<div v-if="isAQMSDomain" class="relative toolbar-popover-anchor">') < viewContent.indexOf("toggleToolbarPopover('ispuSettings')"),
-    'ISPU toolbar anchor must be strictly guarded by v-if="isAQMSDomain"'
+    viewContent.includes('<div v-if="isNonOperator && isAQMSDomain" class="relative toolbar-popover-anchor">') &&
+    viewContent.indexOf('<div v-if="isNonOperator && isAQMSDomain" class="relative toolbar-popover-anchor">') < viewContent.indexOf("toggleToolbarPopover('ispuSettings')"),
+    'ISPU toolbar anchor must be strictly guarded by v-if="isNonOperator && isAQMSDomain"'
   );
 
   const vm = require('vm');
@@ -571,13 +571,18 @@ check('16.4: Station Type supports Isi Manual vs Otomatis Lokasi GPS using Place
 });
 
 // 17. Mobile Phone Responsive Layout (< 768px) — Zero Desktop Impact
-check('17.1: Mobile (< 768px) arranges ISPU card in 2 symmetrical rows, compacts Maker emblem, hides duplicate desktop controls & stale flatline bars', () => {
+check('17.1: Mobile (< 768px) arranges ISPU card in 2 symmetrical rows, preserves uncropped Maker logo, hides duplicate desktop controls & stale flatline bars', () => {
   assert(heroContent.includes('@media (max-width: 767px)'), 'BentoISPUHeroCard must define mobile-only @media (max-width: 767px) rules');
   assert(heroContent.includes('cmp-7-lbl-mobile') && heroContent.includes('▾ 7 Polutan'), 'BentoISPUHeroCard must render concise mobile 7-pollutant button label while keeping desktop label intact');
+  assert(heroContent.includes('grid-template-columns: repeat(4, minmax(0, 1fr))'), 'BentoISPUHeroCard mobile action buttons must use 4 equal-width columns aligned with the 2-column sensor grid');
+  assert(heroContent.includes('flex-direction: column-reverse'), 'BentoISPUHeroCard mobile concentration line must span full width above the progress bar');
   assert(heroContent.includes('@media (max-width: 480px)'), 'BentoISPUHeroCard must stack 7-pollutant drawer in 2 columns on narrow phones');
 
   assert(viewContent.includes('isMobileScreen()') && viewContent.includes('this.bentoViewportWidth < 768'), 'DashboardOperatorView must detect mobile phone viewport (< 768px)');
   assert(viewContent.includes('@media (max-width: 767px)'), 'DashboardOperatorView must scope mobile styling strictly inside @media (max-width: 767px)');
+  const mobileCssSlice = viewContent.slice(viewContent.lastIndexOf('@media (max-width: 767px)'));
+  assert(mobileCssSlice.includes('object-fit: contain') && !mobileCssSlice.includes('object-fit: cover'), 'Mobile Maker logo must scale proportionally with object-fit: contain without cropping');
+  assert(mobileCssSlice.includes('grid-template-rows: auto auto'), 'Mobile header Row 1 must stack Maker logo cleanly above the clock in a 2-row grid');
   assert(viewContent.includes("'is-flat-spark': perfSettings.parameterSparklinesEnabled && getSparkline(param).isFlat"), 'Sensor card sparkline wrapper must tag flatline state so stale horizontal bars hide cleanly on mobile');
   assert(viewContent.includes('.s-spark-wrap.is-flat-spark'), 'Mobile CSS must hide flatline placeholder bars on stale cards');
 });
@@ -610,6 +615,52 @@ check('17.2: Mobile (< 768px) unclips sensor scroll height and provides docked c
     bentoTrendCanvasHeight: 205,
   });
   assert(desktopStyle && desktopStyle.maxHeight, 'Desktop (>= 768px) must retain dynamic viewport maxHeight');
+});
+
+// 18. Role Restriction for Performance Settings & ISPU Settings Setup Icons (Hidden for OPERATOR)
+check('18.1: Performance Settings and ISPU Settings toolbar icons only appear outside the OPERATOR role', () => {
+  const perfCommentIdx = viewContent.indexOf('<!-- 4. Performance Settings Popover');
+  const perfBtnIdx = viewContent.indexOf('id="btn-operator-performance-settings"');
+  assert(perfCommentIdx > 0 && perfBtnIdx > perfCommentIdx, 'Must locate Performance Settings popover anchor');
+  const perfAnchorSlice = viewContent.slice(perfCommentIdx, perfBtnIdx);
+  assert(
+    perfAnchorSlice.includes('<div v-if="isNonOperator" class="relative toolbar-popover-anchor">'),
+    'Performance Settings toolbar icon must be guarded by v-if="isNonOperator"'
+  );
+
+  const ispuCommentIdx = viewContent.indexOf('<!-- 5. ISPU Settings Popover');
+  const ispuBtnIdx = viewContent.indexOf("toggleToolbarPopover('ispuSettings')");
+  assert(ispuCommentIdx > 0 && ispuBtnIdx > ispuCommentIdx, 'Must locate ISPU Settings popover anchor');
+  const ispuAnchorSlice = viewContent.slice(ispuCommentIdx, ispuBtnIdx);
+  assert(
+    ispuAnchorSlice.includes('<div v-if="isNonOperator && isAQMSDomain" class="relative toolbar-popover-anchor">'),
+    'ISPU Settings toolbar icon must be guarded by v-if="isNonOperator && isAQMSDomain"'
+  );
+
+  const vm = require('vm');
+  const nonOpStart = viewContent.indexOf('isNonOperator() {');
+  const nonOpEnd = viewContent.indexOf('bentoToolbarPopoverMaxHeight() {');
+  assert(nonOpStart > 0 && nonOpEnd > nonOpStart, 'Must define isNonOperator() in DashboardOperatorView.vue');
+  const nonOpObj = vm.runInNewContext(`({ ${viewContent.slice(nonOpStart, nonOpEnd).trim().replace(/,\s*$/, '')} })`, {});
+
+  const evalNonOp = (user, getterRole = '') => nonOpObj.isNonOperator.call({
+    $store: { state: { user }, getters: { userRole: getterRole } },
+  });
+
+  assert.strictEqual(evalNonOp(null, ''), false, 'Unauthenticated user must hide setup icons');
+  assert.strictEqual(evalNonOp({ role: 'OPERATOR' }), false, 'OPERATOR role (string) must hide setup icons');
+  assert.strictEqual(evalNonOp({ role: 'operator' }), false, 'operator role (lowercase) must hide setup icons');
+  assert.strictEqual(evalNonOp({ role: { name: 'OPERATOR' } }), false, 'OPERATOR role (object) must hide setup icons');
+  assert.strictEqual(evalNonOp({ role: 'SUPERADMIN' }), true, 'SUPERADMIN role must show setup icons');
+  assert.strictEqual(evalNonOp({ role: 'ADMINISTRATOR' }), true, 'ADMINISTRATOR role must show setup icons');
+  assert.strictEqual(evalNonOp({ role: 'ADMIN' }), true, 'ADMIN role must show setup icons');
+  assert.strictEqual(evalNonOp({ role: 'ENGINEER' }), true, 'ENGINEER role must show setup icons');
+  assert.strictEqual(evalNonOp({ role: { name: 'ADMIN' } }), true, 'ADMIN role (object) must show setup icons');
+
+  assert(
+    viewContent.includes("(popoverName === 'performanceSettings' || popoverName === 'ispuSettings') && !this.isNonOperator"),
+    'toggleToolbarPopover must also block opening performanceSettings and ispuSettings for OPERATOR'
+  );
 });
 
 console.log('========================================================================');

@@ -1160,40 +1160,76 @@ export default {
 
 @media (max-width: 767px) {
   .is-compact-bar {
-    padding: 9px 11px;
-    gap: 8px;
-    border-radius: 13px;
+    padding: 10px 11px;
+    gap: 9px;
+    border-radius: 14px;
   }
   .compact-main-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 9px;
   }
   .compact-left {
     width: 100%;
     align-items: center;
-    gap: 10px;
+    gap: 11px;
   }
   .compact-left > svg {
-    width: 44px;
-    height: 44px;
+    width: 56px;
+    height: 56px;
   }
   .compact-dom-info {
-    gap: 3.5px;
+    gap: 4px;
   }
   .compact-dom-line1 {
-    gap: 5px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 6px;
     row-gap: 4px;
   }
+  .compact-kicker {
+    grid-row: 1;
+    grid-column: 1;
+    font-size: 9.5px;
+  }
+  .compact-dom-line1 > button {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .compact-dom-line1 > .ispu-popover-anchor {
+    grid-row: 1;
+    grid-column: 3;
+    justify-self: end;
+  }
+  .compact-dom-line1 > .hero-status-pill {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    justify-self: start;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2.5px 9px !important;
+    font-size: 11px !important;
+    border-radius: 7px !important;
+  }
+  .compact-dom-line2 {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 4.5px;
+    font-size: 10.5px;
+    margin-top: 1px;
+  }
   .compact-dom-bar {
-    width: 72px;
+    width: 100%;
+    height: 4.5px;
   }
   .compact-right {
     width: 100%;
     display: grid;
-    grid-template-columns: minmax(0, 1.24fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 1.06fr);
-    gap: 5px;
-    padding-top: 7px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    padding-top: 8px;
   }
   .is-day .compact-right {
     border-top: 1px solid #EDF2F7;
@@ -1203,11 +1239,13 @@ export default {
   }
   .expand-7-btn,
   .compact-act {
-    width: 100%;
-    height: 28px !important;
-    padding: 0 5px !important;
-    justify-content: center;
-    font-size: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 30px !important;
+    padding: 0 4px !important;
+    border-radius: 8px !important;
+    justify-content: center !important;
+    font-size: 10.5px !important;
   }
   .cmp-7-lbl-desktop {
     display: none;
@@ -1217,12 +1255,20 @@ export default {
   }
   .is-compact-bar .ispu-popover-anchor > div {
     position: fixed !important;
-    left: 12px !important;
-    right: 12px !important;
-    top: 132px !important;
+    left: 10px !important;
+    right: 10px !important;
+    top: 136px !important;
     width: auto !important;
     max-width: none !important;
     margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 359px) {
+  .expand-7-btn,
+  .compact-act {
+    font-size: 9.5px !important;
+    padding: 0 2px !important;
   }
 }
 
