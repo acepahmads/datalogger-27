@@ -4,47 +4,90 @@
     class="flex flex-col flex-1 min-h-0 h-full w-full gap-2 select-none font-sans text-slate-800 dark:text-slate-100"
   >
     <!-- ===================================================================== -->
-    <!-- 1. DESKTOP COMMAND & KPI RIBBON (>= 768px; 2-Row on Compact Screens)  -->
+    <!-- 1. DESKTOP COMMAND & KPI RIBBON (>= 768px; Clean 2-Row Zero-Clip)     -->
     <!-- ===================================================================== -->
     <div
       id="fleet-desktop-command-ribbon"
-      class="hidden md:flex flex-col min-[1720px]:flex-row min-[1720px]:items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0"
+      class="hidden md:flex flex-col gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0"
     >
-      <!-- Row 1 (Left on Ultra-Wide): Brand Title + Interactive KPI Filter Pills -->
-      <div class="flex items-center gap-1.5 flex-wrap min-w-0">
-        <div class="flex items-center gap-1.5 pr-2 mr-0.5 border-r border-slate-200 dark:border-slate-800">
-          <span class="w-6 h-6 rounded-lg bg-sky-500/10 dark:bg-sky-500/15 border border-sky-500/25 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <circle cx="12" cy="12" r="9" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 000 18M12 3a14.5 14.5 0 010 18" />
-            </svg>
-          </span>
-          <div class="leading-none">
-            <div class="text-xs font-extrabold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">Fleet Map</div>
-            <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ summary.total_tenants }} Tenant</div>
+      <!-- Row 1: Brand Title + KPI Status Filter Pills (Left) & Map Action Utilities (Right) -->
+      <div class="w-full flex items-center justify-between gap-1.5 flex-wrap">
+        <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+          <div class="flex items-center gap-1.5 pr-2 mr-0.5 border-r border-slate-200 dark:border-slate-800">
+            <span class="w-6 h-6 rounded-lg bg-sky-500/10 dark:bg-sky-500/15 border border-sky-500/25 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <circle cx="12" cy="12" r="9" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 000 18M12 3a14.5 14.5 0 010 18" />
+              </svg>
+            </span>
+            <div class="leading-none">
+              <div class="text-xs font-extrabold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">Fleet Map</div>
+              <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ summary.total_tenants }} Tenant</div>
+            </div>
           </div>
+
+          <!-- KPI Quick Filter Pills -->
+          <button
+            v-for="pill in kpiPills"
+            :key="pill.key"
+            type="button"
+            :id="'btn-fleet-kpi-' + pill.key"
+            @click="setQuickFilter(pill.key)"
+            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-2xs font-bold border transition-all cursor-pointer whitespace-nowrap"
+            :class="quickFilter === pill.key ? pill.activeClass : pill.idleClass"
+          >
+            <span v-if="pill.dotClass" class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="pill.dotClass"></span>
+            <span>{{ pill.label }}</span>
+            <span class="font-mono text-3xs px-1 py-0.2 rounded tabular-nums" :class="quickFilter === pill.key ? 'bg-black/15 text-current' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'">
+              {{ pill.count }}
+            </span>
+          </button>
         </div>
 
-        <!-- KPI Quick Filter Pills -->
-        <button
-          v-for="pill in kpiPills"
-          :key="pill.key"
-          type="button"
-          :id="'btn-fleet-kpi-' + pill.key"
-          @click="setQuickFilter(pill.key)"
-          class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-2xs font-bold border transition-all cursor-pointer whitespace-nowrap"
-          :class="quickFilter === pill.key ? pill.activeClass : pill.idleClass"
-        >
-          <span v-if="pill.dotClass" class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="pill.dotClass"></span>
-          <span>{{ pill.label }}</span>
-          <span class="font-mono text-3xs px-1 py-0.2 rounded tabular-nums" :class="quickFilter === pill.key ? 'bg-black/15 text-current' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'">
-            {{ pill.count }}
-          </span>
-        </button>
+        <!-- Right-Side Map Quick Actions (Never Clipped) -->
+        <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
+          <!-- Fit Bounds Button -->
+          <button
+            type="button"
+            id="btn-fleet-fit-bounds"
+            @click="fitMapToVisibleSites"
+            class="h-7 px-2.5 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            title="Fit semua pin stasiun di layar"
+          >
+            <span>⛶</span>
+            <span>Fit Peta</span>
+          </button>
+
+          <!-- Refresh Button -->
+          <button
+            type="button"
+            id="btn-fleet-refresh"
+            :disabled="loading"
+            @click="fetchFleetOverview(true)"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            :title="'Terakhir diperbarui: ' + lastUpdatedLabel"
+          >
+            <span :class="{ 'animate-spin': loading }">↻</span>
+            <span class="hidden xl:inline font-mono text-3xs">{{ lastUpdatedShort }}</span>
+          </button>
+
+          <!-- Collapse / Expand Priority Panel -->
+          <button
+            type="button"
+            @click="isRightDockCollapsed = !isRightDockCollapsed"
+            class="h-7 px-2.5 rounded-lg text-2xs font-semibold border transition cursor-pointer whitespace-nowrap"
+            :class="!isRightDockCollapsed
+              ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-2xs'
+              : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80'"
+            title="Tampilkan / sembunyikan panel Prioritas Stasiun"
+          >
+            {{ isRightDockCollapsed ? '◂ Panel' : 'Panel ▸' }}
+          </button>
+        </div>
       </div>
 
-      <!-- Row 2 on Compact/Laptop Screens (< 1720px): Search, Dropdown Filters & Map Utilities -->
-      <div class="w-full min-[1720px]:w-auto flex items-center justify-between gap-1.5 flex-wrap min-[1720px]:flex-nowrap pt-1.5 border-t border-slate-100 dark:border-slate-800/80 min-[1720px]:pt-0 min-[1720px]:border-t-0 min-[1720px]:ml-auto">
+      <!-- Row 2: Search + Dropdown Filters (Left) & Segmented Map Style Switcher (Right) -->
+      <div class="w-full flex items-center justify-between gap-1.5 flex-wrap pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
         <div class="flex items-center gap-1.5 flex-wrap min-w-0">
           <!-- Search Input -->
           <div class="relative w-48 lg:w-56">
@@ -90,7 +133,7 @@
           <select
             id="select-fleet-tenant"
             v-model="tenantFilter"
-            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 max-w-[165px] focus:outline-none focus:border-sky-500 cursor-pointer"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 max-w-[175px] focus:outline-none focus:border-sky-500 cursor-pointer"
             title="Filter Tenant"
           >
             <option value="ALL">Semua Tenant ({{ displayedTenantOptions.length }})</option>
@@ -139,56 +182,32 @@
           </button>
         </div>
 
-        <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
-          <!-- Map Style Cycle Button -->
+        <!-- Map Theme Segmented Control (1-Click Layer Selection) -->
+        <div class="flex items-center gap-1 ml-auto flex-shrink-0">
           <button
             type="button"
             id="btn-fleet-map-style"
             @click="cycleMapStyle"
-            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            class="xl:hidden h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
             :title="'Tema Peta: ' + mapStyleLabel"
           >
             <span>🗺️</span>
             <span>{{ mapStyleLabel }}</span>
           </button>
-
-          <!-- Fit Bounds Button -->
-          <button
-            type="button"
-            id="btn-fleet-fit-bounds"
-            @click="fitMapToVisibleSites"
-            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
-            title="Fit semua pin stasiun di layar"
-          >
-            <span>⛶</span>
-            <span>Fit</span>
-          </button>
-
-          <!-- Refresh Button -->
-          <button
-            type="button"
-            id="btn-fleet-refresh"
-            :disabled="loading"
-            @click="fetchFleetOverview(true)"
-            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
-            :title="'Terakhir diperbarui: ' + lastUpdatedLabel"
-          >
-            <span :class="{ 'animate-spin': loading }">↻</span>
-            <span class="hidden 2xl:inline font-mono text-3xs">{{ lastUpdatedShort }}</span>
-          </button>
-
-          <!-- Collapse / Expand Priority Panel -->
-          <button
-            type="button"
-            @click="isRightDockCollapsed = !isRightDockCollapsed"
-            class="h-7 px-2 rounded-lg text-2xs font-semibold border transition cursor-pointer whitespace-nowrap"
-            :class="!isRightDockCollapsed
-              ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-2xs'
-              : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80'"
-            title="Tampilkan / sembunyikan panel Prioritas Stasiun"
-          >
-            {{ isRightDockCollapsed ? '◂ Panel' : 'Panel ▸' }}
-          </button>
+          <div class="hidden xl:inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
+            <button
+              v-for="opt in mapStyleOptions"
+              :key="'desk-style-' + opt.value"
+              type="button"
+              @click="setMapStyle(opt.value)"
+              class="px-2 py-0.5 rounded-md text-3xs font-bold transition cursor-pointer whitespace-nowrap"
+              :class="mapStyle === opt.value
+                ? 'bg-sky-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -366,12 +385,16 @@
         <!-- Compact Legend Pill (Desktop Bottom-Left) -->
         <div
           v-if="isTilesOnline"
-          class="hidden sm:flex items-center gap-2.5 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-white/90 dark:bg-[#0E1626]/90 backdrop-blur-xs border border-slate-200/80 dark:border-slate-700/80 text-3xs font-semibold text-slate-600 dark:text-slate-300 shadow-sm pointer-events-none"
+          class="hidden sm:flex items-center gap-2.5 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-white/92 dark:bg-[#0E1626]/92 backdrop-blur-xs border border-slate-200/85 dark:border-slate-700/85 text-3xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
         >
           <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Online</span>
           <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Delayed / Warning</span>
           <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Offline / Critical</span>
           <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span>Nonaktif</span>
+          <span class="hidden lg:inline-flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-700 text-sky-700 dark:text-sky-300">
+            <span class="px-1 rounded-full bg-sky-600 text-white badge-text font-mono text-4xs leading-tight">2+</span>
+            <span>Cluster (Klik Mekar)</span>
+          </span>
         </div>
 
         <!-- =============================================================== -->
@@ -1049,20 +1072,23 @@ const INDONESIA_DEFAULT_ZOOM = 5;
 
 // 100% Free, Zero-API-Key, Zero-Watermark Map Tile Providers (Esri Public ArcGIS Online & OpenStreetMap)
 const TILE_LAYERS = {
+  osm: {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    fallbackClassName: 'fleet-tiles-osm-vibrant',
+    options: { maxZoom: 19, className: 'fleet-tiles-osm-vibrant' },
+  },
   clean: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
     fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 19 },
+    fallbackClassName: 'fleet-tiles-osm-vibrant',
+    options: { maxZoom: 19, className: 'fleet-tiles-topo-vibrant' },
   },
   night_clean: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
     fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     fallbackClassName: 'fleet-tiles-night-comfort',
     options: { maxZoom: 19, className: 'fleet-tiles-night-comfort' },
-  },
-  osm: {
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 19, className: 'fleet-tiles-osm' },
   },
   dark: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1074,7 +1100,7 @@ const TILE_LAYERS = {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
     fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 18 },
+    options: { maxZoom: 18, className: 'fleet-tiles-sat-crisp' },
   },
 };
 
@@ -1145,7 +1171,8 @@ export default {
       markerBySiteId: {},
       hasInitialFitDone: false,
       isTilesOnline: true,
-      mapStyle: 'auto', // 'auto' | 'clean' | 'osm' | 'dark' | 'satellite'
+      mapStyle: 'auto', // 'auto' | 'osm' | 'clean' | 'satellite' | 'dark'
+      spiderfiedClusterKey: '',
       selectedSiteId: 0,
       switchingSiteId: 0,
 
@@ -1191,21 +1218,21 @@ export default {
     },
     resolvedTileTheme() {
       if (this.mapStyle === 'auto') {
-        return this.effectiveAppDark ? 'night_clean' : 'clean';
+        return this.effectiveAppDark ? 'night_clean' : 'osm';
       }
       return this.mapStyle;
     },
     mapStyleLabel() {
-      const map = { auto: 'Auto', clean: 'Clean', osm: 'OSM', dark: 'Malam', satellite: 'Satelit' };
+      const map = { auto: 'Auto', osm: 'Jalan', clean: 'Topo', satellite: 'Satelit', dark: 'Malam' };
       return map[this.mapStyle] || 'Auto';
     },
     mapStyleOptions() {
       return [
         { value: 'auto', label: 'Auto' },
-        { value: 'clean', label: 'Clean' },
-        { value: 'osm', label: 'OSM' },
-        { value: 'dark', label: 'Malam' },
+        { value: 'osm', label: 'Jalan' },
+        { value: 'clean', label: 'Topo' },
         { value: 'satellite', label: 'Satelit' },
+        { value: 'dark', label: 'Malam' },
       ];
     },
     kpiPills() {
@@ -1801,10 +1828,26 @@ export default {
         zoom: INDONESIA_DEFAULT_ZOOM,
         zoomControl: false,
         attributionControl: false,
+        fadeAnimation: true,
       });
 
+      L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomright' }).addTo(this.map);
       L.control.zoom({ position: 'bottomright' }).addTo(this.map);
       this.markersLayer = L.layerGroup().addTo(this.map);
+
+      this.map.on('zoomstart', () => {
+        this.spiderfiedClusterKey = '';
+      });
+      this.map.on('zoomend', () => {
+        this.syncMapMarkers();
+      });
+      this.map.on('click', () => {
+        if (this.spiderfiedClusterKey) {
+          this.spiderfiedClusterKey = '';
+          this.syncMapMarkers();
+        }
+      });
+
       this.applyTileLayer();
     },
 
@@ -1917,41 +1960,279 @@ export default {
       });
     },
 
+    buildClusterIcon(group) {
+      const count = group.sites.length;
+      const sev = group.worstSeverity || 'NORMAL';
+      let coreBg = '#059669'; // emerald-600
+      let haloBg = 'rgba(16, 185, 129, 0.28)';
+      let pulseHtml = '';
+
+      if (sev === 'CRITICAL') {
+        coreBg = '#e11d48'; // rose-600
+        haloBg = 'rgba(225, 29, 72, 0.34)';
+        pulseHtml = `<span class="fleet-pin-pulse" style="background:${haloBg};"></span>`;
+      } else if (sev === 'WARNING') {
+        coreBg = '#d97706'; // amber-600
+        haloBg = 'rgba(245, 158, 11, 0.32)';
+      } else if (sev === 'INACTIVE') {
+        coreBg = '#64748b';
+        haloBg = 'rgba(100, 116, 139, 0.26)';
+      }
+
+      const outerSize = count >= 10 ? 42 : 36;
+      const coreSize = count >= 10 ? 32 : 28;
+      const alarmCount = Number(group.totalAlarms) || 0;
+      const alarmLabel = alarmCount > 99 ? '99+' : String(alarmCount);
+      const alarmBadgeHtml =
+        alarmCount > 0
+          ? `<span class="fleet-pin-badge" title="${alarmCount} Alarm Aktif">!${alarmLabel}</span>`
+          : '';
+
+      const html = `
+        <div class="fleet-cluster-root" style="width:${outerSize}px;height:${outerSize}px;background:${haloBg};">
+          ${pulseHtml}
+          <div class="fleet-cluster-core" style="width:${coreSize}px;height:${coreSize}px;background:${coreBg};">
+            <span class="fleet-cluster-count">${count}</span>
+          </div>
+          ${alarmBadgeHtml}
+        </div>
+      `;
+
+      return L.divIcon({
+        className: 'fleet-leaflet-div-icon',
+        html,
+        iconSize: [outerSize, outerSize],
+        iconAnchor: [outerSize / 2, outerSize / 2],
+      });
+    },
+
+    buildScreenClusters(validSites) {
+      if (!this.map || validSites.length <= 1) {
+        return validSites.map((s) => ({
+          key: String(s.site_id),
+          lat: Number(s.latitude),
+          lng: Number(s.longitude),
+          sites: [s],
+          worstSeverity: s.severity_state || 'NORMAL',
+          totalAlarms: Number(s.total_active_alarms) || 0,
+        }));
+      }
+
+      const zoom = this.map.getZoom();
+      let radiusPx = 46;
+      if (zoom >= 14) radiusPx = 28;
+      else if (zoom >= 11) radiusPx = 38;
+      else if (zoom >= 8) radiusPx = 44;
+
+      const sevRank = { CRITICAL: 3, WARNING: 2, NORMAL: 1, INACTIVE: 0 };
+      const sorted = [...validSites].sort((a, b) => Number(a.site_id) - Number(b.site_id));
+      const clusters = [];
+
+      sorted.forEach((site) => {
+        const lat = Number(site.latitude);
+        const lng = Number(site.longitude);
+        const pt = this.map.latLngToLayerPoint([lat, lng]);
+
+        let bestIdx = -1;
+        let bestDist = radiusPx;
+        for (let i = 0; i < clusters.length; i++) {
+          const dx = pt.x - clusters[i].cx;
+          const dy = pt.y - clusters[i].cy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist <= bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+
+        const sSev = site.severity_state || 'NORMAL';
+        const sAlarms = Number(site.total_active_alarms) || 0;
+
+        if (bestIdx >= 0) {
+          const c = clusters[bestIdx];
+          const n = c.sites.length;
+          c.cx = (c.cx * n + pt.x) / (n + 1);
+          c.cy = (c.cy * n + pt.y) / (n + 1);
+          c.lat = (c.lat * n + lat) / (n + 1);
+          c.lng = (c.lng * n + lng) / (n + 1);
+          c.sites.push(site);
+          c.totalAlarms += sAlarms;
+          if ((sevRank[sSev] || 0) > (sevRank[c.worstSeverity] || 0)) {
+            c.worstSeverity = sSev;
+          }
+        } else {
+          clusters.push({
+            cx: pt.x,
+            cy: pt.y,
+            lat,
+            lng,
+            sites: [site],
+            worstSeverity: sSev,
+            totalAlarms: sAlarms,
+          });
+        }
+      });
+
+      clusters.forEach((c) => {
+        c.key = c.sites
+          .map(s => Number(s.site_id))
+          .sort((a, b) => a - b)
+          .join('-');
+      });
+
+      return clusters;
+    },
+
+    attachSingleStationMarker(site, lat, lng, zBoost = 0) {
+      const isSelected = Number(this.selectedSiteId) === Number(site.site_id);
+      const baseZ = isSelected
+        ? 950
+        : site.severity_state === 'CRITICAL'
+        ? 500
+        : site.severity_state === 'WARNING'
+        ? 300
+        : 100;
+
+      const marker = L.marker([lat, lng], {
+        icon: this.buildPinIcon(site, isSelected),
+        zIndexOffset: baseZ + zBoost,
+      });
+
+      const safeName = this.escapeHtml(site.site_name);
+      const safeTenant = this.escapeHtml(site.tenant_name);
+      const safeAge = this.escapeHtml(this.formatRelativeAge(site));
+      const yearSuffix = Number(site.project_year) > 0 ? ` · ${Number(site.project_year)}` : '';
+      marker.bindTooltip(
+        `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.84;">${safeTenant}${yearSuffix} · ${safeAge}</span></div>`,
+        { direction: 'top', offset: [0, -12], opacity: 0.96 }
+      );
+
+      marker.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev);
+        this.selectedSiteId = site.site_id;
+        if (this.map) {
+          const targetZoom = Math.max(this.map.getZoom(), 11);
+          this.map.flyTo([Number(site.latitude), Number(site.longitude)], targetZoom, { duration: 0.55 });
+        }
+      });
+
+      marker.addTo(this.markersLayer);
+      this.markerBySiteId[site.site_id] = marker;
+    },
+
     syncMapMarkers() {
       if (!this.map || !this.markersLayer) return;
       this.markersLayer.clearLayers();
       this.markerBySiteId = {};
 
-      this.mappedFilteredSites.forEach((site) => {
-        const lat = Number(site.latitude);
-        const lng = Number(site.longitude);
-        if (!isValidStationCoordinate(lat, lng)) return;
+      const validSites = this.mappedFilteredSites.filter((s) =>
+        isValidStationCoordinate(Number(s.latitude), Number(s.longitude))
+      );
+      if (validSites.length === 0) return;
 
-        const isSelected = Number(this.selectedSiteId) === Number(site.site_id);
-        const marker = L.marker([lat, lng], {
-          icon: this.buildPinIcon(site, isSelected),
-          zIndexOffset: isSelected ? 900 : site.severity_state === 'CRITICAL' ? 500 : site.severity_state === 'WARNING' ? 300 : 100,
+      const zoom = this.map.getZoom();
+      const groups = this.buildScreenClusters(validSites);
+
+      groups.forEach((group) => {
+        if (group.sites.length === 1) {
+          const site = group.sites[0];
+          this.attachSingleStationMarker(site, Number(site.latitude), Number(site.longitude), 0);
+          return;
+        }
+
+        const containsSelected = group.sites.some(s => Number(s.site_id) === Number(this.selectedSiteId));
+        const shouldSpiderfy =
+          this.spiderfiedClusterKey === group.key || zoom >= 14 || containsSelected;
+
+        if (shouldSpiderfy) {
+          const hubCenter = [group.lat, group.lng];
+          const centerPt = this.map.latLngToLayerPoint(hubCenter);
+          const n = group.sites.length;
+          const legPx = Math.min(76, 30 + n * 4.5);
+
+          L.circleMarker(hubCenter, {
+            radius: 4,
+            color: '#ffffff',
+            weight: 1.5,
+            fillColor: '#0284c7',
+            fillOpacity: 0.95,
+          }).addTo(this.markersLayer);
+
+          group.sites.forEach((site, idx) => {
+            const angle = (2 * Math.PI * idx) / n - Math.PI / 2;
+            const spiderPt = L.point(
+              centerPt.x + Math.cos(angle) * legPx,
+              centerPt.y + Math.sin(angle) * legPx
+            );
+            const spiderLatLng = this.map.layerPointToLatLng(spiderPt);
+
+            L.polyline([hubCenter, [spiderLatLng.lat, spiderLatLng.lng]], {
+              color: '#0284c7',
+              weight: 1.8,
+              opacity: 0.78,
+              dashArray: '3, 3',
+            }).addTo(this.markersLayer);
+
+            this.attachSingleStationMarker(site, spiderLatLng.lat, spiderLatLng.lng, 220);
+          });
+          return;
+        }
+
+        // Render collapsed Cluster Badge
+        const zRank =
+          group.worstSeverity === 'CRITICAL'
+            ? 700
+            : group.worstSeverity === 'WARNING'
+            ? 550
+            : 400;
+
+        const clusterMarker = L.marker([group.lat, group.lng], {
+          icon: this.buildClusterIcon(group),
+          zIndexOffset: zRank,
         });
 
-        const safeName = this.escapeHtml(site.site_name);
-        const safeTenant = this.escapeHtml(site.tenant_name);
-        const safeAge = this.escapeHtml(this.formatRelativeAge(site));
-        const yearSuffix = Number(site.project_year) > 0 ? ` · ${Number(site.project_year)}` : '';
-        marker.bindTooltip(
-          `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.82;">${safeTenant}${yearSuffix} · ${safeAge}</span></div>`,
-          { direction: 'top', offset: [0, -12], opacity: 0.95 }
+        const onlineInCluster = group.sites.filter(s => s.delivery_status === 'ONLINE').length;
+        const issueInCluster = group.sites.length - onlineInCluster;
+        const previewNames = group.sites
+          .slice(0, 4)
+          .map(s => `• ${this.escapeHtml(s.site_name)}`)
+          .join('<br/>');
+        const moreLine =
+          group.sites.length > 4
+            ? `<br/><span style="opacity:0.75;">+${group.sites.length - 4} stasiun lainnya</span>`
+            : '';
+
+        clusterMarker.bindTooltip(
+          `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.4;">` +
+            `<strong>📍 ${group.sites.length} Stasiun Berdekatan</strong> ` +
+            `<span style="opacity:0.85;">(${onlineInCluster} Online · ${issueInCluster} Perhatian)</span><br/>` +
+            `<span style="font-size:10px;opacity:0.9;">${previewNames}${moreLine}</span><br/>` +
+            `<span style="font-size:10px;color:#0284c7;font-weight:700;">Klik untuk perbesar / mekarkan pin</span>` +
+            `</div>`,
+          { direction: 'top', offset: [0, -16], opacity: 0.97 }
         );
 
-        marker.on('click', () => {
-          this.selectedSiteId = site.site_id;
-          if (this.map) {
-            const targetZoom = Math.max(this.map.getZoom(), 11);
-            this.map.flyTo([lat, lng], targetZoom, { duration: 0.55 });
+        clusterMarker.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          if (!this.map) return;
+
+          const lats = group.sites.map(s => Number(s.latitude));
+          const lngs = group.sites.map(s => Number(s.longitude));
+          const latSpan = Math.max(...lats) - Math.min(...lats);
+          const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+
+          // If stations span multiple cities at low zoom, zoom into their bounding box first;
+          // if they are in the same city/spot or already zoomed in, immediately fan out (spiderfy)!
+          if (this.map.getZoom() < 10 && (latSpan > 0.06 || lngSpan > 0.06)) {
+            const bounds = L.latLngBounds(group.sites.map(s => [Number(s.latitude), Number(s.longitude)]));
+            this.map.flyToBounds(bounds, { padding: [75, 75], maxZoom: 11, duration: 0.55 });
+          } else {
+            this.spiderfiedClusterKey = group.key;
+            this.syncMapMarkers();
           }
         });
 
-        marker.addTo(this.markersLayer);
-        this.markerBySiteId[site.site_id] = marker;
+        clusterMarker.addTo(this.markersLayer);
       });
     },
 
@@ -2335,20 +2616,86 @@ export default {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-.fleet-tiles-osm {
-  filter: saturate(0.92) contrast(1.02);
+.fleet-cluster-root {
+  position: relative;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.16s ease-out;
+}
+.fleet-cluster-root:hover {
+  transform: scale(1.1);
+}
+.fleet-cluster-core {
+  position: relative;
+  z-index: 2;
+  border-radius: 9999px;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fleet-cluster-count {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: JetBrains Mono, Inter, system-ui, sans-serif;
+  line-height: 1;
+}
+/* Eliminate fractional-DPI 1px white grid lines between 256x256 raster tiles */
+#fleet-leaflet-map .leaflet-tile-container img,
+#fleet-leaflet-map img.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+  width: 256.5px !important;
+  height: 256.5px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  outline: 1px solid transparent;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+#fleet-leaflet-map .leaflet-tile-container {
+  will-change: transform;
+}
+.fleet-tiles-osm-vibrant {
+  filter: saturate(1.18) contrast(1.04) brightness(0.99);
+}
+.fleet-tiles-topo-vibrant {
+  filter: saturate(1.52) contrast(1.09) brightness(0.98);
+}
+.fleet-tiles-sat-crisp {
+  filter: saturate(1.14) contrast(1.06);
 }
 .fleet-tiles-night-comfort {
-  filter: brightness(0.92) contrast(1.04) saturate(1.02);
+  filter: brightness(0.90) contrast(1.06) saturate(1.30);
 }
 .fleet-tiles-navy-night {
   filter: invert(91%) hue-rotate(188deg) brightness(98%) contrast(95%) saturate(132%);
 }
 #fleet-leaflet-map.leaflet-container {
-  background: #dbeafe;
+  background: #a5d3e3;
 }
 .dark #fleet-leaflet-map.leaflet-container {
   background: #0f233c;
+}
+#fleet-leaflet-map .leaflet-control-scale-line {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: #475569;
+  color: #1e293b;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: JetBrains Mono, monospace;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.dark #fleet-leaflet-map .leaflet-control-scale-line {
+  background: rgba(14, 22, 38, 0.88);
+  border-color: #64748b;
+  color: #e2e8f0;
 }
 .dark #fleet-leaflet-map .leaflet-control-zoom {
   border: 1px solid rgba(51, 65, 85, 0.9) !important;

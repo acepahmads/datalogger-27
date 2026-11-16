@@ -75,13 +75,26 @@ assert(
 
 // 3. Desktop Ultra-Compact & Responsive 2-Row Layout Assertions
 assert(fleetViewCode.includes('id="fleet-desktop-command-ribbon"'), 'FleetMapView must render desktop command & KPI ribbon');
-assert(fleetViewCode.includes('flex-col min-[1720px]:flex-row'), 'FleetMapView desktop ribbon must stack search/filter bar on a dedicated 2nd row on compact/laptop screens (<1720px)');
+assert(fleetViewCode.includes('hidden md:flex flex-col gap-1.5'), 'FleetMapView desktop ribbon must always use a clean 2-row layout so right-side controls never clip');
 assert(!fleetViewCode.includes('World_Dark_Gray_Base'), 'FleetMapView must NOT use pitch-black/charcoal World_Dark_Gray_Base tiles in Night Mode');
 assert(
   fleetViewCode.includes('night_clean') &&
+  fleetViewCode.includes('fleet-tiles-osm-vibrant') &&
+  fleetViewCode.includes('fleet-tiles-topo-vibrant') &&
   fleetViewCode.includes('fleet-tiles-night-comfort') &&
   fleetViewCode.includes('fleet-tiles-navy-night'),
-  'FleetMapView must use natural anti-glare night_clean tiles in Auto Night Mode and detailed Deep Navy tiles in Malam theme'
+  'FleetMapView must use vibrant Day/Topo tiles, natural anti-glare night_clean tiles, and detailed Deep Navy tiles'
+);
+assert(
+  fleetViewCode.includes('width: 256.5px !important') &&
+  fleetViewCode.includes('height: 256.5px !important'),
+  'FleetMapView must seal fractional-DPI 1px white grid lines between 256x256 raster tiles'
+);
+assert(
+  fleetViewCode.includes('buildScreenClusters') &&
+  fleetViewCode.includes('buildClusterIcon') &&
+  fleetViewCode.includes('spiderfiedClusterKey'),
+  'FleetMapView must group nearby stations into interactive count clusters that zoom/spiderfy on click'
 );
 assert(fleetViewCode.includes('id="input-fleet-search"'), 'FleetMapView must include compact station/tenant search input');
 assert(fleetViewCode.includes('id="select-fleet-project-year"'), 'FleetMapView must include Tahun Project dropdown filter');
