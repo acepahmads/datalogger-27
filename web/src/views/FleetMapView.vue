@@ -58,6 +58,20 @@
             <span>Fit Peta</span>
           </button>
 
+          <!-- Fullscreen Map Button (Clean Wall-Display Mode Without Search/Filters) -->
+          <button
+            type="button"
+            id="btn-fleet-fullscreen"
+            @click="toggleMapFullscreen"
+            class="h-7 px-2.5 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            title="Layar penuh peta tanpa bar filter pencarian (Esc untuk keluar)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
+            </svg>
+            <span>Fullscreen</span>
+          </button>
+
           <!-- Refresh Button -->
           <button
             type="button"
@@ -332,15 +346,104 @@
     <div class="flex-1 min-h-0 flex gap-2.5 relative overflow-hidden">
       <!-- 3A. INTERACTIVE LEAFLET MAP PANE -->
       <div
-        v-show="isDesktopViewport || mobileViewMode === 'map'"
+        v-show="isDesktopViewport || mobileViewMode === 'map' || isMapFullscreen"
+        ref="fleetMapPane"
         id="fleet-map-pane"
         class="flex-1 min-w-0 h-full relative rounded-2xl overflow-hidden border border-slate-200/90 dark:border-slate-800/90 bg-slate-100 dark:bg-[#0B0F19] shadow-xs"
+        :class="{ 'fleet-map-pane-fullscreen': isMapFullscreen }"
       >
         <!-- Leaflet Container -->
         <div ref="fleetMapCanvas" id="fleet-leaflet-map" class="w-full h-full z-10"></div>
 
-        <!-- Mobile Map Floating Utility Buttons (Fit & Style) -->
-        <div class="flex md:hidden flex-col gap-1.5 absolute top-2.5 right-2.5 z-[450]">
+        <!-- Clean Fullscreen Top-Right Mini Controls (Zero Search / Zero Dropdown Filters) -->
+        <div
+          v-if="isMapFullscreen"
+          id="fleet-fullscreen-hud"
+          class="flex items-center gap-1.5 absolute top-3 right-3 z-[520] px-2 py-1.5 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl"
+        >
+          <!-- Compact Read-Only Live Status Summary -->
+          <div class="hidden md:flex items-center gap-2 px-2 py-0.5 mr-0.5 border-r border-slate-200 dark:border-slate-700 text-2xs font-bold">
+            <span class="text-slate-800 dark:text-white font-extrabold">🌐 Fleet Map</span>
+            <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-mono">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ summary.online_sites || 0 }}
+            </span>
+            <span class="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-mono">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ summary.delayed_sites || 0 }}
+            </span>
+            <span class="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-mono">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ summary.offline_sites || 0 }}
+            </span>
+          </div>
+
+          <!-- Theme Switcher in Fullscreen -->
+          <div class="hidden sm:inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
+            <button
+              v-for="opt in mapStyleOptions"
+              :key="'fs-style-' + opt.value"
+              type="button"
+              @click="setMapStyle(opt.value)"
+              class="px-2 py-0.5 rounded-md text-3xs font-bold transition cursor-pointer whitespace-nowrap"
+              :class="mapStyle === opt.value
+                ? 'bg-sky-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+          <button
+            type="button"
+            @click="cycleMapStyle"
+            class="sm:hidden h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
+            :title="'Tema Peta: ' + mapStyleLabel"
+          >
+            🗺️ {{ mapStyleLabel }}
+          </button>
+
+          <!-- Fit & Refresh -->
+          <button
+            type="button"
+            @click="fitMapToVisibleSites"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            title="Fit semua pin stasiun"
+          >
+            <span>⛶</span>
+            <span class="hidden sm:inline">Fit</span>
+          </button>
+          <button
+            type="button"
+            :disabled="loading"
+            @click="fetchFleetOverview(true)"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            :title="'Terakhir diperbarui: ' + lastUpdatedLabel"
+          >
+            <span :class="{ 'animate-spin': loading }">↻</span>
+          </button>
+
+          <!-- Exit Fullscreen Button -->
+          <button
+            type="button"
+            id="btn-fleet-exit-fullscreen"
+            @click="exitMapFullscreen"
+            class="h-7 px-2.5 rounded-lg text-2xs font-extrabold bg-rose-600 hover:bg-rose-500 text-white btn-text inline-flex items-center gap-1 shadow-xs transition cursor-pointer whitespace-nowrap"
+            title="Keluar dari layar penuh (Esc)"
+          >
+            <span>✕</span>
+            <span>Keluar Fullscreen</span>
+          </button>
+        </div>
+
+        <!-- Mobile Map Floating Utility Buttons (Fit, Fullscreen & Style when not in fullscreen) -->
+        <div v-if="!isMapFullscreen" class="flex md:hidden flex-col gap-1.5 absolute top-2.5 right-2.5 z-[450]">
+          <button
+            type="button"
+            @click="toggleMapFullscreen"
+            class="w-8 h-8 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-md flex items-center justify-center text-xs font-bold cursor-pointer"
+            title="Fullscreen Peta"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
+            </svg>
+          </button>
           <button
             type="button"
             @click="fitMapToVisibleSites"
@@ -385,7 +488,7 @@
         <!-- Compact Legend Pill (Desktop Bottom-Left) -->
         <div
           v-if="isTilesOnline"
-          class="hidden sm:flex items-center gap-2.5 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-white/92 dark:bg-[#0E1626]/92 backdrop-blur-xs border border-slate-200/85 dark:border-slate-700/85 text-3xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
+          class="hidden sm:flex items-center gap-2.5 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-3xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
         >
           <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Online</span>
           <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Delayed / Warning</span>
@@ -1071,36 +1174,50 @@ const INDONESIA_DEFAULT_CENTER = [-2.5489, 118.0149];
 const INDONESIA_DEFAULT_ZOOM = 5;
 
 // 100% Free, Zero-API-Key, Zero-Watermark Map Tile Providers (Esri Public ArcGIS Online & OpenStreetMap)
+const TILE_PANE_FILTER_CLASSES = [
+  'fleet-tiles-osm-vibrant',
+  'fleet-tiles-topo-vibrant',
+  'fleet-tiles-sat-crisp',
+  'fleet-tiles-night-comfort',
+  'fleet-tiles-navy-night',
+];
+
 const TILE_LAYERS = {
   osm: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    fallbackClassName: 'fleet-tiles-osm-vibrant',
-    options: { maxZoom: 19, className: 'fleet-tiles-osm-vibrant' },
+    paneFilterClass: 'fleet-tiles-osm-vibrant',
+    fallbackPaneFilterClass: 'fleet-tiles-osm-vibrant',
+    options: { maxZoom: 19 },
   },
   clean: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
     fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    fallbackClassName: 'fleet-tiles-osm-vibrant',
-    options: { maxZoom: 19, className: 'fleet-tiles-topo-vibrant' },
+    paneFilterClass: 'fleet-tiles-topo-vibrant',
+    fallbackPaneFilterClass: 'fleet-tiles-osm-vibrant',
+    options: { maxZoom: 19 },
   },
   night_clean: {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    fallbackClassName: 'fleet-tiles-night-comfort',
-    options: { maxZoom: 19, className: 'fleet-tiles-night-comfort' },
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    paneFilterClass: 'fleet-tiles-night-comfort',
+    fallbackPaneFilterClass: 'fleet-tiles-night-comfort',
+    options: { maxZoom: 19 },
   },
   dark: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    fallbackClassName: 'fleet-tiles-navy-night',
-    options: { maxZoom: 19, className: 'fleet-tiles-navy-night' },
+    paneFilterClass: 'fleet-tiles-navy-night',
+    fallbackPaneFilterClass: 'fleet-tiles-navy-night',
+    options: { maxZoom: 19 },
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
     fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 18, className: 'fleet-tiles-sat-crisp' },
+    paneFilterClass: 'fleet-tiles-sat-crisp',
+    fallbackPaneFilterClass: 'fleet-tiles-osm-vibrant',
+    options: { maxZoom: 18 },
   },
 };
 
@@ -1162,6 +1279,7 @@ export default {
       mobileViewMode: 'map', // 'map' | 'list'
       showMobileFilterSheet: false,
       isRightDockCollapsed: false,
+      isMapFullscreen: false,
 
       // Map & Selection State
       map: null,
@@ -1480,6 +1598,11 @@ export default {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.onResize, { passive: true });
       window.addEventListener('alarm-event', this.scheduleRealtimeRefresh);
+      window.addEventListener('keydown', this.onGlobalKeydown);
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('fullscreenchange', this.onNativeFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', this.onNativeFullscreenChange);
     }
     this.$nextTick(() => {
       this.initLeafletMap();
@@ -1499,6 +1622,11 @@ export default {
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.onResize);
       window.removeEventListener('alarm-event', this.scheduleRealtimeRefresh);
+      window.removeEventListener('keydown', this.onGlobalKeydown);
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('fullscreenchange', this.onNativeFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', this.onNativeFullscreenChange);
     }
     if (this.map) {
       this.map.remove();
@@ -1851,6 +1979,16 @@ export default {
       this.applyTileLayer();
     },
 
+    applyTilePaneFilter(filterClass) {
+      if (!this.map) return;
+      const tilePane = this.map.getPane('tilePane');
+      if (!tilePane || !tilePane.classList) return;
+      TILE_PANE_FILTER_CLASSES.forEach((cls) => tilePane.classList.remove(cls));
+      if (filterClass) {
+        tilePane.classList.add(filterClass);
+      }
+    },
+
     applyTileLayer() {
       if (!this.map) return;
       if (this.tileLayer) {
@@ -1861,7 +1999,8 @@ export default {
         this.map.removeLayer(this.tileOverlayLayer);
         this.tileOverlayLayer = null;
       }
-      const cfg = TILE_LAYERS[this.resolvedTileTheme] || TILE_LAYERS.clean;
+      const cfg = TILE_LAYERS[this.resolvedTileTheme] || TILE_LAYERS.osm;
+      this.applyTilePaneFilter(cfg.paneFilterClass || '');
       let fallbackAttempted = false;
 
       const attachLayer = (url, opts) => {
@@ -1879,9 +2018,8 @@ export default {
               this.map.removeLayer(this.tileOverlayLayer);
               this.tileOverlayLayer = null;
             }
-            const fbOpts = { maxZoom: 19 };
-            if (cfg.fallbackClassName) fbOpts.className = cfg.fallbackClassName;
-            this.tileLayer = attachLayer(cfg.fallbackUrl, fbOpts);
+            this.applyTilePaneFilter(cfg.fallbackPaneFilterClass || cfg.paneFilterClass || '');
+            this.tileLayer = attachLayer(cfg.fallbackUrl, { maxZoom: 19 });
             if (this.map) this.tileLayer.addTo(this.map);
           } else {
             this.isTilesOnline = false;
@@ -2310,7 +2448,7 @@ export default {
     },
 
     cycleMapStyle() {
-      const order = ['auto', 'clean', 'osm', 'dark', 'satellite'];
+      const order = ['auto', 'osm', 'clean', 'satellite', 'dark'];
       const idx = order.indexOf(this.mapStyle);
       this.mapStyle = order[(idx + 1) % order.length];
     },
@@ -2319,8 +2457,83 @@ export default {
       this.mapStyle = val;
     },
 
+    refreshMapLayoutAfterFullscreen() {
+      this.$nextTick(() => {
+        if (this.map) this.map.invalidateSize();
+        setTimeout(() => {
+          if (this.map) {
+            this.map.invalidateSize();
+            this.syncMapMarkers();
+          }
+        }, 180);
+      });
+    },
+
+    async toggleMapFullscreen() {
+      if (this.isMapFullscreen) {
+        await this.exitMapFullscreen();
+        return;
+      }
+      this.isMapFullscreen = true;
+      const paneEl = this.$refs.fleetMapPane;
+      if (paneEl && typeof document !== 'undefined') {
+        try {
+          if (paneEl.requestFullscreen) {
+            await paneEl.requestFullscreen();
+          } else if (paneEl.webkitRequestFullscreen) {
+            paneEl.webkitRequestFullscreen();
+          }
+        } catch (_) {
+          // Fallback CSS fixed fullscreen remains active cleanly
+        }
+      }
+      this.refreshMapLayoutAfterFullscreen();
+    },
+
+    async exitMapFullscreen() {
+      this.isMapFullscreen = false;
+      if (typeof document !== 'undefined') {
+        const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        if (fsEl) {
+          try {
+            if (document.exitFullscreen) {
+              await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+              document.webkitExitFullscreen();
+            }
+          } catch (_) {
+            // ignore native fullscreen exit errors
+          }
+        }
+      }
+      this.refreshMapLayoutAfterFullscreen();
+    },
+
+    onNativeFullscreenChange() {
+      if (typeof document === 'undefined') return;
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      const paneEl = this.$refs.fleetMapPane;
+      if (!fsEl && this.isMapFullscreen) {
+        this.isMapFullscreen = false;
+        this.refreshMapLayoutAfterFullscreen();
+      } else if (fsEl && paneEl && fsEl === paneEl && !this.isMapFullscreen) {
+        this.isMapFullscreen = true;
+        this.refreshMapLayoutAfterFullscreen();
+      }
+    },
+
+    onGlobalKeydown(ev) {
+      if (!ev) return;
+      if (ev.key === 'Escape' && this.isMapFullscreen) {
+        this.exitMapFullscreen();
+      }
+    },
+
     async openSiteDashboard(site) {
       if (!site || this.switchingSiteId) return;
+      if (this.isMapFullscreen) {
+        await this.exitMapFullscreen();
+      }
       this.switchingSiteId = site.site_id;
       try {
         await this.$store.dispatch('setActiveTenantAndSite', {
@@ -2335,6 +2548,9 @@ export default {
 
     async openSiteModule(site, targetPath) {
       if (!site || this.switchingSiteId) return;
+      if (this.isMapFullscreen) {
+        await this.exitMapFullscreen();
+      }
       this.switchingSiteId = site.site_id;
       try {
         await this.$store.dispatch('setActiveTenantAndSite', {
@@ -2347,8 +2563,11 @@ export default {
       }
     },
 
-    openGpsModal(site) {
+    async openGpsModal(site) {
       if (!site || !this.canEditStationGps) return;
+      if (this.isMapFullscreen) {
+        await this.exitMapFullscreen();
+      }
       const hasValid = site.has_coordinates && isValidStationCoordinate(site.latitude, site.longitude);
       this.gpsForm = {
         site_id: site.site_id,
@@ -2644,13 +2863,24 @@ export default {
   font-family: JetBrains Mono, Inter, system-ui, sans-serif;
   line-height: 1;
 }
-/* Eliminate fractional-DPI 1px white grid lines between 256x256 raster tiles */
+.fleet-map-pane-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+}
+/* Eliminate Leaflet 1.9.4 plus-lighter white grid lines & apply color filters once on tilePane */
 #fleet-leaflet-map .leaflet-tile-container img,
 #fleet-leaflet-map img.leaflet-tile {
   max-width: none !important;
   max-height: none !important;
   width: 256.5px !important;
   height: 256.5px !important;
+  mix-blend-mode: normal !important;
+  filter: none !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
@@ -2662,7 +2892,7 @@ export default {
   will-change: transform;
 }
 .fleet-tiles-osm-vibrant {
-  filter: saturate(1.18) contrast(1.04) brightness(0.99);
+  filter: saturate(1.16) contrast(1.04) brightness(0.99);
 }
 .fleet-tiles-topo-vibrant {
   filter: saturate(1.52) contrast(1.09) brightness(0.98);
@@ -2671,16 +2901,16 @@ export default {
   filter: saturate(1.14) contrast(1.06);
 }
 .fleet-tiles-night-comfort {
-  filter: brightness(0.90) contrast(1.06) saturate(1.30);
+  filter: invert(90%) hue-rotate(192deg) saturate(142%) brightness(98%) contrast(96%);
 }
 .fleet-tiles-navy-night {
-  filter: invert(91%) hue-rotate(188deg) brightness(98%) contrast(95%) saturate(132%);
+  filter: invert(92%) hue-rotate(194deg) saturate(152%) brightness(94%) contrast(98%);
 }
 #fleet-leaflet-map.leaflet-container {
-  background: #a5d3e3;
+  background: #aad3df;
 }
 .dark #fleet-leaflet-map.leaflet-container {
-  background: #0f233c;
+  background: #183657;
 }
 #fleet-leaflet-map .leaflet-control-scale-line {
   background: rgba(255, 255, 255, 0.86);

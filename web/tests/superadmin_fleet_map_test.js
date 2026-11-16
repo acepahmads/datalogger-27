@@ -86,15 +86,22 @@ assert(
   'FleetMapView must use vibrant Day/Topo tiles, natural anti-glare night_clean tiles, and detailed Deep Navy tiles'
 );
 assert(
-  fleetViewCode.includes('width: 256.5px !important') &&
-  fleetViewCode.includes('height: 256.5px !important'),
-  'FleetMapView must seal fractional-DPI 1px white grid lines between 256x256 raster tiles'
+  fleetViewCode.includes('mix-blend-mode: normal !important') &&
+  fleetViewCode.includes('applyTilePaneFilter'),
+  'FleetMapView must disable Leaflet 1.9.4 plus-lighter white grid seams and apply filters once on tilePane'
 );
 assert(
   fleetViewCode.includes('buildScreenClusters') &&
   fleetViewCode.includes('buildClusterIcon') &&
   fleetViewCode.includes('spiderfiedClusterKey'),
   'FleetMapView must group nearby stations into interactive count clusters that zoom/spiderfy on click'
+);
+assert(
+  fleetViewCode.includes('id="btn-fleet-fullscreen"') &&
+  fleetViewCode.includes('id="fleet-fullscreen-hud"') &&
+  fleetViewCode.includes('id="btn-fleet-exit-fullscreen"') &&
+  fleetViewCode.includes('toggleMapFullscreen'),
+  'FleetMapView must support clean Fullscreen Map mode without search/filter bars'
 );
 assert(fleetViewCode.includes('id="input-fleet-search"'), 'FleetMapView must include compact station/tenant search input');
 assert(fleetViewCode.includes('id="select-fleet-project-year"'), 'FleetMapView must include Tahun Project dropdown filter');
