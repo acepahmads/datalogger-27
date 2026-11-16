@@ -35,6 +35,7 @@ type Tenant struct {
 	Name             string         `gorm:"size:128;not null" json:"name"`
 	Description      string         `gorm:"size:255" json:"description,omitempty"`
 	Status           string         `gorm:"size:32;default:'ACTIVE';index" json:"status"` // ACTIVE | SUSPENDED
+	ProjectYear      int            `gorm:"default:0;index" json:"project_year"`          // e.g. 2024, 2025, 2026 (0 = unset)
 	MaxSites         int            `gorm:"default:0" json:"max_sites"`                   // 0 = unlimited
 	MaxDevices       int            `gorm:"default:0" json:"max_devices"`                 // 0 = unlimited
 	ContactName      string         `gorm:"size:128" json:"contact_name,omitempty"`
@@ -63,6 +64,9 @@ func (t *Tenant) BeforeSave(tx *gorm.DB) error {
 	if t.Status == "" {
 		t.Status = TenantStatusActive
 	}
+	if t.ProjectYear < 0 {
+		t.ProjectYear = 0
+	}
 	if strings.TrimSpace(t.CustomerName) == "" && t.Name != "" {
 		t.CustomerName = t.Name
 	}
@@ -79,6 +83,7 @@ type Site struct {
 	Name             string         `gorm:"size:128;not null" json:"name"`
 	Description      string         `gorm:"size:255" json:"description,omitempty"`
 	MonitoringDomain string         `gorm:"size:32;not null;default:'AQMS';index" json:"monitoring_domain"` // AQMS | SPARING | WQMS
+	ProjectYear      int            `gorm:"default:0;index" json:"project_year"`                            // 0 = inherit Tenant.ProjectYear
 	StationTypeMode  string         `gorm:"size:32;default:'MANUAL'" json:"station_type_mode"`              // MANUAL | AUTO
 	IngestFormat     string         `gorm:"size:32;default:'AUTO'" json:"ingest_format"`                    // AUTO | STANDARD_V1 | CBI_LEGACY
 	LegacyStationID  string         `gorm:"size:64;index" json:"legacy_station_id,omitempty"`               // Legacy Cloud station_id (e.g. "202")
@@ -110,6 +115,9 @@ func (s *Site) BeforeSave(tx *gorm.DB) error {
 		dom = "AQMS"
 	}
 	s.MonitoringDomain = dom
+	if s.ProjectYear < 0 {
+		s.ProjectYear = 0
+	}
 	if strings.TrimSpace(s.StationTypeMode) == "" {
 		s.StationTypeMode = "MANUAL"
 	}

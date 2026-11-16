@@ -57,10 +57,11 @@ type CreateDeviceRequest struct {
 	Latitude        *float64                `json:"latitude"`
 	Longitude       *float64                `json:"longitude"`
 	Timezone        string                  `json:"timezone"`
-	Status          model.DeviceAdminStatus `json:"status"`
-	Enabled         *bool                   `json:"enabled"`
-	Connection      *ConnectionConfigDTO    `json:"connection,omitempty"`
-	SourceDeviceID  *uint                   `json:"source_device_id,omitempty"`
+	Status               model.DeviceAdminStatus `json:"status"`
+	Enabled              *bool                   `json:"enabled"`
+	Connection           *ConnectionConfigDTO    `json:"connection,omitempty"`
+	SourceDeviceID       *uint                   `json:"source_device_id,omitempty"`
+	AllowCrossTenantSite bool                    `json:"-"`
 }
 
 type UpdateDeviceRequest struct {
@@ -738,19 +739,26 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 	}
 
 	if s.tenantService != nil {
-		if err := s.tenantService.CheckDeviceQuota(tenantID, 1); err != nil {
-			return nil, err
-		}
 		if s.tenantService.GetRepo() != nil {
 			if siteID > 0 {
 				site, err := s.tenantService.GetRepo().GetSiteByID(siteID)
-				if err != nil || site == nil || site.TenantID != tenantID {
+				if err != nil || site == nil {
 					return nil, errors.New("selected station/site does not belong to target tenant")
+				}
+				if site.TenantID != tenantID {
+					if req.AllowCrossTenantSite && site.TenantID > 0 {
+						tenantID = site.TenantID
+					} else {
+						return nil, errors.New("selected station/site does not belong to target tenant")
+					}
 				}
 				siteID = site.ID
 			} else if site, err := s.tenantService.GetRepo().GetDefaultSiteForTenant(tenantID); err == nil && site != nil {
 				siteID = site.ID
 			}
+		}
+		if err := s.tenantService.CheckDeviceQuota(tenantID, 1); err != nil {
+			return nil, err
 		}
 	}
 	if siteID == 0 {

@@ -73,10 +73,22 @@ assert(
   'LoginView must protect /monitoring/fleet-map redirects for non-Superadmin logins'
 );
 
-// 3. Desktop Ultra-Compact Layout Assertions
-assert(fleetViewCode.includes('id="fleet-desktop-command-ribbon"'), 'FleetMapView must render 1-row desktop command & KPI ribbon');
+// 3. Desktop Ultra-Compact & Responsive 2-Row Layout Assertions
+assert(fleetViewCode.includes('id="fleet-desktop-command-ribbon"'), 'FleetMapView must render desktop command & KPI ribbon');
+assert(fleetViewCode.includes('flex-col min-[1720px]:flex-row'), 'FleetMapView desktop ribbon must stack search/filter bar on a dedicated 2nd row on compact/laptop screens (<1720px)');
+assert(!fleetViewCode.includes('World_Dark_Gray_Base'), 'FleetMapView must NOT use pitch-black/charcoal World_Dark_Gray_Base tiles in Night Mode');
+assert(
+  fleetViewCode.includes('night_clean') &&
+  fleetViewCode.includes('fleet-tiles-night-comfort') &&
+  fleetViewCode.includes('fleet-tiles-navy-night'),
+  'FleetMapView must use natural anti-glare night_clean tiles in Auto Night Mode and detailed Deep Navy tiles in Malam theme'
+);
 assert(fleetViewCode.includes('id="input-fleet-search"'), 'FleetMapView must include compact station/tenant search input');
+assert(fleetViewCode.includes('id="select-fleet-project-year"'), 'FleetMapView must include Tahun Project dropdown filter');
+assert(fleetViewCode.includes('id="select-fleet-mobile-project-year"'), 'FleetMapView mobile filter sheet must include Tahun Project dropdown filter');
 assert(fleetViewCode.includes('id="select-fleet-tenant"'), 'FleetMapView must include Tenant dropdown filter');
+const tenantsMgmtCode = fs.readFileSync(path.join(srcDir, 'views/TenantsManagementView.vue'), 'utf8');
+assert(tenantsMgmtCode.includes('id="input-tenant-project-year"') && tenantsMgmtCode.includes('id="select-tenant-project-year"'), 'TenantsManagementView must expose Tahun Project input and filter');
 assert(fleetViewCode.includes('id="select-fleet-domain"'), 'FleetMapView must include Domain dropdown filter (AQMS/WQMS/SPARING)');
 assert(fleetViewCode.includes('id="select-fleet-alarm"'), 'FleetMapView must include Alarm filter dropdown');
 assert(fleetViewCode.includes('id="fleet-leaflet-map"'), 'FleetMapView must render Leaflet interactive map canvas');

@@ -4,13 +4,13 @@
     class="flex flex-col flex-1 min-h-0 h-full w-full gap-2 select-none font-sans text-slate-800 dark:text-slate-100"
   >
     <!-- ===================================================================== -->
-    <!-- 1. DESKTOP 1-ROW UNIFIED COMMAND & KPI RIBBON (>= 768px)              -->
+    <!-- 1. DESKTOP COMMAND & KPI RIBBON (>= 768px; 2-Row on Compact Screens)  -->
     <!-- ===================================================================== -->
     <div
       id="fleet-desktop-command-ribbon"
-      class="hidden md:flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0 flex-wrap xl:flex-nowrap"
+      class="hidden md:flex flex-col min-[1720px]:flex-row min-[1720px]:items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0"
     >
-      <!-- Left: Brand Title + Interactive KPI Filter Pills -->
+      <!-- Row 1 (Left on Ultra-Wide): Brand Title + Interactive KPI Filter Pills -->
       <div class="flex items-center gap-1.5 flex-wrap min-w-0">
         <div class="flex items-center gap-1.5 pr-2 mr-0.5 border-r border-slate-200 dark:border-slate-800">
           <span class="w-6 h-6 rounded-lg bg-sky-500/10 dark:bg-sky-500/15 border border-sky-500/25 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0">
@@ -43,133 +43,153 @@
         </button>
       </div>
 
-      <!-- Right: Compact Search, Dropdown Filters & Map Utilities -->
-      <div class="flex items-center gap-1.5 flex-wrap xl:flex-nowrap ml-auto">
-        <!-- Search Input -->
-        <div class="relative w-44 lg:w-52">
-          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <circle cx="11" cy="11" r="8" />
-            <path stroke-linecap="round" d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            id="input-fleet-search"
-            v-model.trim="searchQuery"
-            type="text"
-            placeholder="Cari site, tenant, kota..."
-            class="w-full h-7 pl-7 pr-6 rounded-lg text-2xs bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-sky-500"
-          />
-          <button
-            v-if="searchQuery"
-            type="button"
-            @click="searchQuery = ''"
-            class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-2xs cursor-pointer"
-            title="Hapus pencarian"
+      <!-- Row 2 on Compact/Laptop Screens (< 1720px): Search, Dropdown Filters & Map Utilities -->
+      <div class="w-full min-[1720px]:w-auto flex items-center justify-between gap-1.5 flex-wrap min-[1720px]:flex-nowrap pt-1.5 border-t border-slate-100 dark:border-slate-800/80 min-[1720px]:pt-0 min-[1720px]:border-t-0 min-[1720px]:ml-auto">
+        <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+          <!-- Search Input -->
+          <div class="relative w-48 lg:w-56">
+            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <path stroke-linecap="round" d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              id="input-fleet-search"
+              v-model.trim="searchQuery"
+              type="text"
+              placeholder="Cari site, tenant, kota..."
+              class="w-full h-7 pl-7 pr-6 rounded-lg text-2xs bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-sky-500"
+            />
+            <button
+              v-if="searchQuery"
+              type="button"
+              @click="searchQuery = ''"
+              class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-2xs cursor-pointer"
+              title="Hapus pencarian"
+            >
+              ✕
+            </button>
+          </div>
+
+          <!-- Project Year Filter -->
+          <select
+            id="select-fleet-project-year"
+            v-model="projectYearFilter"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
+            title="Filter Tahun Project"
           >
-            ✕
+            <option value="ALL">Semua Tahun</option>
+            <option v-for="yr in projectYearOptions" :key="'f-yr-' + yr.year" :value="String(yr.year)">
+              📅 {{ yr.year }} ({{ yr.count }})
+            </option>
+            <option v-if="unsetProjectYearCount > 0" value="UNSET">
+              Belum Diset ({{ unsetProjectYearCount }})
+            </option>
+          </select>
+
+          <!-- Tenant Filter -->
+          <select
+            id="select-fleet-tenant"
+            v-model="tenantFilter"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 max-w-[165px] focus:outline-none focus:border-sky-500 cursor-pointer"
+            title="Filter Tenant"
+          >
+            <option value="ALL">Semua Tenant ({{ displayedTenantOptions.length }})</option>
+            <option v-for="t in displayedTenantOptions" :key="t.id" :value="String(t.id)">
+              {{ t.name }}{{ t.project_year > 0 ? ` [${t.project_year}]` : '' }} ({{ t.site_count }})
+            </option>
+          </select>
+
+          <!-- Domain Filter -->
+          <select
+            id="select-fleet-domain"
+            v-model="domainFilter"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
+            title="Filter Domain Stasiun"
+          >
+            <option value="ALL">Semua Domain</option>
+            <option value="AQMS">AQMS</option>
+            <option value="WQMS">WQMS</option>
+            <option value="SPARING">SPARING</option>
+            <option value="ONLIMO">ONLIMO</option>
+          </select>
+
+          <!-- Alarm Severity Filter -->
+          <select
+            id="select-fleet-alarm"
+            v-model="alarmFilter"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
+            title="Filter Alarm"
+          >
+            <option value="ALL">Semua Alarm</option>
+            <option value="ANY_ALARM">Ada Alarm ({{ summary.sites_with_alarms }})</option>
+            <option value="CRITICAL">Critical Saja</option>
+            <option value="WARNING">Warning Saja</option>
+            <option value="CLEAN">Normal / Tanpa Alarm</option>
+          </select>
+
+          <!-- Reset Filter Pill (Visible when any filter is active) -->
+          <button
+            v-if="hasActiveFilters"
+            type="button"
+            @click="resetAllFilters"
+            class="h-7 px-2 rounded-lg text-2xs font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition cursor-pointer whitespace-nowrap"
+            title="Reset semua filter"
+          >
+            Reset
           </button>
         </div>
 
-        <!-- Tenant Filter -->
-        <select
-          id="select-fleet-tenant"
-          v-model="tenantFilter"
-          class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 max-w-[150px] focus:outline-none focus:border-sky-500 cursor-pointer"
-          title="Filter Tenant"
-        >
-          <option value="ALL">Semua Tenant ({{ tenants.length }})</option>
-          <option v-for="t in tenants" :key="t.id" :value="String(t.id)">
-            {{ t.name }} ({{ t.site_count }})
-          </option>
-        </select>
+        <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
+          <!-- Map Style Cycle Button -->
+          <button
+            type="button"
+            id="btn-fleet-map-style"
+            @click="cycleMapStyle"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            :title="'Tema Peta: ' + mapStyleLabel"
+          >
+            <span>🗺️</span>
+            <span>{{ mapStyleLabel }}</span>
+          </button>
 
-        <!-- Domain Filter -->
-        <select
-          id="select-fleet-domain"
-          v-model="domainFilter"
-          class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
-          title="Filter Domain Stasiun"
-        >
-          <option value="ALL">Semua Domain</option>
-          <option value="AQMS">AQMS</option>
-          <option value="WQMS">WQMS</option>
-          <option value="SPARING">SPARING</option>
-          <option value="ONLIMO">ONLIMO</option>
-        </select>
+          <!-- Fit Bounds Button -->
+          <button
+            type="button"
+            id="btn-fleet-fit-bounds"
+            @click="fitMapToVisibleSites"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            title="Fit semua pin stasiun di layar"
+          >
+            <span>⛶</span>
+            <span>Fit</span>
+          </button>
 
-        <!-- Alarm Severity Filter -->
-        <select
-          id="select-fleet-alarm"
-          v-model="alarmFilter"
-          class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
-          title="Filter Alarm"
-        >
-          <option value="ALL">Semua Alarm</option>
-          <option value="ANY_ALARM">Ada Alarm ({{ summary.sites_with_alarms }})</option>
-          <option value="CRITICAL">Critical Saja</option>
-          <option value="WARNING">Warning Saja</option>
-          <option value="CLEAN">Normal / Tanpa Alarm</option>
-        </select>
+          <!-- Refresh Button -->
+          <button
+            type="button"
+            id="btn-fleet-refresh"
+            :disabled="loading"
+            @click="fetchFleetOverview(true)"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+            :title="'Terakhir diperbarui: ' + lastUpdatedLabel"
+          >
+            <span :class="{ 'animate-spin': loading }">↻</span>
+            <span class="hidden 2xl:inline font-mono text-3xs">{{ lastUpdatedShort }}</span>
+          </button>
 
-        <!-- Reset Filter Pill (Visible when any filter is active) -->
-        <button
-          v-if="hasActiveFilters"
-          type="button"
-          @click="resetAllFilters"
-          class="h-7 px-2 rounded-lg text-2xs font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition cursor-pointer whitespace-nowrap"
-          title="Reset semua filter"
-        >
-          Reset
-        </button>
-
-        <!-- Map Style Cycle Button -->
-        <button
-          type="button"
-          id="btn-fleet-map-style"
-          @click="cycleMapStyle"
-          class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
-          :title="'Tema Peta: ' + mapStyleLabel"
-        >
-          <span>🗺️</span>
-          <span>{{ mapStyleLabel }}</span>
-        </button>
-
-        <!-- Fit Bounds Button -->
-        <button
-          type="button"
-          id="btn-fleet-fit-bounds"
-          @click="fitMapToVisibleSites"
-          class="h-7 px-2 rounded-lg text-2xs font-semibold bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
-          title="Fit semua pin stasiun di layar"
-        >
-          <span>⛶</span>
-          <span>Fit</span>
-        </button>
-
-        <!-- Refresh Button -->
-        <button
-          type="button"
-          id="btn-fleet-refresh"
-          :disabled="loading"
-          @click="fetchFleetOverview(true)"
-          class="h-7 px-2 rounded-lg text-2xs font-semibold bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
-          :title="'Terakhir diperbarui: ' + lastUpdatedLabel"
-        >
-          <span :class="{ 'animate-spin': loading }">↻</span>
-          <span class="hidden 2xl:inline font-mono text-3xs">{{ lastUpdatedShort }}</span>
-        </button>
-
-        <!-- Collapse / Expand Priority Panel -->
-        <button
-          type="button"
-          @click="isRightDockCollapsed = !isRightDockCollapsed"
-          class="h-7 px-2 rounded-lg text-2xs font-semibold border transition cursor-pointer whitespace-nowrap"
-          :class="!isRightDockCollapsed
-            ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-2xs'
-            : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80'"
-          title="Tampilkan / sembunyikan panel Prioritas Stasiun"
-        >
-          {{ isRightDockCollapsed ? '◂ Panel' : 'Panel ▸' }}
-        </button>
+          <!-- Collapse / Expand Priority Panel -->
+          <button
+            type="button"
+            @click="isRightDockCollapsed = !isRightDockCollapsed"
+            class="h-7 px-2 rounded-lg text-2xs font-semibold border transition cursor-pointer whitespace-nowrap"
+            :class="!isRightDockCollapsed
+              ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-2xs'
+              : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80'"
+            title="Tampilkan / sembunyikan panel Prioritas Stasiun"
+          >
+            {{ isRightDockCollapsed ? '◂ Panel' : 'Panel ▸' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -180,8 +200,24 @@
       id="fleet-mobile-header"
       class="flex md:hidden flex-col gap-1.5 p-2 rounded-xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0"
     >
-      <!-- Row 1: Search + Filter Drawer Button + Segmented Switcher (Peta | Daftar) -->
-      <div class="flex items-center gap-1.5">
+      <!-- Row 1: Horizontally Scrollable KPI Filter Chips (Online, Delayed, Offline...) -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 fleet-no-scrollbar">
+        <button
+          v-for="pill in kpiPills"
+          :key="'mob-' + pill.key"
+          type="button"
+          @click="setQuickFilter(pill.key)"
+          class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-2xs font-bold border whitespace-nowrap flex-shrink-0 cursor-pointer"
+          :class="quickFilter === pill.key ? pill.activeClass : pill.idleClass"
+        >
+          <span v-if="pill.dotClass" class="w-1.5 h-1.5 rounded-full" :class="pill.dotClass"></span>
+          <span>{{ pill.label }}</span>
+          <span class="font-mono text-3xs opacity-90">({{ pill.count }})</span>
+        </button>
+      </div>
+
+      <!-- Row 2 (Below KPI Pills): Search + Filter Drawer Button + Segmented Switcher (Peta | Daftar) -->
+      <div class="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
         <div class="relative flex-1 min-w-0">
           <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <circle cx="11" cy="11" r="8" />
@@ -259,22 +295,6 @@
             📋 Daftar ({{ filteredSites.length }})
           </button>
         </div>
-      </div>
-
-      <!-- Row 2: Horizontally Scrollable KPI Filter Chips -->
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 fleet-no-scrollbar">
-        <button
-          v-for="pill in kpiPills"
-          :key="'mob-' + pill.key"
-          type="button"
-          @click="setQuickFilter(pill.key)"
-          class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-2xs font-bold border whitespace-nowrap flex-shrink-0 cursor-pointer"
-          :class="quickFilter === pill.key ? pill.activeClass : pill.idleClass"
-        >
-          <span v-if="pill.dotClass" class="w-1.5 h-1.5 rounded-full" :class="pill.dotClass"></span>
-          <span>{{ pill.label }}</span>
-          <span class="font-mono text-3xs opacity-90">({{ pill.count }})</span>
-        </button>
       </div>
     </div>
 
@@ -372,6 +392,9 @@
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="px-1.5 py-0.5 rounded text-4xs font-mono font-extrabold border" :class="domainBadgeClass(selectedSite.monitoring_domain)">
                     {{ selectedSite.monitoring_domain }}
+                  </span>
+                  <span v-if="selectedSite.project_year > 0" class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                    📅 {{ selectedSite.project_year }}
                   </span>
                   <span class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold border" :class="deliveryBadgeClass(selectedSite.delivery_status)">
                     {{ deliveryLabel(selectedSite.delivery_status) }}
@@ -525,6 +548,9 @@
                     <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-extrabold border" :class="domainBadgeClass(selectedSite.monitoring_domain)">
                       {{ selectedSite.monitoring_domain }}
                     </span>
+                    <span v-if="selectedSite.project_year > 0" class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                      📅 {{ selectedSite.project_year }}
+                    </span>
                     <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold border" :class="deliveryBadgeClass(selectedSite.delivery_status)">
                       {{ deliveryLabel(selectedSite.delivery_status) }}
                     </span>
@@ -642,11 +668,14 @@
             <span class="absolute left-0 top-1 bottom-1 w-1 rounded-r" :class="severityBarClass(site)"></span>
 
             <div class="min-w-0 flex-1">
-              <!-- Line 1: Site Name + Domain Badge -->
+              <!-- Line 1: Site Name + Domain Badge + Project Year -->
               <div class="flex items-center gap-1.5 min-w-0">
                 <span class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ site.site_name }}</span>
                 <span class="px-1 py-0.2 rounded text-4xs font-mono font-bold border flex-shrink-0" :class="domainBadgeClass(site.monitoring_domain)">
                   {{ site.monitoring_domain }}
+                </span>
+                <span v-if="site.project_year > 0" class="px-1 py-0.2 rounded text-4xs font-mono font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25 flex-shrink-0">
+                  {{ site.project_year }}
                 </span>
               </div>
               <!-- Line 2: Tenant + Last Transmission -->
@@ -722,6 +751,9 @@
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-extrabold border" :class="domainBadgeClass(site.monitoring_domain)">
                   {{ site.monitoring_domain }}
+                </span>
+                <span v-if="site.project_year > 0" class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                  📅 {{ site.project_year }}
                 </span>
                 <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold border" :class="deliveryBadgeClass(site.delivery_status)">
                   {{ deliveryLabel(site.delivery_status) }}
@@ -810,17 +842,35 @@
         </div>
 
         <div class="space-y-2.5 text-xs">
-          <div>
-            <label class="block text-2xs font-bold text-slate-500 dark:text-slate-400 mb-1">Organisasi Tenant</label>
-            <select
-              v-model="tenantFilter"
-              class="w-full h-9 px-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
-            >
-              <option value="ALL">Semua Tenant ({{ tenants.length }})</option>
-              <option v-for="t in tenants" :key="'m-t-' + t.id" :value="String(t.id)">
-                {{ t.name }} ({{ t.site_count }} site)
-              </option>
-            </select>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-2xs font-bold text-slate-500 dark:text-slate-400 mb-1">Tahun Project</label>
+              <select
+                id="select-fleet-mobile-project-year"
+                v-model="projectYearFilter"
+                class="w-full h-9 px-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
+              >
+                <option value="ALL">Semua Tahun</option>
+                <option v-for="yr in projectYearOptions" :key="'m-yr-' + yr.year" :value="String(yr.year)">
+                  📅 Tahun {{ yr.year }} ({{ yr.count }} site)
+                </option>
+                <option v-if="unsetProjectYearCount > 0" value="UNSET">
+                  Belum Diset ({{ unsetProjectYearCount }} site)
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-2xs font-bold text-slate-500 dark:text-slate-400 mb-1">Organisasi Tenant</label>
+              <select
+                v-model="tenantFilter"
+                class="w-full h-9 px-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
+              >
+                <option value="ALL">Semua Tenant ({{ displayedTenantOptions.length }})</option>
+                <option v-for="t in displayedTenantOptions" :key="'m-t-' + t.id" :value="String(t.id)">
+                  {{ t.name }}{{ t.project_year > 0 ? ` [${t.project_year}]` : '' }} ({{ t.site_count }} site)
+                </option>
+              </select>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
@@ -1004,16 +1054,21 @@ const TILE_LAYERS = {
     fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: { maxZoom: 19 },
   },
+  night_clean: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    fallbackClassName: 'fleet-tiles-night-comfort',
+    options: { maxZoom: 19, className: 'fleet-tiles-night-comfort' },
+  },
   osm: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: { maxZoom: 19, className: 'fleet-tiles-osm' },
   },
   dark: {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    fallbackClassName: 'fleet-tiles-dark-osm',
-    options: { maxZoom: 16 },
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    fallbackClassName: 'fleet-tiles-navy-night',
+    options: { maxZoom: 19, className: 'fleet-tiles-navy-night' },
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -1065,10 +1120,12 @@ export default {
       },
       tenants: [],
       sites: [],
+      projectYears: [],
 
       // Filters
       quickFilter: 'ALL', // ALL | ONLINE | DELAYED | OFFLINE | ALARM | NOGPS
       searchQuery: '',
+      projectYearFilter: 'ALL',
       tenantFilter: 'ALL',
       domainFilter: 'ALL',
       alarmFilter: 'ALL',
@@ -1134,12 +1191,12 @@ export default {
     },
     resolvedTileTheme() {
       if (this.mapStyle === 'auto') {
-        return this.effectiveAppDark ? 'dark' : 'clean';
+        return this.effectiveAppDark ? 'night_clean' : 'clean';
       }
       return this.mapStyle;
     },
     mapStyleLabel() {
-      const map = { auto: 'Auto', clean: 'Clean', osm: 'OSM', dark: 'Gelap', satellite: 'Satelit' };
+      const map = { auto: 'Auto', clean: 'Clean', osm: 'OSM', dark: 'Malam', satellite: 'Satelit' };
       return map[this.mapStyle] || 'Auto';
     },
     mapStyleOptions() {
@@ -1147,7 +1204,7 @@ export default {
         { value: 'auto', label: 'Auto' },
         { value: 'clean', label: 'Clean' },
         { value: 'osm', label: 'OSM' },
-        { value: 'dark', label: 'Gelap' },
+        { value: 'dark', label: 'Malam' },
         { value: 'satellite', label: 'Satelit' },
       ];
     },
@@ -1203,10 +1260,54 @@ export default {
         },
       ];
     },
+    projectYearOptions() {
+      const countByYear = {};
+      (this.projectYears || []).forEach((y) => {
+        const num = Number(y) || 0;
+        if (num > 0 && countByYear[num] === undefined) countByYear[num] = 0;
+      });
+      (this.tenants || []).forEach((t) => {
+        const num = Number(t.project_year) || 0;
+        if (num > 0 && countByYear[num] === undefined) countByYear[num] = 0;
+      });
+      (this.sites || []).forEach((s) => {
+        const num = Number(s.project_year) || 0;
+        if (num > 0) {
+          countByYear[num] = (countByYear[num] || 0) + 1;
+        }
+      });
+      return Object.keys(countByYear)
+        .map(y => Number(y))
+        .filter(y => y > 0)
+        .sort((a, b) => b - a)
+        .map(year => ({ year, count: countByYear[year] || 0 }));
+    },
+    unsetProjectYearCount() {
+      return (this.sites || []).filter(s => !(Number(s.project_year) > 0)).length;
+    },
+    displayedTenantOptions() {
+      if (this.projectYearFilter === 'ALL') return this.tenants || [];
+      const matchingTenantIds = new Set(
+        (this.sites || [])
+          .filter((s) => {
+            const py = Number(s.project_year) || 0;
+            return this.projectYearFilter === 'UNSET' ? py <= 0 : String(py) === String(this.projectYearFilter);
+          })
+          .map(s => Number(s.tenant_id))
+      );
+      return (this.tenants || []).filter((t) => {
+        const tpy = Number(t.project_year) || 0;
+        if (this.projectYearFilter === 'UNSET') {
+          return tpy <= 0 || matchingTenantIds.has(Number(t.id));
+        }
+        return String(tpy) === String(this.projectYearFilter) || matchingTenantIds.has(Number(t.id));
+      });
+    },
     hasActiveFilters() {
       return (
         this.quickFilter !== 'ALL' ||
         Boolean(this.searchQuery) ||
+        this.projectYearFilter !== 'ALL' ||
         this.tenantFilter !== 'ALL' ||
         this.domainFilter !== 'ALL' ||
         this.alarmFilter !== 'ALL'
@@ -1214,6 +1315,7 @@ export default {
     },
     activeSecondaryFilterCount() {
       let n = 0;
+      if (this.projectYearFilter !== 'ALL') n += 1;
       if (this.tenantFilter !== 'ALL') n += 1;
       if (this.domainFilter !== 'ALL') n += 1;
       if (this.alarmFilter !== 'ALL') n += 1;
@@ -1222,6 +1324,13 @@ export default {
     filteredSites() {
       const q = (this.searchQuery || '').toLowerCase();
       return (this.sites || []).filter((s) => {
+        const py = Number(s.project_year) || 0;
+        if (this.projectYearFilter === 'UNSET' && py > 0) {
+          return false;
+        }
+        if (this.projectYearFilter !== 'ALL' && this.projectYearFilter !== 'UNSET' && String(py) !== String(this.projectYearFilter)) {
+          return false;
+        }
         if (this.tenantFilter !== 'ALL' && String(s.tenant_id) !== String(this.tenantFilter)) {
           return false;
         }
@@ -1249,6 +1358,7 @@ export default {
             s.address,
             s.monitoring_domain,
             s.primary_protocol,
+            py > 0 ? String(py) : '',
           ]
             .filter(Boolean)
             .join(' ')
@@ -1313,6 +1423,19 @@ export default {
     mappedFilteredSites() {
       this.syncMapMarkers();
     },
+    projectYearFilter() {
+      if (this.tenantFilter !== 'ALL') {
+        const stillVisible = this.displayedTenantOptions.some(t => String(t.id) === String(this.tenantFilter));
+        if (!stillVisible) {
+          this.tenantFilter = 'ALL';
+        }
+      }
+      this.$nextTick(() => {
+        if (this.mappedFilteredSites.length > 0) {
+          this.fitMapToVisibleSites();
+        }
+      });
+    },
     selectedSiteId() {
       this.syncMapMarkers();
     },
@@ -1358,13 +1481,10 @@ export default {
   methods: {
     onResize() {
       if (typeof window === 'undefined') return;
-      const prevDesktop = this.isDesktopViewport;
       this.viewportWidth = window.innerWidth;
-      if (prevDesktop !== this.isDesktopViewport || this.mobileViewMode === 'map') {
-        this.$nextTick(() => {
-          if (this.map) this.map.invalidateSize();
-        });
-      }
+      this.$nextTick(() => {
+        if (this.map) this.map.invalidateSize();
+      });
     },
     scheduleRealtimeRefresh() {
       if (this.wsRefreshDebounce) clearTimeout(this.wsRefreshDebounce);
@@ -1377,6 +1497,7 @@ export default {
       this.generatedAt = payload.generated_at || new Date().toISOString();
       this.nowTick = Date.now();
       this.summary = { ...this.summary, ...(payload.summary || {}) };
+      this.projectYears = Array.isArray(payload.project_years) ? payload.project_years : [];
       this.tenants = Array.isArray(payload.tenants) ? payload.tenants : [];
       this.sites = Array.isArray(payload.sites) ? payload.sites : [];
       this.errorMessage = '';
@@ -1457,7 +1578,16 @@ export default {
 
       const tenantStats = {};
       const tenantOpts = rawTenants.map((t) => {
-        const opt = { id: t.id, code: t.code, name: t.name, status: t.status || 'ACTIVE', site_count: 0, online_sites: 0, alarm_sites: 0 };
+        const opt = {
+          id: t.id,
+          code: t.code,
+          name: t.name,
+          status: t.status || 'ACTIVE',
+          project_year: Number(t.project_year) || 0,
+          site_count: 0,
+          online_sites: 0,
+          alarm_sites: 0,
+        };
         tenantStats[t.id] = opt;
         return opt;
       });
@@ -1570,6 +1700,7 @@ export default {
           tenant_name: ten.name,
           tenant_status: ten.status || 'ACTIVE',
           customer_name: ten.customer_name || '',
+          project_year: Number(st.project_year) || Number(ten.project_year) || 0,
           monitoring_domain: String(st.monitoring_domain || 'AQMS').toUpperCase(),
           enabled: st.enabled !== false,
           address: st.address || '',
@@ -1805,8 +1936,9 @@ export default {
         const safeName = this.escapeHtml(site.site_name);
         const safeTenant = this.escapeHtml(site.tenant_name);
         const safeAge = this.escapeHtml(this.formatRelativeAge(site));
+        const yearSuffix = Number(site.project_year) > 0 ? ` · ${Number(site.project_year)}` : '';
         marker.bindTooltip(
-          `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.82;">${safeTenant} · ${safeAge}</span></div>`,
+          `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.82;">${safeTenant}${yearSuffix} · ${safeAge}</span></div>`,
           { direction: 'top', offset: [0, -12], opacity: 0.95 }
         );
 
@@ -1888,6 +2020,7 @@ export default {
     resetAllFilters() {
       this.quickFilter = 'ALL';
       this.searchQuery = '';
+      this.projectYearFilter = 'ALL';
       this.tenantFilter = 'ALL';
       this.domainFilter = 'ALL';
       this.alarmFilter = 'ALL';
@@ -2203,10 +2336,32 @@ export default {
   scrollbar-width: none;
 }
 .fleet-tiles-osm {
-  filter: saturate(0.88) contrast(1.02);
+  filter: saturate(0.92) contrast(1.02);
 }
-.fleet-tiles-dark-osm {
-  filter: invert(100%) hue-rotate(180deg) brightness(93%) contrast(92%) saturate(80%);
+.fleet-tiles-night-comfort {
+  filter: brightness(0.92) contrast(1.04) saturate(1.02);
+}
+.fleet-tiles-navy-night {
+  filter: invert(91%) hue-rotate(188deg) brightness(98%) contrast(95%) saturate(132%);
+}
+#fleet-leaflet-map.leaflet-container {
+  background: #dbeafe;
+}
+.dark #fleet-leaflet-map.leaflet-container {
+  background: #0f233c;
+}
+.dark #fleet-leaflet-map .leaflet-control-zoom {
+  border: 1px solid rgba(51, 65, 85, 0.9) !important;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.45) !important;
+}
+.dark #fleet-leaflet-map .leaflet-control-zoom a {
+  background-color: rgba(14, 22, 38, 0.92) !important;
+  color: #e2e8f0 !important;
+  border-bottom-color: rgba(51, 65, 85, 0.85) !important;
+}
+.dark #fleet-leaflet-map .leaflet-control-zoom a:hover {
+  background-color: rgba(30, 41, 59, 0.96) !important;
+  color: #38bdf8 !important;
 }
 </style>
 

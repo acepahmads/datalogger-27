@@ -164,11 +164,20 @@ func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 	scope := middleware.GetScope(c)
 	var srcDevForScope *model.Device
 	if req.SourceDeviceID != nil && *req.SourceDeviceID > 0 {
-		srcDev, ok := h.checkDeviceAccess(c, *req.SourceDeviceID)
-		if !ok {
-			return
+		if scope.IsSuperAdmin {
+			srcDev, err := h.deviceService.GetDeviceByID(*req.SourceDeviceID)
+			if err != nil || srcDev == nil {
+				response.NotFound(c, "Source device not found")
+				return
+			}
+			srcDevForScope = srcDev
+		} else {
+			srcDev, ok := h.checkDeviceAccess(c, *req.SourceDeviceID)
+			if !ok {
+				return
+			}
+			srcDevForScope = srcDev
 		}
-		srcDevForScope = srcDev
 	}
 
 	if scope.Authenticated {
@@ -176,10 +185,20 @@ func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 			response.Forbidden(c, "Host physical serial ports (MODBUS_RTU / SERIAL) can only be configured by SUPERADMIN")
 			return
 		}
-		if scope.IsSuperAdmin && scope.TenantID == 0 && req.TenantID == 0 && srcDevForScope != nil && srcDevForScope.TenantID > 0 {
-			req.TenantID = srcDevForScope.TenantID
-			if req.SiteID == 0 && srcDevForScope.SiteID > 0 {
-				req.SiteID = srcDevForScope.SiteID
+		req.AllowCrossTenantSite = scope.IsSuperAdmin
+		if scope.IsSuperAdmin {
+			if req.TenantID == 0 {
+				if req.SiteID == 0 && scope.TenantID == 0 && srcDevForScope != nil && srcDevForScope.TenantID > 0 {
+					req.TenantID = srcDevForScope.TenantID
+					if srcDevForScope.SiteID > 0 {
+						req.SiteID = srcDevForScope.SiteID
+					}
+				} else if req.SiteID == 0 {
+					req.TenantID = scope.WriteTenantID(0)
+				}
+			}
+			if req.SiteID == 0 && (req.TenantID == 0 || req.TenantID == scope.TenantID) {
+				req.SiteID = scope.WriteSiteID(0)
 			}
 		} else {
 			req.TenantID = scope.WriteTenantID(req.TenantID)

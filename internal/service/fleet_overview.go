@@ -43,10 +43,11 @@ type FleetSiteItem struct {
 	SiteName           string                 `json:"site_name"`
 	TenantID           uint                   `json:"tenant_id"`
 	TenantCode         string                 `json:"tenant_code"`
-	TenantName         string                 `json:"tenant_name"`
-	TenantStatus       string                 `json:"tenant_status"`
-	CustomerName       string                 `json:"customer_name"`
-	MonitoringDomain   string                 `json:"monitoring_domain"`
+	TenantName          string                 `json:"tenant_name"`
+	TenantStatus        string                 `json:"tenant_status"`
+	CustomerName        string                 `json:"customer_name"`
+	ProjectYear         int                    `json:"project_year"`
+	MonitoringDomain    string                 `json:"monitoring_domain"`
 	Enabled            bool                   `json:"enabled"`
 	Address            string                 `json:"address"`
 	Timezone           string                 `json:"timezone"`
@@ -79,6 +80,7 @@ type FleetTenantOption struct {
 	Code        string `json:"code"`
 	Name        string `json:"name"`
 	Status      string `json:"status"`
+	ProjectYear int    `json:"project_year"`
 	SiteCount   int    `json:"site_count"`
 	OnlineSites int    `json:"online_sites"`
 	AlarmSites  int    `json:"alarm_sites"`
@@ -105,10 +107,11 @@ type FleetOverviewSummary struct {
 
 // FleetOverviewResponse is the payload returned by GET /api/tenants/fleet-overview.
 type FleetOverviewResponse struct {
-	GeneratedAt time.Time            `json:"generated_at"`
-	Summary     FleetOverviewSummary `json:"summary"`
-	Tenants     []FleetTenantOption  `json:"tenants"`
-	Sites       []FleetSiteItem      `json:"sites"`
+	GeneratedAt  time.Time            `json:"generated_at"`
+	Summary      FleetOverviewSummary `json:"summary"`
+	ProjectYears []int                `json:"project_years"`
+	Tenants      []FleetTenantOption  `json:"tenants"`
+	Sites        []FleetSiteItem      `json:"sites"`
 }
 
 // isValidFleetCoordinate returns true iff lat/lng are finite, within valid WGS84 bounds, and NOT (0, 0) Null-Island.
@@ -188,9 +191,10 @@ func resolveFleetDeviceTimeoutSeconds(dev *model.Device) int {
 func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 	now := time.Now().UTC()
 	out := &FleetOverviewResponse{
-		GeneratedAt: now,
-		Tenants:     make([]FleetTenantOption, 0),
-		Sites:       make([]FleetSiteItem, 0),
+		GeneratedAt:  now,
+		ProjectYears: make([]int, 0),
+		Tenants:      make([]FleetTenantOption, 0),
+		Sites:        make([]FleetSiteItem, 0),
 	}
 	if s == nil || s.repo == nil || s.repo.GetDB() == nil {
 		return out, nil
@@ -275,13 +279,18 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 		}
 	}
 
+	yearSet := make(map[int]struct{})
 	tenantStats := make(map[uint]*FleetTenantOption, len(tenants))
 	for _, t := range tenants {
 		opt := FleetTenantOption{
-			ID:     t.ID,
-			Code:   t.Code,
-			Name:   t.Name,
-			Status: t.Status,
+			ID:          t.ID,
+			Code:        t.Code,
+			Name:        t.Name,
+			Status:      t.Status,
+			ProjectYear: t.ProjectYear,
+		}
+		if t.ProjectYear > 0 {
+			yearSet[t.ProjectYear] = struct{}{}
 		}
 		out.Tenants = append(out.Tenants, opt)
 		if !strings.EqualFold(t.Status, model.TenantStatusSuspended) {
@@ -527,6 +536,14 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 			dom = "AQMS"
 		}
 
+		effectiveYear := st.ProjectYear
+		if effectiveYear <= 0 {
+			effectiveYear = ten.ProjectYear
+		}
+		if effectiveYear > 0 {
+			yearSet[effectiveYear] = struct{}{}
+		}
+
 		item := FleetSiteItem{
 			SiteID:              st.ID,
 			SiteCode:            st.Code,
@@ -536,6 +553,7 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 			TenantName:          ten.Name,
 			TenantStatus:        ten.Status,
 			CustomerName:        ten.CustomerName,
+			ProjectYear:         effectiveYear,
 			MonitoringDomain:    dom,
 			Enabled:             st.Enabled,
 			Address:             st.Address,
@@ -623,6 +641,11 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 		}
 		return strings.ToLower(a.SiteName) < strings.ToLower(b.SiteName)
 	})
+
+	for y := range yearSet {
+		out.ProjectYears = append(out.ProjectYears, y)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(out.ProjectYears)))
 
 	return out, nil
 }

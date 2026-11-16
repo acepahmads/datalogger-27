@@ -433,20 +433,32 @@ func (r *DeviceRepository) CloneDeviceChildren(srcDevice, targetDevice *model.De
 				targetDevice.TenantID, srcCat.Code, srcCat.Name).
 				First(&dstCat).Error
 			if err != nil {
-				dstCat = model.ParameterCategory{
-					TenantID:          targetDevice.TenantID,
-					Name:              srcCat.Name,
-					Code:              srcCat.Code,
-					Description:       srcCat.Description,
-					IconKey:           srcCat.IconKey,
-					ColorKey:          srcCat.ColorKey,
-					DisplayOrder:      srcCat.DisplayOrder,
-					DefaultColumnSpan: srcCat.DefaultColumnSpan,
-					Enabled:           srcCat.Enabled,
-					Domain:            srcCat.Domain,
-				}
-				if cErr := tx.Create(&dstCat).Error; cErr != nil {
-					return nil, cErr
+				// Check if a soft-deleted category with the same unique (tenant_id, code) exists and restore it
+				var softCat model.ParameterCategory
+				if uErr := tx.Unscoped().
+					Where("tenant_id = ? AND LOWER(code) = LOWER(?)", targetDevice.TenantID, srcCat.Code).
+					First(&softCat).Error; uErr == nil && softCat.ID > 0 {
+					_ = tx.Unscoped().Model(&softCat).Updates(map[string]interface{}{
+						"deleted_at": nil,
+						"enabled":    true,
+					}).Error
+					dstCat = softCat
+				} else {
+					dstCat = model.ParameterCategory{
+						TenantID:          targetDevice.TenantID,
+						Name:              srcCat.Name,
+						Code:              srcCat.Code,
+						Description:       srcCat.Description,
+						IconKey:           srcCat.IconKey,
+						ColorKey:          srcCat.ColorKey,
+						DisplayOrder:      srcCat.DisplayOrder,
+						DefaultColumnSpan: srcCat.DefaultColumnSpan,
+						Enabled:           srcCat.Enabled,
+						Domain:            srcCat.Domain,
+					}
+					if cErr := tx.Create(&dstCat).Error; cErr != nil {
+						return nil, cErr
+					}
 				}
 			}
 			cid := dstCat.ID

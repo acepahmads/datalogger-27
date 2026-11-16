@@ -1358,3 +1358,146 @@ func TestCustomerServiceRole_GlobalReadOnly_FleetMap_AllTenants_ZeroWrite(t *tes
 		}
 	}
 }
+
+func TestSuperAdminCrossTenantCopyDeviceWithParametersAndCategories(t *testing.T) {
+	env := setupMultiTenantTestEnv(t)
+
+	// 1. Create Tenant 2 ("AQMS Kota Mojokerto 2024")
+	wT2 := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
+		"code":           "aqms-kota-mojokerto-2024",
+		"name":           "AQMS Kota Mojokerto 2024",
+		"default_domain": "AQMS",
+		"project_year":   2024,
+	})
+	if wT2.Code != http.StatusCreated && wT2.Code != http.StatusOK {
+		t.Fatalf("create Tenant 2 failed (%d): %s", wT2.Code, wT2.Body.String())
+	}
+	var t2Resp struct {
+		Data struct {
+			ID    uint         `json:"id"`
+			Sites []model.Site `json:"sites"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wT2.Body.Bytes(), &t2Resp)
+	t2ID := t2Resp.Data.ID
+	if t2ID == 0 || len(t2Resp.Data.Sites) == 0 {
+		t.Fatalf("expected Tenant 2 to have default site, got %+v", t2Resp.Data)
+	}
+	t2SiteID := t2Resp.Data.Sites[0].ID
+
+	// 2. Create source device in Tenant 1 with a custom category & 2 parameters
+	srcCat := model.ParameterCategory{
+		TenantID: 1,
+		Code:     "gas-polutan-madiun",
+		Name:     "Gas Polutan",
+		Enabled:  true,
+		Domain:   "AQMS",
+	}
+	if err := env.DB.Create(&srcCat).Error; err != nil {
+		t.Fatalf("create source category failed: %v", err)
+	}
+
+	// Pre-create and soft-delete the same category code in Tenant 2 to verify Unscoped restore safety
+	softCatT2 := model.ParameterCategory{
+		TenantID: t2ID,
+		Code:     "gas-polutan-madiun",
+		Name:     "Gas Polutan",
+		Enabled:  true,
+		Domain:   "AQMS",
+	}
+	if err := env.DB.Create(&softCatT2).Error; err != nil {
+		t.Fatalf("create T2 soft category failed: %v", err)
+	}
+	_ = env.DB.Delete(&softCatT2).Error
+
+	wSrcDev := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": "1",
+	}, map[string]interface{}{
+		"tenant_id":   1,
+		"site_id":     1,
+		"device_code": "aqms-kab-madiun-2024",
+		"device_name": "AQMS Kab Madiun 2024",
+		"device_type": "EDGE_PUSH",
+		"status":      "ACTIVE",
+		"enabled":     true,
+		"connection": map[string]interface{}{
+			"protocol": "EDGE_PUSH",
+			"enabled":  true,
+		},
+	})
+	if wSrcDev.Code != http.StatusCreated && wSrcDev.Code != http.StatusOK {
+		t.Fatalf("create source device failed (%d): %s", wSrcDev.Code, wSrcDev.Body.String())
+	}
+	var srcDevResp struct {
+		Data struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wSrcDev.Body.Bytes(), &srcDevResp)
+	srcDevID := srcDevResp.Data.ID
+
+	for _, code := range []string{"pm10", "so2"} {
+		wP := doJSONReq(t, env.Router, "POST", fmt.Sprintf("/api/devices/%d/parameters", srcDevID), env.SuperAdminToken, map[string]string{
+			"X-Tenant-ID": "1",
+		}, map[string]interface{}{
+			"parameter_code": code,
+			"parameter_name": "Param " + code,
+			"data_type":      "FLOAT32",
+			"unit":           "ug/m3",
+			"category_id":    srcCat.ID,
+			"enabled":        true,
+		})
+		if wP.Code != http.StatusCreated && wP.Code != http.StatusOK {
+			t.Fatalf("create param %s failed (%d): %s", code, wP.Code, wP.Body.String())
+		}
+	}
+
+	// 3. Non-SUPERADMIN (Tenant 1 ADMIN) MUST still be blocked from targeting Tenant 2's site_id
+	wTenantAdminCrossSite := doJSONReq(t, env.Router, "POST", "/api/devices", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"tenant_id":        1,
+		"site_id":          t2SiteID,
+		"device_code":      "unauthorized-cross-copy",
+		"device_name":      "Unauthorized Copy",
+		"device_type":      "EDGE_PUSH",
+		"source_device_id": srcDevID,
+	})
+	if wTenantAdminCrossSite.Code != http.StatusBadRequest && wTenantAdminCrossSite.Code != http.StatusForbidden {
+		t.Fatalf("SECURITY VIOLATION: expected Tenant 1 ADMIN cross-tenant site copy to fail (400/403), got %d: %s",
+			wTenantAdminCrossSite.Code, wTenantAdminCrossSite.Body.String())
+	}
+
+	// 4. SUPERADMIN copies source device from Tenant 1 into Tenant 2's site (even with stale tenant_id=1 & X-Tenant-ID=1 header!)
+	wCopyCross := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": "1",
+		"X-Site-ID":   "1",
+	}, map[string]interface{}{
+		"tenant_id":        1, // Simulates stale source tenant_id before site sync
+		"site_id":          t2SiteID,
+		"device_code":      "aqms-kab-madiun-2025",
+		"device_name":      "AQMS Kab Madiun 2024 (Copy)",
+		"device_type":      "EDGE_PUSH",
+		"status":           "ACTIVE",
+		"enabled":          false,
+		"source_device_id": srcDevID,
+		"connection": map[string]interface{}{
+			"protocol": "EDGE_PUSH",
+			"enabled":  true,
+		},
+	})
+	if wCopyCross.Code != http.StatusCreated && wCopyCross.Code != http.StatusOK {
+		t.Fatalf("expected SUPERADMIN cross-tenant copy to succeed, got %d: %s", wCopyCross.Code, wCopyCross.Body.String())
+	}
+	var copyResp struct {
+		Data model.Device `json:"data"`
+	}
+	if err := json.Unmarshal(wCopyCross.Body.Bytes(), &copyResp); err != nil {
+		t.Fatalf("unmarshal copied device failed: %v", err)
+	}
+	if copyResp.Data.TenantID != t2ID || copyResp.Data.SiteID != t2SiteID {
+		t.Fatalf("expected copied device in Tenant %d / Site %d, got Tenant %d / Site %d",
+			t2ID, t2SiteID, copyResp.Data.TenantID, copyResp.Data.SiteID)
+	}
+	if len(copyResp.Data.Parameters) != 2 {
+		t.Fatalf("expected 2 cloned parameters on cross-tenant copied device, got %d", len(copyResp.Data.Parameters))
+	}
+}

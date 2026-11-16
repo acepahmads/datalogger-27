@@ -7,14 +7,15 @@
         <span>{{ copySuccessMessage }}</span>
       </div>
       <div class="flex items-center space-x-3">
-        <router-link
+        <button
           v-if="createdCopiedDevice"
-          :to="'/monitoring/devices/' + createdCopiedDevice.id"
-          class="text-xs font-bold text-emerald-300 hover:underline flex items-center space-x-1"
+          type="button"
+          @click="openCopiedDeviceDetail(createdCopiedDevice)"
+          class="text-xs font-bold text-emerald-300 hover:underline flex items-center space-x-1 cursor-pointer"
         >
           <span>{{ $t('devices.viewCopiedDevice') || 'View New Device' }}</span>
           <span>→</span>
-        </router-link>
+        </button>
         <button @click="copySuccessMessage = ''" class="text-slate-400 hover:text-white text-xs">✕</button>
       </div>
     </div>
@@ -625,6 +626,18 @@ export default {
       }
       this.isCopyModal = false;
       this.deviceToCopy = null;
+    },
+    async openCopiedDeviceDetail(dev) {
+      if (!dev || !dev.id) return;
+      const activeTid = Number(this.$store && this.$store.state && this.$store.state.activeTenantId) || 0;
+      const targetTid = Number(dev.tenant_id) || 0;
+      if (activeTid > 0 && targetTid > 0 && activeTid !== targetTid) {
+        await this.$store.dispatch('setActiveTenantAndSite', {
+          tenantId: targetTid,
+          siteId: Number(dev.site_id) || 0,
+        });
+      }
+      this.$router.push('/monitoring/devices/' + dev.id);
     },
     async toggleDeviceEnabled(device) {
       if (!device || this.togglingDeviceIds[device.id]) return;

@@ -94,8 +94,10 @@ while ((match = classRegex.exec(tenantsViewCode)) !== null) {
 assert(accessControlCode.includes('tenant_id'), 'AccessControlView must support tenant_id assignment');
 assert(accessControlCode.includes('allowed_site_ids'), 'AccessControlView must support allowed_site_ids station restriction');
 
-// 8. DeviceModal.vue & DevicesView.vue: Site Assignment & EDGE_PUSH Protocol
+// 8. DeviceModal.vue & DevicesView.vue: Site Assignment, Cross-Tenant Copy Sync & EDGE_PUSH Protocol
 assert(deviceModalCode.includes('site_id'), 'DeviceModal must support site_id selection');
+assert(deviceModalCode.includes('this.$store.getters.availableTenants') && deviceModalCode.includes('allKnownSites'), 'DeviceModal must read availableTenants getter and aggregate allKnownSites across tenants');
+assert(deviceModalCode.includes('this.form.tenant_id = Number(chosen.tenant_id)'), 'DeviceModal onSiteSelectionChange must sync form.tenant_id when selecting a station from another tenant');
 assert(deviceModalCode.includes('EDGE_PUSH'), 'DeviceModal must support EDGE_PUSH protocol');
 assert(devicesViewCode.includes('EDGE_PUSH'), 'DevicesView must support EDGE_PUSH protocol badge/filter');
 

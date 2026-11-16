@@ -47,6 +47,7 @@ type CreateTenantRequest struct {
 	Name             string `json:"name" binding:"required"`
 	Description      string `json:"description"`
 	Status           string `json:"status"`
+	ProjectYear      int    `json:"project_year"`
 	MaxSites         int    `json:"max_sites"`
 	MaxDevices       int    `json:"max_devices"`
 	ContactName      string `json:"contact_name"`
@@ -60,19 +61,20 @@ type CreateTenantRequest struct {
 }
 
 type UpdateTenantRequest struct {
-	Code             *string `json:"code"`
-	Name             *string `json:"name"`
-	Description      *string `json:"description"`
-	Status           *string `json:"status"`
-	MaxSites         *int    `json:"max_sites"`
-	MaxDevices       *int    `json:"max_devices"`
-	ContactName      *string `json:"contact_name"`
-	ContactEmail     *string `json:"contact_email"`
-	ContactPhone     *string `json:"contact_phone"`
-	CustomerName     *string `json:"customer_name"`
-	CustomerSubtitle *string `json:"customer_subtitle"`
-	CustomerLogo     *string `json:"customer_logo"`
-	ClearCustomerLogo bool   `json:"clear_customer_logo"`
+	Code              *string `json:"code"`
+	Name              *string `json:"name"`
+	Description       *string `json:"description"`
+	Status            *string `json:"status"`
+	ProjectYear       *int    `json:"project_year"`
+	MaxSites          *int    `json:"max_sites"`
+	MaxDevices        *int    `json:"max_devices"`
+	ContactName       *string `json:"contact_name"`
+	ContactEmail      *string `json:"contact_email"`
+	ContactPhone      *string `json:"contact_phone"`
+	CustomerName      *string `json:"customer_name"`
+	CustomerSubtitle  *string `json:"customer_subtitle"`
+	CustomerLogo      *string `json:"customer_logo"`
+	ClearCustomerLogo bool    `json:"clear_customer_logo"`
 }
 
 type CreateSiteRequest struct {
@@ -81,6 +83,7 @@ type CreateSiteRequest struct {
 	Name             string   `json:"name" binding:"required"`
 	Description      string   `json:"description"`
 	MonitoringDomain string   `json:"monitoring_domain"`
+	ProjectYear      int      `json:"project_year"`
 	StationTypeMode  string   `json:"station_type_mode"`
 	IngestFormat     string   `json:"ingest_format"`
 	LegacyStationID  string   `json:"legacy_station_id"`
@@ -97,6 +100,7 @@ type UpdateSiteRequest struct {
 	Name             *string  `json:"name"`
 	Description      *string  `json:"description"`
 	MonitoringDomain *string  `json:"monitoring_domain"`
+	ProjectYear      *int     `json:"project_year"`
 	StationTypeMode  *string  `json:"station_type_mode"`
 	IngestFormat     *string  `json:"ingest_format"`
 	LegacyStationID  *string  `json:"legacy_station_id"`
@@ -106,6 +110,16 @@ type UpdateSiteRequest struct {
 	Address          *string  `json:"address"`
 	Timezone         *string  `json:"timezone"`
 	Enabled          *bool    `json:"enabled"`
+}
+
+func normalizeValidatedProjectYear(year int) (int, error) {
+	if year <= 0 {
+		return 0, nil
+	}
+	if year < 1990 || year > 2100 {
+		return 0, errors.New("tahun project harus bernilai antara 1990 sampai 2100 (atau 0 untuk dikosongkan)")
+	}
+	return year, nil
 }
 
 type CreateAPIKeyRequest struct {
@@ -191,11 +205,17 @@ func (s *TenantService) CreateTenant(req CreateTenantRequest, actorUsername, ip 
 		}
 	}
 
+	projYear, err := normalizeValidatedProjectYear(req.ProjectYear)
+	if err != nil {
+		return nil, err
+	}
+
 	t := &model.Tenant{
 		Code:             code,
 		Name:             name,
 		Description:      strings.TrimSpace(req.Description),
 		Status:           status,
+		ProjectYear:      projYear,
 		MaxSites:         req.MaxSites,
 		MaxDevices:       req.MaxDevices,
 		ContactName:      strings.TrimSpace(req.ContactName),
@@ -268,6 +288,13 @@ func (s *TenantService) UpdateTenant(id uint, req UpdateTenantRequest, scope ten
 		if req.Description != nil {
 			t.Description = strings.TrimSpace(*req.Description)
 		}
+		if req.ProjectYear != nil {
+			py, err := normalizeValidatedProjectYear(*req.ProjectYear)
+			if err != nil {
+				return nil, err
+			}
+			t.ProjectYear = py
+		}
 		if req.ContactName != nil {
 			t.ContactName = strings.TrimSpace(*req.ContactName)
 		}
@@ -305,6 +332,13 @@ func (s *TenantService) UpdateTenant(id uint, req UpdateTenantRequest, scope ten
 		}
 		if req.Description != nil {
 			t.Description = strings.TrimSpace(*req.Description)
+		}
+		if req.ProjectYear != nil {
+			py, err := normalizeValidatedProjectYear(*req.ProjectYear)
+			if err != nil {
+				return nil, err
+			}
+			t.ProjectYear = py
 		}
 		if req.Status != nil {
 			st := strings.ToUpper(strings.TrimSpace(*req.Status))
@@ -493,12 +527,18 @@ func (s *TenantService) CreateSite(req CreateSiteRequest, scope tenantctx.Scope,
 		}
 	}
 
+	siteYear, err := normalizeValidatedProjectYear(req.ProjectYear)
+	if err != nil {
+		return nil, err
+	}
+
 	st := &model.Site{
 		TenantID:         tenantID,
 		Code:             code,
 		Name:             name,
 		Description:      strings.TrimSpace(req.Description),
 		MonitoringDomain: req.MonitoringDomain,
+		ProjectYear:      siteYear,
 		StationTypeMode:  req.StationTypeMode,
 		IngestFormat:     model.NormalizeIngestFormat(req.IngestFormat),
 		LegacyStationID:  strings.TrimSpace(req.LegacyStationID),
@@ -555,6 +595,13 @@ func (s *TenantService) UpdateSite(id uint, req UpdateSiteRequest, scope tenantc
 	}
 	if req.MonitoringDomain != nil && strings.TrimSpace(*req.MonitoringDomain) != "" {
 		st.MonitoringDomain = strings.ToUpper(strings.TrimSpace(*req.MonitoringDomain))
+	}
+	if req.ProjectYear != nil {
+		py, err := normalizeValidatedProjectYear(*req.ProjectYear)
+		if err != nil {
+			return nil, err
+		}
+		st.ProjectYear = py
 	}
 	if req.StationTypeMode != nil && strings.TrimSpace(*req.StationTypeMode) != "" {
 		st.StationTypeMode = strings.ToUpper(strings.TrimSpace(*req.StationTypeMode))

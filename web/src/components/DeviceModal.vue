@@ -971,15 +971,46 @@ export default {
       return role === 'SUPERADMIN' || role === 'ADMINISTRATOR';
     },
     availableTenants() {
-      return (this.$store && this.$store.state && this.$store.state.availableTenants) || [];
+      const getterList = this.$store && this.$store.getters && this.$store.getters.availableTenants;
+      if (Array.isArray(getterList) && getterList.length > 0) return getterList;
+      const stateList = this.$store && this.$store.state && (this.$store.state.tenants || this.$store.state.availableTenants);
+      return Array.isArray(stateList) ? stateList : [];
+    },
+    allKnownSites() {
+      const map = new Map();
+      const tenants = this.availableTenants;
+      tenants.forEach((t) => {
+        if (t && Array.isArray(t.sites)) {
+          t.sites.forEach((s) => {
+            if (s && s.id) {
+              map.set(Number(s.id), {
+                ...s,
+                tenant_id: Number(s.tenant_id || t.id || 0),
+                tenant_name: s.tenant_name || t.name || '',
+              });
+            }
+          });
+        }
+      });
+      const directSites =
+        (this.$store && this.$store.getters && this.$store.getters.availableSites) ||
+        (this.$store && this.$store.state && (this.$store.state.sites || this.$store.state.availableSites)) ||
+        [];
+      if (Array.isArray(directSites)) {
+        directSites.forEach((s) => {
+          if (s && s.id && !map.has(Number(s.id))) {
+            map.set(Number(s.id), s);
+          }
+        });
+      }
+      return Array.from(map.values());
     },
     availableSites() {
-      const allSites = (this.$store && this.$store.state && this.$store.state.availableSites) || [];
-      if (this.isSuperAdmin && Number(this.form.tenant_id) > 0) {
-        const filtered = allSites.filter(s => Number(s.tenant_id) === Number(this.form.tenant_id));
-        if (filtered.length > 0) return filtered;
+      const allSites = this.allKnownSites;
+      if (this.isSuperAdmin && Number(this.form.tenant_id) > 0 && this.availableTenants.length > 1) {
+        return allSites.filter(s => Number(s.tenant_id) === Number(this.form.tenant_id));
       }
-      return (this.$store && this.$store.getters && this.$store.getters.availableSites) || [];
+      return allSites;
     },
     sourceParametersList() {
       if (Array.isArray(this.fetchedSourceParams)) return this.fetchedSourceParams;
@@ -1023,6 +1054,9 @@ export default {
       handler(newVal) {
         if (newVal) {
           this.fetchAvailableSerialPorts();
+          if (this.isSuperAdmin && this.availableTenants.length === 0 && this.$store && this.$store.dispatch) {
+            this.$store.dispatch('fetchTenantContext');
+          }
           if (this.isCopying && this.sourceDevice) {
             this.populateFromSource(this.sourceDevice);
           }
@@ -1172,7 +1206,9 @@ export default {
         return;
       }
       try {
-        const res = await axios.get(`/api/devices/${source.id}`);
+        const res = await axios.get(`/api/devices/${source.id}`, {
+          headers: this.isSuperAdmin ? { 'X-Tenant-ID': '0', 'X-Site-ID': '0' } : undefined,
+        });
         const fullDev = res && res.data && res.data.data;
         if (fullDev && Array.isArray(fullDev.parameters)) {
           this.fetchedSourceParams = fullDev.parameters;
@@ -1335,14 +1371,33 @@ export default {
     },
     onTenantSelectionChange() {
       const sites = this.availableSites;
-      if (sites.length > 0 && !sites.some(s => Number(s.id) === Number(this.form.site_id))) {
-        this.form.site_id = sites[0].id;
+      if (sites.length > 0) {
+        if (!sites.some(s => Number(s.id) === Number(this.form.site_id))) {
+          this.form.site_id = sites[0].id;
+        }
         this.onSiteSelectionChange();
+      } else {
+        this.form.site_id = 0;
       }
     },
     onSiteSelectionChange() {
-      const chosen = this.availableSites.find(s => Number(s.id) === Number(this.form.site_id));
-      if (chosen && !this.form.location) {
+      const chosen = this.allKnownSites.find(s => Number(s.id) === Number(this.form.site_id));
+      if (!chosen) return;
+      if (Number(chosen.tenant_id) > 0 && Number(this.form.tenant_id) !== Number(chosen.tenant_id)) {
+        this.form.tenant_id = Number(chosen.tenant_id);
+      }
+      const isDifferentCopyTarget =
+        this.isCopying &&
+        this.sourceDevice &&
+        Number(chosen.id) !== Number(this.sourceDevice.site_id);
+      if (isDifferentCopyTarget) {
+        this.form.location = chosen.address || chosen.name || '';
+        this.form.latitude = (chosen.latitude !== null && chosen.latitude !== undefined) ? chosen.latitude : null;
+        this.form.longitude = (chosen.longitude !== null && chosen.longitude !== undefined) ? chosen.longitude : null;
+        if (chosen.timezone) {
+          this.form.timezone = chosen.timezone;
+        }
+      } else if (!this.form.location) {
         this.form.location = chosen.address || chosen.name || '';
       }
     },
@@ -1440,6 +1495,12 @@ export default {
           });
           this.$emit('saved');
         } else {
+          if (Number(this.form.site_id) > 0) {
+            const matchedSite = this.allKnownSites.find(s => Number(s.id) === Number(this.form.site_id));
+            if (matchedSite && Number(matchedSite.tenant_id) > 0) {
+              this.form.tenant_id = Number(matchedSite.tenant_id);
+            }
+          }
           const payload = {
             ...this.form,
             source_device_id: (this.isCopying && this.sourceDevice) ? this.sourceDevice.id : undefined,

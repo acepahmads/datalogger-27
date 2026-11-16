@@ -17,11 +17,11 @@ axios.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   const activeTenantId = Number(store.state.activeTenantId || 0);
-  if (activeTenantId > 0) {
+  if (activeTenantId > 0 && config.headers['X-Tenant-ID'] === undefined) {
     config.headers['X-Tenant-ID'] = String(activeTenantId);
   }
   const activeSiteId = Number(store.state.activeSiteId || 0);
-  if (activeSiteId > 0) {
+  if (activeSiteId > 0 && config.headers['X-Site-ID'] === undefined) {
     config.headers['X-Site-ID'] = String(activeSiteId);
   }
   return config;

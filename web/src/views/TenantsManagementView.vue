@@ -125,12 +125,25 @@
         </div>
 
         <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <input
-            v-model="tenantSearch"
-            type="text"
-            placeholder="Cari nama organisasi atau kode slug tenant..."
-            class="w-full sm:max-w-sm bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-purple-500"
-          />
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+            <input
+              v-model="tenantSearch"
+              type="text"
+              placeholder="Cari nama organisasi, kode slug, atau tahun project..."
+              class="w-full sm:max-w-sm bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-purple-500"
+            />
+            <select
+              id="select-tenant-project-year"
+              v-model="tenantYearFilter"
+              class="bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-purple-500 cursor-pointer"
+            >
+              <option value="ALL">📅 Semua Tahun Project</option>
+              <option v-for="yr in availableTenantProjectYears" :key="'t-yr-' + yr" :value="String(yr)">
+                📅 Tahun {{ yr }}
+              </option>
+              <option value="UNSET">Belum Diset</option>
+            </select>
+          </div>
           <button
             v-if="isSuperAdmin && !isReadOnly"
             id="btn-create-tenant"
@@ -155,6 +168,7 @@
                 <tr>
                   <th class="px-4 py-3">Organisasi / Tenant</th>
                   <th class="px-4 py-3">Kode</th>
+                  <th class="px-4 py-3">Tahun Project</th>
                   <th class="px-4 py-3">Status</th>
                   <th class="px-4 py-3">Stasiun / Kuota</th>
                   <th class="px-4 py-3">Perangkat / Kuota</th>
@@ -181,6 +195,15 @@
                   </td>
                   <td class="px-4 py-3 font-mono text-2xs text-purple-600 dark:text-purple-400 font-semibold">
                     {{ t.code }}
+                  </td>
+                  <td class="px-4 py-3 font-mono text-2xs">
+                    <span
+                      v-if="Number(t.project_year) > 0"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-3xs font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25"
+                    >
+                      📅 {{ t.project_year }}
+                    </span>
+                    <span v-else class="text-slate-400">-</span>
                   </td>
                   <td class="px-4 py-3">
                     <span
@@ -234,7 +257,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredTenants.length === 0">
-                  <td colspan="8" class="px-4 py-8 text-center text-slate-500">Belum ada tenant yang sesuai filter.</td>
+                  <td colspan="9" class="px-4 py-8 text-center text-slate-500">Belum ada tenant yang sesuai filter.</td>
                 </tr>
               </tbody>
             </table>
@@ -284,7 +307,7 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Subjudul Customer</label>
                 <input
@@ -292,6 +315,17 @@
                   type="text"
                   placeholder="Environmental Compliance Division"
                   class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Tahun Project</label>
+                <input
+                  v-model.number="selfTenantForm.project_year"
+                  type="number"
+                  min="1990"
+                  max="2100"
+                  placeholder="Contoh: 2025"
+                  class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -423,6 +457,13 @@
                       :title="ingestFormatHint(s.ingest_format)"
                     >
                       {{ ingestFormatShortLabel(s.ingest_format) }}
+                    </span>
+                    <span
+                      v-if="effectiveSiteProjectYear(s) > 0"
+                      class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25"
+                      title="Tahun Project"
+                    >
+                      📅 {{ effectiveSiteProjectYear(s) }}
                     </span>
                   </div>
                 </td>
@@ -974,7 +1015,7 @@
     <!-- MODAL 1: CREATE / EDIT TENANT (SUPERADMIN)                          -->
     <!-- =================================================================== -->
     <div v-if="showTenantModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <h3 class="font-bold text-sm text-slate-900 dark:text-white">
             {{ editingTenant ? `Edit Tenant: ${editingTenant.name}` : 'Tambah Organisasi Tenant Baru' }}
@@ -1007,7 +1048,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Status</label>
               <select
@@ -1017,6 +1058,18 @@
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="SUSPENDED">SUSPENDED</option>
               </select>
+            </div>
+            <div>
+              <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Tahun Project</label>
+              <input
+                id="input-tenant-project-year"
+                v-model="tenantForm.project_year"
+                type="number"
+                min="1990"
+                max="2100"
+                placeholder="Contoh: 2025"
+                class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-slate-900 dark:text-white"
+              />
             </div>
             <div>
               <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Kuota Stasiun (0 = ∞)</label>
@@ -1145,16 +1198,16 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Domain Kepatuhan *</label>
               <select
                 v-model="siteForm.monitoring_domain"
                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-slate-900 dark:text-white"
               >
-                <option value="AQMS">AQMS (Kualitas Udara Ambien &amp; ISPU)</option>
-                <option value="SPARING">SPARING (Pemantauan Air Limbah Industri)</option>
-                <option value="ONLIMO">ONLIMO (Pemantauan Kualitas Air Sungai / Permukaan)</option>
+                <option value="AQMS">AQMS (Udara Ambien &amp; ISPU)</option>
+                <option value="SPARING">SPARING (Air Limbah Industri)</option>
+                <option value="ONLIMO">ONLIMO (Air Sungai / Permukaan)</option>
                 <option value="WQMS">WQMS (Water Quality Umum)</option>
               </select>
             </div>
@@ -1169,6 +1222,17 @@
                 <option value="Asia/Jayapura">Asia/Jayapura (WIT)</option>
                 <option value="UTC">UTC</option>
               </select>
+            </div>
+            <div>
+              <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Tahun Project (Opsional)</label>
+              <input
+                v-model="siteForm.project_year"
+                type="number"
+                min="1990"
+                max="2100"
+                placeholder="Ikut Tenant"
+                class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-slate-900 dark:text-white"
+              />
             </div>
           </div>
 
@@ -1471,6 +1535,7 @@ export default {
       toastMessage: '',
       toastType: 'success',
       tenantSearch: '',
+      tenantYearFilter: 'ALL',
 
       tenants: [],
       sites: [],
@@ -1533,6 +1598,7 @@ export default {
         code: '',
         description: '',
         status: 'ACTIVE',
+        project_year: '',
         max_sites: 0,
         max_devices: 0,
         customer_name: '',
@@ -1547,6 +1613,7 @@ export default {
         name: '',
         code: '',
         description: '',
+        project_year: '',
         max_sites: 0,
         max_devices: 0,
         customer_name: '',
@@ -1563,6 +1630,7 @@ export default {
         name: '',
         code: '',
         monitoring_domain: 'AQMS',
+        project_year: '',
         ingest_format: 'AUTO',
         legacy_station_id: '',
         latitude: 0,
@@ -1647,14 +1715,30 @@ export default {
       }
       return ln;
     },
+    availableTenantProjectYears() {
+      const yrs = new Set();
+      (this.tenants || []).forEach((t) => {
+        const y = Number(t.project_year) || 0;
+        if (y > 0) yrs.add(y);
+      });
+      return Array.from(yrs).sort((a, b) => b - a);
+    },
     filteredTenants() {
       const q = (this.tenantSearch || '').trim().toLowerCase();
-      if (!q) return this.tenants;
-      return this.tenants.filter(t =>
-        (t.name || '').toLowerCase().includes(q) ||
-        (t.code || '').toLowerCase().includes(q) ||
-        (t.customer_name || '').toLowerCase().includes(q)
-      );
+      return this.tenants.filter((t) => {
+        const py = Number(t.project_year) || 0;
+        if (this.tenantYearFilter === 'UNSET' && py > 0) return false;
+        if (this.tenantYearFilter !== 'ALL' && this.tenantYearFilter !== 'UNSET' && String(py) !== String(this.tenantYearFilter)) {
+          return false;
+        }
+        if (!q) return true;
+        return (
+          (t.name || '').toLowerCase().includes(q) ||
+          (t.code || '').toLowerCase().includes(q) ||
+          (t.customer_name || '').toLowerCase().includes(q) ||
+          (py > 0 && String(py).includes(q))
+        );
+      });
     },
     totalSitesAcrossTenants() {
       return this.tenants.reduce((acc, t) => acc + Number(t.site_count || 0), 0);
@@ -2154,6 +2238,7 @@ export default {
               name: t.name || '',
               code: t.code || '',
               description: t.description || '',
+              project_year: Number(t.project_year) > 0 ? Number(t.project_year) : '',
               max_sites: t.max_sites || 0,
               max_devices: t.max_devices || 0,
               customer_name: t.customer_name || '',
@@ -2191,6 +2276,13 @@ export default {
     tenantNameById(id) {
       const found = this.tenants.find(t => Number(t.id) === Number(id));
       return found ? found.name : `Tenant #${id}`;
+    },
+    effectiveSiteProjectYear(site) {
+      if (!site) return 0;
+      const sy = Number(site.project_year) || 0;
+      if (sy > 0) return sy;
+      const found = this.tenants.find(t => Number(t.id) === Number(site.tenant_id));
+      return found && Number(found.project_year) > 0 ? Number(found.project_year) : 0;
     },
     siteNameById(id) {
       const found = this.sites.find(s => Number(s.id) === Number(id));
@@ -2252,6 +2344,7 @@ export default {
         code: '',
         description: '',
         status: 'ACTIVE',
+        project_year: new Date().getFullYear(),
         max_sites: 0,
         max_devices: 0,
         customer_name: '',
@@ -2269,6 +2362,7 @@ export default {
         code: t.code || '',
         description: t.description || '',
         status: t.status || 'ACTIVE',
+        project_year: Number(t.project_year) > 0 ? Number(t.project_year) : '',
         max_sites: t.max_sites || 0,
         max_devices: t.max_devices || 0,
         customer_name: t.customer_name || '',
@@ -2282,11 +2376,15 @@ export default {
     async submitTenantModal() {
       this.savingTenant = true;
       try {
+        const payload = {
+          ...this.tenantForm,
+          project_year: Number(this.tenantForm.project_year) > 0 ? Number(this.tenantForm.project_year) : 0,
+        };
         if (this.editingTenant) {
-          await axios.put(`/api/tenants/${this.editingTenant.id}`, this.tenantForm);
+          await axios.put(`/api/tenants/${this.editingTenant.id}`, payload);
           this.showToast(`Tenant '${this.tenantForm.name}' berhasil diperbarui.`);
         } else {
-          await axios.post('/api/tenants', this.tenantForm);
+          await axios.post('/api/tenants', payload);
           this.showToast(`Tenant '${this.tenantForm.name}' berhasil dibuat beserta stasiun & kategori default.`);
         }
         this.showTenantModal = false;
@@ -2300,7 +2398,11 @@ export default {
     async saveSelfTenantProfile() {
       this.savingTenant = true;
       try {
-        await axios.put('/api/tenants/current', this.selfTenantForm);
+        const payload = {
+          ...this.selfTenantForm,
+          project_year: Number(this.selfTenantForm.project_year) > 0 ? Number(this.selfTenantForm.project_year) : 0,
+        };
+        await axios.put('/api/tenants/current', payload);
         this.showToast('Profil organisasi & branding tenant berhasil disimpan.');
         await this.loadAll();
       } catch (err) {
@@ -2332,6 +2434,7 @@ export default {
         name: '',
         code: '',
         monitoring_domain: 'AQMS',
+        project_year: '',
         ingest_format: 'AUTO',
         legacy_station_id: '',
         latitude: 0,
@@ -2349,6 +2452,7 @@ export default {
         name: s.name || '',
         code: s.code || '',
         monitoring_domain: s.monitoring_domain || 'AQMS',
+        project_year: Number(s.project_year) > 0 ? Number(s.project_year) : '',
         ingest_format: this.normalizeIngestFormat(s.ingest_format),
         legacy_station_id: s.legacy_station_id || '',
         latitude: s.latitude || 0,
@@ -2395,11 +2499,15 @@ export default {
     async submitSiteModal() {
       this.savingSite = true;
       try {
+        const payload = {
+          ...this.siteForm,
+          project_year: Number(this.siteForm.project_year) > 0 ? Number(this.siteForm.project_year) : 0,
+        };
         if (this.editingSite) {
-          await axios.put(`/api/sites/${this.editingSite.id}`, this.siteForm);
+          await axios.put(`/api/sites/${this.editingSite.id}`, payload);
           this.showToast(`Stasiun '${this.siteForm.name}' berhasil diperbarui.`);
         } else {
-          await axios.post('/api/sites', this.siteForm);
+          await axios.post('/api/sites', payload);
           this.showToast(`Stasiun '${this.siteForm.name}' berhasil ditambahkan.`);
         }
         this.showSiteModal = false;

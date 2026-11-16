@@ -39,8 +39,8 @@ func TestGetFleetOverviewMultiTenantAggregation(t *testing.T) {
 	sysRepo := repository.NewSystemRepository(db)
 	tenantService := service.NewTenantService(tenantRepo, sysRepo)
 
-	t1 := model.Tenant{Code: "klh-dki", Name: "DLH DKI Jakarta", Status: model.TenantStatusActive}
-	t2 := model.Tenant{Code: "pt-industri", Name: "PT Industri Hijau", Status: model.TenantStatusActive}
+	t1 := model.Tenant{Code: "klh-dki", Name: "DLH DKI Jakarta", Status: model.TenantStatusActive, ProjectYear: 2024}
+	t2 := model.Tenant{Code: "pt-industri", Name: "PT Industri Hijau", Status: model.TenantStatusActive, ProjectYear: 2025}
 	if err := db.Create(&t1).Error; err != nil {
 		t.Fatalf("create t1: %v", err)
 	}
@@ -69,6 +69,7 @@ func TestGetFleetOverviewMultiTenantAggregation(t *testing.T) {
 		Code:             "sungai-citarum",
 		Name:             "Pos WQMS Citarum",
 		MonitoringDomain: "WQMS",
+		ProjectYear:      2026, // Site-level project year override
 		Latitude:         &zeroLat,
 		Longitude:        &zeroLng,
 		LocationSource:   model.LocationSourceUnconfigured,
@@ -199,17 +200,20 @@ func TestGetFleetOverviewMultiTenantAggregation(t *testing.T) {
 	if len(overview.Sites) != 4 {
 		t.Fatalf("expected 4 site items, got %d", len(overview.Sites))
 	}
-	if overview.Sites[0].SiteCode != "sparing-outlet-01" || overview.Sites[0].SeverityState != "CRITICAL" || overview.Sites[0].HasCoordinates {
-		t.Errorf("expected sparing-outlet-01 first as CRITICAL No-GPS, got %+v", overview.Sites[0])
+	if overview.Sites[0].SiteCode != "sparing-outlet-01" || overview.Sites[0].SeverityState != "CRITICAL" || overview.Sites[0].HasCoordinates || overview.Sites[0].ProjectYear != 2025 {
+		t.Errorf("expected sparing-outlet-01 first as CRITICAL No-GPS year=2025, got %+v", overview.Sites[0])
 	}
-	if overview.Sites[1].SiteCode != "sungai-citarum" || overview.Sites[1].DeliveryStatus != "DELAYED" || !overview.Sites[1].HasCoordinates || overview.Sites[1].LocationSource != "DEVICE_FALLBACK" {
-		t.Errorf("expected sungai-citarum second as DELAYED with DEVICE_FALLBACK GPS, got %+v", overview.Sites[1])
+	if overview.Sites[1].SiteCode != "sungai-citarum" || overview.Sites[1].DeliveryStatus != "DELAYED" || !overview.Sites[1].HasCoordinates || overview.Sites[1].LocationSource != "DEVICE_FALLBACK" || overview.Sites[1].ProjectYear != 2026 {
+		t.Errorf("expected sungai-citarum second as DELAYED with DEVICE_FALLBACK GPS year=2026, got %+v", overview.Sites[1])
 	}
-	if overview.Sites[2].SiteCode != "bundaran-hi" || overview.Sites[2].DeliveryStatus != "ONLINE" || overview.Sites[2].SeverityState != "NORMAL" {
-		t.Errorf("expected bundaran-hi third as ONLINE/NORMAL, got %+v", overview.Sites[2])
+	if overview.Sites[2].SiteCode != "bundaran-hi" || overview.Sites[2].DeliveryStatus != "ONLINE" || overview.Sites[2].SeverityState != "NORMAL" || overview.Sites[2].ProjectYear != 2024 {
+		t.Errorf("expected bundaran-hi third as ONLINE/NORMAL year=2024, got %+v", overview.Sites[2])
 	}
-	if overview.Sites[3].SiteCode != "cadangan" || overview.Sites[3].DeliveryStatus != "INACTIVE" {
-		t.Errorf("expected cadangan fourth as INACTIVE, got %+v", overview.Sites[3])
+	if overview.Sites[3].SiteCode != "cadangan" || overview.Sites[3].DeliveryStatus != "INACTIVE" || overview.Sites[3].ProjectYear != 2025 {
+		t.Errorf("expected cadangan fourth as INACTIVE year=2025, got %+v", overview.Sites[3])
+	}
+	if len(overview.ProjectYears) != 3 || overview.ProjectYears[0] != 2026 || overview.ProjectYears[1] != 2025 || overview.ProjectYears[2] != 2024 {
+		t.Errorf("expected descending ProjectYears [2026 2025 2024], got %+v", overview.ProjectYears)
 	}
 }
 
