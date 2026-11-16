@@ -99,7 +99,7 @@ type WQMSParameterMapping struct {
 	TenantID         uint          `gorm:"not null;default:1;index;uniqueIndex:idx_wqms_dev_param" json:"tenant_id"`
 	SiteID           uint          `gorm:"not null;default:0;index;uniqueIndex:idx_wqms_dev_param" json:"site_id"`
 	DeviceID         uint          `gorm:"uniqueIndex:idx_wqms_dev_param;index;not null;default:0" json:"device_id"`
-	Device           *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	Device           *Device       `gorm:"foreignKey:DeviceID;-:migration" json:"device,omitempty"`
 	ParameterID      *uint         `gorm:"index" json:"parameter_id"`
 	Parameter        *Parameter    `gorm:"foreignKey:ParameterID" json:"parameter,omitempty"`
 	ParamCode        WQMSParamCode `gorm:"size:24;uniqueIndex:idx_wqms_dev_param;not null" json:"param_code"`
@@ -123,7 +123,7 @@ type WQMSCalculationResult struct {
 	TenantID               uint                  `gorm:"not null;default:1;index;uniqueIndex:idx_wqms_dev_period_mode" json:"tenant_id"`
 	SiteID                 uint                  `gorm:"not null;default:0;index;uniqueIndex:idx_wqms_dev_period_mode" json:"site_id"`
 	DeviceID               uint                  `gorm:"uniqueIndex:idx_wqms_dev_period_mode;index;not null;default:0" json:"device_id"`
-	Device                 *Device               `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	Device                 *Device               `gorm:"foreignKey:DeviceID;-:migration" json:"device,omitempty"`
 	CalculationMode        ISPUCalculationMode   `gorm:"size:32;default:'REGULATORY';uniqueIndex:idx_wqms_dev_period_mode;index;not null" json:"calculation_mode"`
 	WaterClass             WQMSWaterClass        `gorm:"size:16;not null;default:'CLASS_2'" json:"water_class"`
 	PeriodStart            time.Time             `gorm:"uniqueIndex:idx_wqms_dev_period_mode;index;not null" json:"period_start"`

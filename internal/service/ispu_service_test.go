@@ -692,6 +692,129 @@ func TestISPUService_CloudUnifiedStationMultiDevice(t *testing.T) {
 	}
 }
 
+func TestISPUAndWQMS_StrictForeignKeysEnabled_StationZeroPersistenceAndCooldown(t *testing.T) {
+	// _pragma=foreign_keys(1) enforces strict relational FK checks on every SQLite connection,
+	// reproducing MariaDB/InnoDB Error 1452 if device_id = 0 has a FOREIGN KEY REFERENCES devices(id).
+	dsn := fmt.Sprintf("file:memispu_fk_%d?mode=memory&cache=shared&_pragma=foreign_keys(1)", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open sqlite with foreign_keys=ON failed: %v", err)
+	}
+
+	if err := db.AutoMigrate(
+		&model.Tenant{},
+		&model.Site{},
+		&model.Device{},
+		&model.Parameter{},
+		&model.RawData{},
+		&model.AggregationDefinition{},
+		&model.AggregationResult{},
+		&model.AuditTrail{},
+		&model.ISPUParameterMapping{},
+		&model.ISPUCalculationResult{},
+		&model.ISPUParameterResult{},
+		&model.WQMSStationConfig{},
+		&model.WQMSParameterMapping{},
+		&model.WQMSCalculationResult{},
+		&model.WQMSParameterResult{},
+	); err != nil {
+		t.Fatalf("AutoMigrate with strict foreign_keys=ON failed: %v", err)
+	}
+
+	db.Create(&model.Tenant{ID: 1, Code: "default", Name: "Default Org", Status: "ACTIVE"})
+	db.Create(&model.Site{ID: 1, TenantID: 1, Code: "main", Name: "Main Site", MonitoringDomain: "AQMS", Enabled: true})
+
+	dev := &model.Device{
+		TenantID:   1,
+		SiteID:     1,
+		DeviceCode: "usb-ttl-1",
+		DeviceName: "Edge Modbus RTU Analyzer",
+		DeviceType: "MODBUS_RTU",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+	}
+	if err := db.Create(dev).Error; err != nil {
+		t.Fatalf("create device failed: %v", err)
+	}
+
+	now := time.Now().UTC()
+	valPM25 := 42.5
+	paramPM25 := &model.Parameter{
+		DeviceID:      dev.ID,
+		ParameterCode: "PM25",
+		ParameterName: "PM2.5",
+		Unit:          "µg/m³",
+		Enabled:       true,
+		CurrentValue:  &valPM25,
+	}
+	if err := db.Create(paramPM25).Error; err != nil {
+		t.Fatalf("create PM25 param failed: %v", err)
+	}
+	if err := db.Create(&model.RawData{
+		TenantID:       1,
+		SiteID:         1,
+		DeviceID:       dev.ID,
+		ParameterID:    paramPM25.ID,
+		Value:          valPM25,
+		ProcessedValue: valPM25,
+		Quality:        model.QualityGood,
+		ReceivedAt:     now,
+	}).Error; err != nil {
+		t.Fatalf("create raw_data failed: %v", err)
+	}
+
+	ispuRepo := repository.NewISPURepository(db)
+	sysRepo := repository.NewSystemRepository(db)
+	ispuSvc := service.NewISPUService(db, ispuRepo, sysRepo)
+
+	ctx := context.Background()
+
+	// 1. Unified Station (device_id = 0) operational & regulatory persistence MUST succeed under strict FK enforcement!
+	summary, err := ispuSvc.GetLatestSummary(ctx, 0, "REGULATORY")
+	if err != nil {
+		t.Fatalf("GetLatestSummary(0) failed under strict FK checks: %v", err)
+	}
+	if summary == nil || summary.DeviceID != 0 {
+		t.Fatalf("expected persisted unified station summary (DeviceID=0), got %+v", summary)
+	}
+
+	var zeroOpCount, zeroRegCount int64
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ? AND calculation_mode = ?", 0, model.CalculationModeOperational).Count(&zeroOpCount)
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ? AND calculation_mode = ?", 0, model.CalculationModeRegulatory).Count(&zeroRegCount)
+	if zeroOpCount == 0 || zeroRegCount == 0 {
+		t.Fatalf("expected both OPERATIONAL (%d) and REGULATORY (%d) unified-station (device_id=0) records to persist without FK Error 1452", zeroOpCount, zeroRegCount)
+	}
+
+	// 2. Device-specific persistence & Preload("Device") MUST also continue to work
+	if _, err := ispuSvc.CalculateStationWindowWithReason(ctx, dev.ID, now, "AGGREGATION_COMPLETED"); err != nil {
+		t.Fatalf("CalculateStationWindowWithReason(dev.ID) failed: %v", err)
+	}
+	devLatest, err := ispuRepo.GetLatestByDeviceID(ctx, dev.ID, "OPERATIONAL")
+	if err != nil || devLatest == nil || devLatest.Device == nil || devLatest.Device.DeviceCode != "usb-ttl-1" {
+		t.Fatalf("expected Preload('Device') to still resolve usb-ttl-1, got err=%v latest=%+v", err, devLatest)
+	}
+
+	// 3. WQMS unified-station (device_id = 0) & lab mapping (device_id = 0) MUST also succeed under strict FK enforcement
+	valPH := 7.2
+	paramPH := &model.Parameter{
+		DeviceID:      dev.ID,
+		ParameterCode: "PH",
+		ParameterName: "pH Air",
+		Unit:          "pH",
+		Enabled:       true,
+		CurrentValue:  &valPH,
+	}
+	db.Create(paramPH)
+	wqmsRepo := repository.NewWQMSRepository(db)
+	wqmsSvc := service.NewWQMSService(db, wqmsRepo, sysRepo)
+	wqmsBundle, err := wqmsSvc.GetLatestSummary(ctx, 0, "OPERATIONAL")
+	if err != nil || wqmsBundle == nil || wqmsBundle.OperationalIPResult == nil {
+		t.Fatalf("expected WQMS unified station (device_id=0) persistence to succeed under strict FK checks, got err=%v bundle=%+v", err, wqmsBundle)
+	}
+}
+
 
 
 

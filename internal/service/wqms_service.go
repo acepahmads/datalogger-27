@@ -52,17 +52,20 @@ type WQMSService struct {
 	stopWorker      chan struct{}
 	workerWg        sync.WaitGroup
 	isWorkerRunning bool
+	onDemandMu      sync.Mutex
+	onDemandLastRun map[string]time.Time
 }
 
 // NewWQMSService instantiates a WQMSService.
 func NewWQMSService(db *gorm.DB, wqmsRepo *repository.WQMSRepository, systemRepo *repository.SystemRepository) *WQMSService {
 	return &WQMSService{
-		db:         db,
-		wqmsRepo:   wqmsRepo,
-		systemRepo: systemRepo,
-		calculator: NewWQMSCalculator(),
-		jobChan:    make(chan wqmsTriggerJob, 256),
-		stopWorker: make(chan struct{}),
+		db:              db,
+		wqmsRepo:        wqmsRepo,
+		systemRepo:      systemRepo,
+		calculator:      NewWQMSCalculator(),
+		jobChan:         make(chan wqmsTriggerJob, 256),
+		stopWorker:      make(chan struct{}),
+		onDemandLastRun: make(map[string]time.Time),
 	}
 }
 
@@ -489,6 +492,9 @@ func (s *WQMSService) resolveAggregationIntervalSec(ctx context.Context, deviceI
 // CalculateStationWindow evaluates BOTH Operational (latest interval) and Regulatory (24-hour rolling) IPj
 // for the station and broadcasts real-time updates over WebSocket.
 func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint, targetEnd time.Time, reason string) (*model.WQMSCalculationResult, *model.WQMSCalculationResult, error) {
+	if reason != "ON_DEMAND_INITIAL" {
+		s.clearOnDemandCooldown()
+	}
 	if targetEnd.IsZero() {
 		targetEnd = time.Now().UTC()
 	}
@@ -601,19 +607,16 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 			var rawCnt int64
 			rawSince := targetEnd.UTC().Add(-30 * time.Minute)
 			rawUntil := targetEnd.UTC().Add(1 * time.Minute)
-			s.db.WithContext(ctx).Model(&model.RawData{}).
-				Where("parameter_id = ? AND ((timestamp >= ? AND timestamp <= ?) OR (received_at >= ? AND received_at <= ?)) AND quality != ?",
-					pid, rawSince, rawUntil, rawSince, rawUntil, model.QualityBad).
-				Count(&rawCnt)
-			if rawCnt > 0 {
-				_ = s.db.WithContext(ctx).Model(&model.RawData{}).
-					Where("parameter_id = ? AND ((timestamp >= ? AND timestamp <= ?) OR (received_at >= ? AND received_at <= ?)) AND quality != ?",
-						pid, rawSince, rawUntil, rawSince, rawUntil, model.QualityBad).
-					Select("AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawAvg)
-				if rawAvg != nil && !math.IsNaN(*rawAvg) && !math.IsInf(*rawAvg, 0) {
-					opVal = rawAvg
-					opSamples = 1
-				}
+			rawOpQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+				Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+					pid, rawSince, rawUntil, model.QualityBad)
+			if m.DeviceID > 0 {
+				rawOpQ = rawOpQ.Where("device_id = ?", m.DeviceID)
+			}
+			_ = rawOpQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCnt, &rawAvg)
+			if rawCnt > 0 && rawAvg != nil && !math.IsNaN(*rawAvg) && !math.IsInf(*rawAvg, 0) {
+				opVal = rawAvg
+				opSamples = 1
 			}
 			if opSamples == 0 {
 				var p model.Parameter
@@ -671,24 +674,21 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		if regValid > 0 {
 			regMeasured = regSum / float64(regValid)
 		} else if opSamples > 0 && opVal != nil {
-			// Fallback to recent RawData 24h average if aggregation buckets have not populated yet
+			// Fallback to recent RawData 24h average using indexed received_at (idx_raw_dev_param_rec / idx_raw_param_rec)
 			var rawAvg24 *float64
 			var rawCnt24 int64
 			rawUntil24 := targetEnd.UTC().Add(1 * time.Minute)
-			s.db.WithContext(ctx).Model(&model.RawData{}).
-				Where("parameter_id = ? AND ((timestamp > ? AND timestamp <= ?) OR (received_at > ? AND received_at <= ?)) AND quality != ?",
-					pid, regStart, rawUntil24, regStart, rawUntil24, model.QualityBad).
-				Count(&rawCnt24)
-			if rawCnt24 > 0 {
-				_ = s.db.WithContext(ctx).Model(&model.RawData{}).
-					Where("parameter_id = ? AND ((timestamp > ? AND timestamp <= ?) OR (received_at > ? AND received_at <= ?)) AND quality != ?",
-						pid, regStart, rawUntil24, regStart, rawUntil24, model.QualityBad).
-					Select("AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawAvg24)
-				if rawAvg24 != nil {
-					regMeasured = *rawAvg24
-					regValid = 1
-					expSamples = 1
-				}
+			raw24Q := s.db.WithContext(ctx).Model(&model.RawData{}).
+				Where("parameter_id = ? AND received_at > ? AND received_at <= ? AND quality != ?",
+					pid, regStart, rawUntil24, model.QualityBad)
+			if m.DeviceID > 0 {
+				raw24Q = raw24Q.Where("device_id = ?", m.DeviceID)
+			}
+			_ = raw24Q.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCnt24, &rawAvg24)
+			if rawCnt24 > 0 && rawAvg24 != nil {
+				regMeasured = *rawAvg24
+				regValid = 1
+				expSamples = 1
 			}
 			if regValid == 0 {
 				regMeasured = *opVal
@@ -857,6 +857,33 @@ func (s *WQMSService) ComputeCurrentIKA(ctx context.Context, deviceID uint, cfg 
 	return s.calculator.ComputeIKASummary(nil, cfg.WaterClass, windowDays, "OPERATIONAL_LIVE")
 }
 
+func (s *WQMSService) shouldAllowOnDemandCalc(ctx context.Context, deviceID uint, forceForClassMismatch bool) bool {
+	if forceForClassMismatch {
+		return true
+	}
+	scope := tenantctx.FromContext(ctx)
+	key := fmt.Sprintf("%d_%d_%d", scope.TenantID, scope.SiteID, deviceID)
+	now := time.Now()
+	s.onDemandMu.Lock()
+	defer s.onDemandMu.Unlock()
+	if s.onDemandLastRun == nil {
+		s.onDemandLastRun = make(map[string]time.Time)
+	}
+	if last, ok := s.onDemandLastRun[key]; ok && now.Sub(last) < 30*time.Second {
+		return false
+	}
+	s.onDemandLastRun[key] = now
+	return true
+}
+
+func (s *WQMSService) clearOnDemandCooldown() {
+	s.onDemandMu.Lock()
+	if len(s.onDemandLastRun) > 0 {
+		s.onDemandLastRun = make(map[string]time.Time)
+	}
+	s.onDemandMu.Unlock()
+}
+
 // GetLatestSummary retrieves the complete WQMS summary bundle (IP + IKA + Config + Standards),
 // triggering an initial on-demand calculation if no records exist yet.
 func (s *WQMSService) GetLatestSummary(ctx context.Context, deviceID uint, mode string) (*WQMSLatestSummaryBundle, error) {
@@ -873,7 +900,9 @@ func (s *WQMSService) GetLatestSummary(ctx context.Context, deviceID uint, mode 
 	primaryRes, err := s.wqmsRepo.GetLatestByDeviceID(ctx, 0, normMode)
 	opRes, _ := s.wqmsRepo.GetLatestByDeviceID(ctx, 0, "OPERATIONAL")
 
-	if err != nil || primaryRes == nil || primaryRes.WaterClass != cfg.WaterClass || primaryRes.ActiveParametersCount == 0 {
+	classMismatch := primaryRes != nil && primaryRes.WaterClass != cfg.WaterClass
+	if (err != nil || primaryRes == nil || classMismatch || primaryRes.ActiveParametersCount == 0) &&
+		s.shouldAllowOnDemandCalc(ctx, 0, classMismatch) {
 		regCalc, opCalc, _ := s.CalculateStationWindow(ctx, 0, time.Now().UTC(), "ON_DEMAND_INITIAL")
 		if normMode == "OPERATIONAL" && opCalc != nil {
 			primaryRes = opCalc

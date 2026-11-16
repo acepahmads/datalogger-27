@@ -86,6 +86,11 @@ func RunMigrations(db *gorm.DB) error {
 		return err
 	}
 
+	// 1a. Drop legacy InnoDB device_id -> devices(id) foreign key constraints on unified-station tables
+	// (ispu_calculation_results, wqms_calculation_results, wqms_parameter_mappings) where device_id = 0
+	// represents a unified multi-device station and must never fail with MariaDB Error 1452.
+	dropUnifiedStationDeviceForeignKeys(db)
+
 	// 1b. Ensure zero_value_alarm_policy and sensor calibration columns are initialized and backfilled
 	if db.Migrator().HasTable(&model.Parameter{}) {
 		if !db.Migrator().HasColumn(&model.Parameter{}, "zero_value_alarm_policy") {
@@ -4327,6 +4332,40 @@ func preMigrateMultiTenantIndexes(db *gorm.DB) {
 	dropLegacyIndexesIfUpgrading("wqms_calculation_results", &model.WQMSCalculationResult{}, "idx_wqms_dev_period_mode")
 	dropLegacyIndexesIfUpgrading("ispu_parameter_mappings", &model.ISPUParameterMapping{}, "idx_device_pollutant")
 	dropLegacyIndexesIfUpgrading("ispu_calculation_results", &model.ISPUCalculationResult{}, "idx_dev_period_mode")
+	dropUnifiedStationDeviceForeignKeys(db)
+}
+
+// dropUnifiedStationDeviceForeignKeys removes legacy InnoDB FOREIGN KEY (device_id) REFERENCES devices(id)
+// constraints from unified-station tables where device_id = 0 is a valid sentinel for cross-device station evaluation.
+func dropUnifiedStationDeviceForeignKeys(db *gorm.DB) {
+	if db == nil || db.Dialector == nil || db.Dialector.Name() != "mysql" {
+		return
+	}
+	type fkRow struct {
+		TableName      string `gorm:"column:TABLE_NAME"`
+		ConstraintName string `gorm:"column:CONSTRAINT_NAME"`
+	}
+	var rows []fkRow
+	err := db.Raw(`
+		SELECT TABLE_NAME, CONSTRAINT_NAME
+		FROM information_schema.KEY_COLUMN_USAGE
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME IN ('ispu_calculation_results', 'wqms_calculation_results', 'wqms_parameter_mappings')
+		  AND COLUMN_NAME = 'device_id'
+		  AND REFERENCED_TABLE_NAME = 'devices'
+	`).Scan(&rows).Error
+	if err != nil {
+		return
+	}
+	for _, r := range rows {
+		if r.TableName == "" || r.ConstraintName == "" {
+			continue
+		}
+		dropSQL := fmt.Sprintf("ALTER TABLE `%s` DROP FOREIGN KEY `%s`", r.TableName, r.ConstraintName)
+		if dErr := db.Exec(dropSQL).Error; dErr == nil {
+			logger.Info("Dropped legacy unified-station foreign key %s on %s (allows device_id = 0)", r.ConstraintName, r.TableName)
+		}
+	}
 }
 
 // bootstrapMultiTenantParentTables creates the tenants, sites, and tenant_api_keys parent tables,

@@ -62,7 +62,7 @@ type RawData struct {
 	SiteID      uint   `gorm:"not null;default:1;index:idx_raw_tenant_site_rec,priority:2" json:"site_id"`
 	RecordUUID  string `gorm:"size:64;index:idx_raw_record_uuid;uniqueIndex:idx_raw_record_uuid_uniq" json:"record_uuid,omitempty"`
 	DeviceID    uint   `gorm:"index:idx_raw_dev_param_rec,priority:1;index:idx_raw_dev_rec,priority:1;not null" json:"device_id"`
-	ParameterID uint   `gorm:"index:idx_raw_dev_param_rec,priority:2;index:idx_raw_param;not null" json:"parameter_id"`
+	ParameterID uint   `gorm:"index:idx_raw_dev_param_rec,priority:2;index:idx_raw_param_rec,priority:1;index:idx_raw_param;not null" json:"parameter_id"`
 
 	// Relationships
 	Device    *Device    `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
@@ -90,7 +90,7 @@ type RawData struct {
 
 	// Explicit Timestamps (Section 6 & Phase 3.2)
 	DeviceTimestamp *time.Time `gorm:"index" json:"device_timestamp,omitempty"`
-	ReceivedAt      time.Time  `gorm:"index:idx_raw_tenant_site_rec,priority:3;index:idx_raw_dev_param_rec,priority:3;index:idx_raw_dev_rec,priority:2;index:idx_raw_rec;not null" json:"received_at"`
+	ReceivedAt      time.Time  `gorm:"index:idx_raw_tenant_site_rec,priority:3;index:idx_raw_dev_param_rec,priority:3;index:idx_raw_param_rec,priority:2;index:idx_raw_dev_rec,priority:2;index:idx_raw_rec;not null" json:"received_at"`
 	ProcessedAt     *time.Time `gorm:"index" json:"processed_at,omitempty"`
 	StoredAt        time.Time  `gorm:"not null" json:"stored_at"`
 	Timestamp       time.Time  `gorm:"index" json:"timestamp"` // Backward compatibility alias
@@ -111,7 +111,11 @@ func (r *RawData) BeforeCreate(tx *gorm.DB) error {
 		r.SiteID = 1
 	}
 	if r.ReceivedAt.IsZero() {
-		r.ReceivedAt = now
+		if !r.Timestamp.IsZero() {
+			r.ReceivedAt = r.Timestamp
+		} else {
+			r.ReceivedAt = now
+		}
 	}
 	if r.StoredAt.IsZero() {
 		r.StoredAt = now

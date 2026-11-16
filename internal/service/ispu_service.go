@@ -45,18 +45,21 @@ type ISPUService struct {
 	stopWorker      chan struct{}
 	workerWg        sync.WaitGroup
 	isWorkerRunning bool
+	onDemandMu      sync.Mutex
+	onDemandLastRun map[string]time.Time
 }
 
 // NewISPUService instantiates an ISPUService.
 func NewISPUService(db *gorm.DB, ispuRepo *repository.ISPURepository, systemRepo *repository.SystemRepository) *ISPUService {
 	return &ISPUService{
-		db:          db,
-		ispuRepo:    ispuRepo,
-		systemRepo:  systemRepo,
-		calculator:  NewISPUCalculator(),
-		jobChan:     make(chan ispuTriggerJob, 256),
-		pendingJobs: make(map[string]ispuTriggerJob),
-		stopWorker:  make(chan struct{}),
+		db:              db,
+		ispuRepo:        ispuRepo,
+		systemRepo:      systemRepo,
+		calculator:      NewISPUCalculator(),
+		jobChan:         make(chan ispuTriggerJob, 256),
+		pendingJobs:     make(map[string]ispuTriggerJob),
+		stopWorker:      make(chan struct{}),
+		onDemandLastRun: make(map[string]time.Time),
 	}
 }
 
@@ -163,6 +166,9 @@ func (s *ISPUService) enqueueScopedJob(tenantID, siteID, deviceID uint, bucketEn
 		reason = "AGGREGATION_COMPLETED"
 	}
 
+	if reason != "ON_DEMAND_INITIAL" {
+		s.clearOnDemandCooldown()
+	}
 	job := ispuTriggerJob{
 		TenantID:  tenantID,
 		SiteID:    siteID,
@@ -388,6 +394,9 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 
 // CalculateStationWindowWithReason performs a 24-hour regulatory ISPU evaluation with explicit reason and persists the result.
 func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, deviceID uint, targetEnd time.Time, reason string) (*model.ISPUCalculationResult, error) {
+	if reason != "ON_DEMAND_INITIAL" {
+		s.clearOnDemandCooldown()
+	}
 	scope := tenantctx.FromContext(ctx)
 	var dev model.Device
 	var tenantID, siteID uint
@@ -550,39 +559,31 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		}
 
 		if !hasOpAgg {
-			// Fallback: Query raw_data for the bucket if no pre-aggregated result exists yet
+			// Fallback: Query raw_data for the bucket using indexed received_at (idx_raw_dev_param_rec / idx_raw_param_rec)
 			var rawAvg *float64
 			var rawCount int64
 			rawEnd := periodEnd.Add(alignBuffer).UTC()
 			if refTime.After(periodEnd) {
 				rawEnd = refTime.Add(1 * time.Minute).UTC()
 			}
-			rawBucketQ := func() *gorm.DB {
-				q := s.db.WithContext(ctx).Model(&model.RawData{}).
-					Where("parameter_id = ? AND ((timestamp >= ? AND timestamp <= ?) OR (received_at >= ? AND received_at <= ?)) AND quality != ?",
-						m.ParameterID, opPeriodStart.UTC(), rawEnd, opPeriodStart.UTC(), rawEnd, model.QualityBad)
-				if mDeviceID > 0 {
-					q = q.Where("device_id = ?", mDeviceID)
-				}
-				return q
+			rawBucketQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+				Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+					m.ParameterID, opPeriodStart.UTC(), rawEnd, model.QualityBad)
+			if mDeviceID > 0 {
+				rawBucketQ = rawBucketQ.Where("device_id = ?", mDeviceID)
 			}
-			rawBucketQ().Select("AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawAvg)
-			rawBucketQ().Count(&rawCount)
+			_ = rawBucketQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCount, &rawAvg)
 
 			// For Cloud / Edge Push or on-demand calculation where interval may exceed 2m, look back 30m or check Parameter.CurrentValue
 			if rawCount == 0 && (reason == "EDGE_PUSH" || reason == "ON_DEMAND_INITIAL" || reason == "MANUAL_RECALCULATE" || reason == "MAPPING_UPDATED" || (config.Get() != nil && config.Get().IsCloudMode())) {
 				lookbackStart := periodEnd.Add(-30 * time.Minute).UTC()
-				rawLookbackQ := func() *gorm.DB {
-					q := s.db.WithContext(ctx).Model(&model.RawData{}).
-						Where("parameter_id = ? AND ((timestamp >= ? AND timestamp <= ?) OR (received_at >= ? AND received_at <= ?)) AND quality != ?",
-							m.ParameterID, lookbackStart, rawEnd, lookbackStart, rawEnd, model.QualityBad)
-					if mDeviceID > 0 {
-						q = q.Where("device_id = ?", mDeviceID)
-					}
-					return q
+				rawLookbackQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+					Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+						m.ParameterID, lookbackStart, rawEnd, model.QualityBad)
+				if mDeviceID > 0 {
+					rawLookbackQ = rawLookbackQ.Where("device_id = ?", mDeviceID)
 				}
-				rawLookbackQ().Select("AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawAvg)
-				rawLookbackQ().Count(&rawCount)
+				_ = rawLookbackQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCount, &rawAvg)
 
 				if rawCount == 0 {
 					var p model.Parameter
@@ -920,8 +921,8 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			}
 			rawRegQ := s.db.WithContext(ctx).Model(&model.RawData{}).
 				Select("COALESCE(NULLIF(processed_value, 0), value) AS val, received_at AS rec, timestamp AS ts").
-				Where("parameter_id = ? AND ((received_at >= ? AND received_at <= ?) OR (timestamp >= ? AND timestamp <= ?)) AND quality != ?",
-					m.ParameterID, paramRegStart.UTC(), rawRegEnd, paramRegStart.UTC(), rawRegEnd, model.QualityBad)
+				Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+					m.ParameterID, paramRegStart.UTC(), rawRegEnd, model.QualityBad)
 			if mDeviceID > 0 {
 				rawRegQ = rawRegQ.Where("device_id = ?", mDeviceID)
 			}
@@ -1428,6 +1429,30 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 	return processed, nil
 }
 
+func (s *ISPUService) shouldAllowOnDemandCalc(ctx context.Context, deviceID uint) bool {
+	scope := tenantctx.FromContext(ctx)
+	key := fmt.Sprintf("%d_%d_%d", scope.TenantID, scope.SiteID, deviceID)
+	now := time.Now()
+	s.onDemandMu.Lock()
+	defer s.onDemandMu.Unlock()
+	if s.onDemandLastRun == nil {
+		s.onDemandLastRun = make(map[string]time.Time)
+	}
+	if last, ok := s.onDemandLastRun[key]; ok && now.Sub(last) < 30*time.Second {
+		return false
+	}
+	s.onDemandLastRun[key] = now
+	return true
+}
+
+func (s *ISPUService) clearOnDemandCooldown() {
+	s.onDemandMu.Lock()
+	if len(s.onDemandLastRun) > 0 {
+		s.onDemandLastRun = make(map[string]time.Time)
+	}
+	s.onDemandMu.Unlock()
+}
+
 func (s *ISPUService) hasAvailableStationTelemetry(ctx context.Context, deviceID uint) bool {
 	scope := tenantctx.FromContext(ctx)
 	devSubQ := s.db.WithContext(ctx).Model(&model.Device{}).
@@ -1457,14 +1482,18 @@ func (s *ISPUService) hasAvailableStationTelemetry(ctx context.Context, deviceID
 		return true
 	}
 
-	var rawCount int64
+	since24h := time.Now().UTC().Add(-24 * time.Hour)
+	var rawRec model.RawData
 	rQuery := s.db.WithContext(ctx).Model(&model.RawData{}).
-		Where("quality != ? AND device_id IN ?", model.QualityBad, activeDevIDs)
+		Select("id").
+		Where("device_id IN ? AND received_at >= ? AND quality != ?", activeDevIDs, since24h, model.QualityBad)
 	if deviceID > 0 {
 		rQuery = rQuery.Where("device_id = ?", deviceID)
 	}
-	rQuery.Limit(1).Count(&rawCount)
-	return rawCount > 0
+	if err := rQuery.Limit(1).Take(&rawRec).Error; err == nil && rawRec.ID > 0 {
+		return true
+	}
+	return false
 }
 
 // GetLatestSummary retrieves the latest ISPU summary for a station.
@@ -1475,7 +1504,9 @@ func (s *ISPUService) GetLatestSummary(ctx context.Context, deviceID uint, modes
 		mode = modes[0]
 	}
 	res, err := s.ispuRepo.GetLatestByDeviceID(ctx, deviceID, mode)
-	if (err != nil || res == nil || res.OverallCategory == model.CategoryUnavailable || (deviceID == 0 && res.DeviceID != 0)) && s.hasAvailableStationTelemetry(ctx, deviceID) {
+	if (err != nil || res == nil || res.OverallCategory == model.CategoryUnavailable || (deviceID == 0 && res.DeviceID != 0)) &&
+		s.hasAvailableStationTelemetry(ctx, deviceID) &&
+		s.shouldAllowOnDemandCalc(ctx, deviceID) {
 		if _, calcErr := s.CalculateStationWindowWithReason(ctx, deviceID, time.Now().UTC(), "ON_DEMAND_INITIAL"); calcErr == nil {
 			if fresh, fErr := s.ispuRepo.GetLatestByDeviceID(ctx, deviceID, mode); fErr == nil && fresh != nil {
 				return fresh, nil
@@ -1587,10 +1618,12 @@ func (s *ISPUService) enrichCalculationAuditTracking(ctx context.Context, res *m
 			}
 			auditRawQ := s.db.WithContext(ctx).Model(&model.RawData{}).
 				Select("COALESCE(NULLIF(processed_value, 0), value) AS val, received_at AS rec, timestamp AS ts").
-				Where("parameter_id = ? AND ((timestamp >= ? AND timestamp <= ?) OR (received_at >= ? AND received_at <= ?)) AND quality != ?",
-					pr.ParameterID, res.PeriodStart.UTC(), res.PeriodEnd.UTC(), res.PeriodStart.UTC(), res.PeriodEnd.UTC(), model.QualityBad)
+				Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+					pr.ParameterID, res.PeriodStart.UTC(), res.PeriodEnd.UTC(), model.QualityBad)
 			if res.DeviceID > 0 {
 				auditRawQ = auditRawQ.Where("device_id = ?", res.DeviceID)
+			} else if mapping.DeviceID > 0 {
+				auditRawQ = auditRawQ.Where("device_id = ?", mapping.DeviceID)
 			}
 			auditRawQ.Order("received_at ASC").Find(&rawRows)
 			for _, r := range rawRows {

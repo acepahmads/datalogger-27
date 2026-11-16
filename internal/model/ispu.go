@@ -84,8 +84,8 @@ type ISPUCalculationResult struct {
 	ID                         uint                  `gorm:"primaryKey" json:"id"`
 	TenantID                   uint                  `gorm:"not null;default:1;index;uniqueIndex:idx_dev_period_mode" json:"tenant_id"`
 	SiteID                     uint                  `gorm:"not null;default:0;index;uniqueIndex:idx_dev_period_mode" json:"site_id"`
-	DeviceID                   uint                  `gorm:"uniqueIndex:idx_dev_period_mode;index;not null" json:"device_id"`
-	Device                     *Device               `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	DeviceID                   uint                  `gorm:"uniqueIndex:idx_dev_period_mode;index;not null;default:0" json:"device_id"` // 0 = unified station across devices
+	Device                     *Device               `gorm:"foreignKey:DeviceID;-:migration" json:"device,omitempty"`
 	CalculationMode            ISPUCalculationMode   `gorm:"size:32;default:'REGULATORY';uniqueIndex:idx_dev_period_mode;index;not null" json:"calculation_mode"`
 	PeriodStart                time.Time             `gorm:"uniqueIndex:idx_dev_period_mode;index;not null" json:"period_start"`
 	PeriodEnd                  time.Time             `gorm:"uniqueIndex:idx_dev_period_mode;index;not null" json:"period_end"`
