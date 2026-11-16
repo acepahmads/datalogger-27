@@ -103,6 +103,13 @@ assert(
   fleetViewCode.includes('toggleMapFullscreen'),
   'FleetMapView must support clean Fullscreen Map mode without search/filter bars'
 );
+assert(
+  fleetViewCode.includes('id="fleet-pin-mode-switcher"') &&
+  fleetViewCode.includes('id="fleet-wqms-index-switcher"') &&
+  fleetViewCode.includes('resolveSiteEnvPinMeta') &&
+  fleetViewCode.includes('fleet-pin-score'),
+  'FleetMapView must support compact colored circular score pins for ISPU (AQMS) and IP/IKA (WQMS/ONLIMO)'
+);
 assert(fleetViewCode.includes('id="input-fleet-search"'), 'FleetMapView must include compact station/tenant search input');
 assert(fleetViewCode.includes('id="select-fleet-project-year"'), 'FleetMapView must include Tahun Project dropdown filter');
 assert(fleetViewCode.includes('id="select-fleet-mobile-project-year"'), 'FleetMapView mobile filter sheet must include Tahun Project dropdown filter');

@@ -217,3 +217,148 @@ func TestGetFleetOverviewMultiTenantAggregation(t *testing.T) {
 	}
 }
 
+func TestGetFleetOverview_EnvironmentalIndicesISPUAndWQMS(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_fleet_env_idx_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("failed to open sqlite db: %v", err)
+	}
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("failed to run migrations: %v", err)
+	}
+
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.ISPUParameterResult{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.ISPUCalculationResult{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.WQMSParameterResult{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.WQMSCalculationResult{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Parameter{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Device{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Site{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Tenant{})
+
+	tenantRepo := repository.NewTenantRepository(db)
+	sysRepo := repository.NewSystemRepository(db)
+	tenantService := service.NewTenantService(tenantRepo, sysRepo)
+
+	ten := model.Tenant{Code: "dlh-jatim", Name: "DLH Jawa Timur", Status: model.TenantStatusActive, ProjectYear: 2025}
+	db.Create(&ten)
+
+	lat1, lng1 := -7.6298, 111.5239
+	aqmsSite := model.Site{
+		TenantID:         ten.ID,
+		Code:             "aqms-madiun",
+		Name:             "AQMS Kab Madiun",
+		MonitoringDomain: "AQMS",
+		Latitude:         &lat1,
+		Longitude:        &lng1,
+		Enabled:          true,
+	}
+	db.Create(&aqmsSite)
+
+	lat2, lng2 := -7.4726, 112.4381
+	onlimoSite := model.Site{
+		TenantID:         ten.ID,
+		Code:             "onlimo-brantas",
+		Name:             "ONLIMO Sungai Brantas",
+		MonitoringDomain: "ONLIMO",
+		Latitude:         &lat2,
+		Longitude:        &lng2,
+		Enabled:          true,
+	}
+	db.Create(&onlimoSite)
+
+	now := time.Now().UTC()
+	dAqms := model.Device{
+		TenantID:         ten.ID,
+		SiteID:           aqmsSite.ID,
+		DeviceCode:       "dev-aqms-madiun",
+		DeviceName:       "AQMS Logger",
+		DeviceType:       "EDGE_PUSH",
+		Enabled:          true,
+		Status:           model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline,
+		LastDataAt:       &now,
+	}
+	db.Create(&dAqms)
+
+	pm25Val := 35.0 // In 15.5..55.4 -> ISPU Sedang (51..100)
+	pm10Val := 40.0 // In 0..50 -> ISPU Baik (40)
+	db.Create(&model.Parameter{
+		DeviceID:      dAqms.ID,
+		ParameterCode: "pm25",
+		ParameterName: "PM2.5",
+		Unit:          "ug/m3",
+		Enabled:       true,
+		CurrentValue:  &pm25Val,
+		LastUpdated:   &now,
+	})
+	db.Create(&model.Parameter{
+		DeviceID:      dAqms.ID,
+		ParameterCode: "pm10",
+		ParameterName: "PM10",
+		Unit:          "ug/m3",
+		Enabled:       true,
+		CurrentValue:  &pm10Val,
+		LastUpdated:   &now,
+	})
+
+	dOnlimo := model.Device{
+		TenantID:         ten.ID,
+		SiteID:           onlimoSite.ID,
+		DeviceCode:       "dev-onlimo-brantas",
+		DeviceName:       "ONLIMO Logger",
+		DeviceType:       "EDGE_PUSH",
+		Enabled:          true,
+		Status:           model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline,
+		LastDataAt:       &now,
+	}
+	db.Create(&dOnlimo)
+
+	phVal := 7.2
+	codVal := 42.0 // Class II max COD = 25 mg/L -> Cemar Ringan
+	doVal := 5.5
+	db.Create(&model.Parameter{DeviceID: dOnlimo.ID, ParameterCode: "ph", ParameterName: "pH Air", Unit: "pH", Enabled: true, CurrentValue: &phVal, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: dOnlimo.ID, ParameterCode: "cod", ParameterName: "COD", Unit: "mg/L", Enabled: true, CurrentValue: &codVal, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: dOnlimo.ID, ParameterCode: "do", ParameterName: "DO", Unit: "mg/L", Enabled: true, CurrentValue: &doVal, LastUpdated: &now})
+
+	ov, err := tenantService.GetFleetOverview()
+	if err != nil {
+		t.Fatalf("GetFleetOverview failed: %v", err)
+	}
+	if len(ov.Sites) != 2 {
+		t.Fatalf("expected 2 sites, got %d", len(ov.Sites))
+	}
+
+	var gotAQMS, gotONLIMO *service.FleetSiteItem
+	for i := range ov.Sites {
+		if ov.Sites[i].SiteCode == "aqms-madiun" {
+			gotAQMS = &ov.Sites[i]
+		} else if ov.Sites[i].SiteCode == "onlimo-brantas" {
+			gotONLIMO = &ov.Sites[i]
+		}
+	}
+
+	if gotAQMS == nil || gotAQMS.ISPU == nil || !gotAQMS.ISPU.Available {
+		t.Fatalf("expected AQMS site to expose available ISPU summary, got %+v", gotAQMS)
+	}
+	if gotAQMS.ISPU.Category != string(model.CategorySedang) || gotAQMS.ISPU.Score <= 50 || gotAQMS.ISPU.Score > 100 {
+		t.Errorf("expected AQMS ISPU SEDANG (51..100), got score=%d cat=%s", gotAQMS.ISPU.Score, gotAQMS.ISPU.Category)
+	}
+	if gotAQMS.ISPU.DominantPollutant != "PM25" {
+		t.Errorf("expected dominant pollutant PM25, got %s", gotAQMS.ISPU.DominantPollutant)
+	}
+
+	if gotONLIMO == nil || gotONLIMO.WQMS == nil || !gotONLIMO.WQMS.Available {
+		t.Fatalf("expected ONLIMO site to expose available WQMS IP & IKA summary, got %+v", gotONLIMO)
+	}
+	if gotONLIMO.WQMS.IPCategory != string(model.WQMSCategoryCemarRingan) || gotONLIMO.WQMS.IPScore <= 1.0 {
+		t.Errorf("expected ONLIMO IP CEMAR_RINGAN (>1.0), got ip=%.2f cat=%s", gotONLIMO.WQMS.IPScore, gotONLIMO.WQMS.IPCategory)
+	}
+	if gotONLIMO.WQMS.IKAScore <= 0 {
+		t.Errorf("expected positive ONLIMO IKA score, got %.1f", gotONLIMO.WQMS.IKAScore)
+	}
+}
+

@@ -45,7 +45,67 @@
         </div>
 
         <!-- Right-Side Map Quick Actions (Never Clipped) -->
-        <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
+        <div class="flex items-center gap-1.5 ml-auto flex-shrink-0 flex-wrap">
+          <!-- Pin Mode Switcher: Status Koneksi vs Indeks Lingkungan (ISPU / IP / IKA) -->
+          <div
+            id="fleet-pin-mode-switcher"
+            class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800"
+          >
+            <button
+              type="button"
+              id="btn-fleet-pin-mode-status"
+              @click="pinDisplayMode = 'status'"
+              class="px-2 py-0.5 rounded-md text-2xs font-bold transition cursor-pointer whitespace-nowrap"
+              :class="pinDisplayMode === 'status'
+                ? 'bg-sky-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+              title="Warna lingkaran berdasarkan Status Koneksi & Alarm"
+            >
+              Status
+            </button>
+            <button
+              type="button"
+              id="btn-fleet-pin-mode-env"
+              @click="pinDisplayMode = 'env'"
+              class="px-2 py-0.5 rounded-md text-2xs font-bold transition cursor-pointer whitespace-nowrap"
+              :class="pinDisplayMode === 'env'
+                ? 'bg-emerald-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+              title="Lingkaran angka & warna berdasarkan Indeks ISPU (AQMS) dan IP/IKA (WQMS/ONLIMO)"
+            >
+              ISPU · IP/IKA
+            </button>
+          </div>
+
+          <!-- Sub-Switch IP vs IKA for WQMS / ONLIMO when in Environmental Index Mode -->
+          <div
+            v-if="pinDisplayMode === 'env'"
+            id="fleet-wqms-index-switcher"
+            class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800"
+            title="Pilih indeks lingkaran untuk stasiun WQMS / ONLIMO"
+          >
+            <button
+              type="button"
+              @click="wqmsIndexMode = 'ip'"
+              class="px-1.5 py-0.5 rounded-md text-3xs font-extrabold font-mono transition cursor-pointer"
+              :class="wqmsIndexMode === 'ip'
+                ? 'bg-teal-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400'"
+            >
+              IP
+            </button>
+            <button
+              type="button"
+              @click="wqmsIndexMode = 'ika'"
+              class="px-1.5 py-0.5 rounded-md text-3xs font-extrabold font-mono transition cursor-pointer"
+              :class="wqmsIndexMode === 'ika'
+                ? 'bg-teal-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400'"
+            >
+              IKA
+            </button>
+          </div>
+
           <!-- Fit Bounds Button -->
           <button
             type="button"
@@ -375,6 +435,51 @@
             </span>
           </div>
 
+          <!-- Pin Mode Switcher in Fullscreen (Status vs ISPU · IP/IKA) -->
+          <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              @click="pinDisplayMode = 'status'"
+              class="px-2 py-0.5 rounded-md text-3xs font-bold transition cursor-pointer whitespace-nowrap"
+              :class="pinDisplayMode === 'status'
+                ? 'bg-sky-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400'"
+            >
+              Status
+            </button>
+            <button
+              type="button"
+              @click="pinDisplayMode = 'env'"
+              class="px-2 py-0.5 rounded-md text-3xs font-bold transition cursor-pointer whitespace-nowrap"
+              :class="pinDisplayMode === 'env'
+                ? 'bg-emerald-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400'"
+            >
+              ISPU · IP/IKA
+            </button>
+          </div>
+          <div
+            v-if="pinDisplayMode === 'env'"
+            class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800"
+          >
+            <button
+              type="button"
+              @click="wqmsIndexMode = 'ip'"
+              class="px-1.5 py-0.5 rounded-md text-3xs font-extrabold font-mono transition cursor-pointer"
+              :class="wqmsIndexMode === 'ip' ? 'bg-teal-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-400'"
+            >
+              IP
+            </button>
+            <button
+              type="button"
+              @click="wqmsIndexMode = 'ika'"
+              class="px-1.5 py-0.5 rounded-md text-3xs font-extrabold font-mono transition cursor-pointer"
+              :class="wqmsIndexMode === 'ika' ? 'bg-teal-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-400'"
+            >
+              IKA
+            </button>
+          </div>
+
           <!-- Theme Switcher in Fullscreen -->
           <div class="hidden sm:inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
             <button
@@ -432,8 +537,28 @@
           </button>
         </div>
 
-        <!-- Mobile Map Floating Utility Buttons (Fit, Fullscreen & Style when not in fullscreen) -->
+        <!-- Mobile Map Floating Utility Buttons (Mode, Fit, Fullscreen & Style when not in fullscreen) -->
         <div v-if="!isMapFullscreen" class="flex md:hidden flex-col gap-1.5 absolute top-2.5 right-2.5 z-[450]">
+          <button
+            type="button"
+            @click="pinDisplayMode = pinDisplayMode === 'env' ? 'status' : 'env'"
+            class="px-2 h-8 rounded-xl border shadow-md flex items-center justify-center text-3xs font-extrabold cursor-pointer"
+            :class="pinDisplayMode === 'env'
+              ? 'bg-emerald-600 text-white btn-text border-emerald-500'
+              : 'bg-white/95 dark:bg-[#0E1626]/95 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'"
+            title="Ganti Mode Pin: Status vs ISPU/IP/IKA"
+          >
+            {{ pinDisplayMode === 'env' ? 'ISPU' : 'Pin' }}
+          </button>
+          <button
+            v-if="pinDisplayMode === 'env'"
+            type="button"
+            @click="wqmsIndexMode = wqmsIndexMode === 'ip' ? 'ika' : 'ip'"
+            class="px-2 h-7 rounded-xl bg-teal-600 text-white btn-text border border-teal-500 shadow-md flex items-center justify-center text-3xs font-mono font-extrabold cursor-pointer"
+            title="Ganti IP / IKA untuk WQMS & ONLIMO"
+          >
+            {{ wqmsIndexMode.toUpperCase() }}
+          </button>
           <button
             type="button"
             @click="toggleMapFullscreen"
@@ -485,9 +610,9 @@
           <span>Tile peta online tidak terjangkau (koordinat pin tetap akurat)</span>
         </div>
 
-        <!-- Compact Legend Pill (Desktop Bottom-Left) -->
+        <!-- Compact Legend Pill (Desktop Bottom-Left — Dynamic Status vs ISPU/IP/IKA) -->
         <div
-          v-if="isTilesOnline"
+          v-if="isTilesOnline && pinDisplayMode === 'status'"
           class="hidden sm:flex items-center gap-2.5 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-3xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
         >
           <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Online</span>
@@ -498,6 +623,36 @@
             <span class="px-1 rounded-full bg-sky-600 text-white badge-text font-mono text-4xs leading-tight">2+</span>
             <span>Cluster (Klik Mekar)</span>
           </span>
+        </div>
+        <div
+          v-else-if="isTilesOnline && pinDisplayMode === 'env'"
+          id="fleet-env-index-legend"
+          class="hidden sm:flex flex-col gap-1 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-4xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
+        >
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-extrabold text-slate-900 dark:text-white">ISPU (AQMS):</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>0–50 Baik</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-600"></span>51–100 Sedang</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>101–200 Tdk Sehat</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span>201–300 Sgt Tdk Sehat</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-950 border border-rose-500"></span>&gt;300 Berbahaya</span>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap pt-0.5 border-t border-slate-100 dark:border-slate-800">
+            <span class="font-extrabold text-slate-900 dark:text-white">{{ wqmsIndexMode === 'ika' ? 'IKA (WQMS/ONLIMO):' : 'IP (WQMS/ONLIMO):' }}</span>
+            <template v-if="wqmsIndexMode === 'ika'">
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>90–100 Sgt Baik</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-600"></span>70–89 Baik</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>50–69 Sedang</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-600"></span>25–49 Kurang</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span>&lt;25 Sgt Kurang</span>
+            </template>
+            <template v-else>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-teal-600"></span>≤1.0 Memenuhi</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>1–5 Cemar Ringan</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-600"></span>5–10 Cemar Sedang</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span>&gt;10 Cemar Berat</span>
+            </template>
+          </div>
         </div>
 
         <!-- =============================================================== -->
@@ -586,6 +741,86 @@
               </div>
             </div>
 
+            <!-- Environmental Index Detail Section (AQMS ISPU or WQMS/ONLIMO IP & IKA) -->
+            <div
+              v-if="selectedSite.monitoring_domain === 'AQMS' && selectedSite.ispu && selectedSite.ispu.available"
+              class="px-3 py-2 border-b border-slate-100 dark:border-slate-800/80 space-y-1.5"
+            >
+              <div class="p-2 rounded-xl border" :class="ispuBannerClass(selectedSite.ispu.category)">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-baseline gap-1.5">
+                    <span class="text-3xs font-bold uppercase opacity-80">ISPU</span>
+                    <span class="text-lg font-extrabold font-mono leading-none tabular-nums">{{ selectedSite.ispu.score }}</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-4xs font-extrabold uppercase tracking-wider text-white badge-text" :class="ispuSolidBadgeClass(selectedSite.ispu.category)">
+                    {{ selectedSite.ispu.category_label || selectedSite.ispu.category }}
+                  </span>
+                </div>
+                <div class="text-3xs mt-1 opacity-90 flex items-center justify-between gap-1">
+                  <span>Dominan: <strong>{{ selectedSite.ispu.dominant_pollutant || '-' }}</strong> <span v-if="selectedSite.ispu.dominant_concentration > 0">({{ selectedSite.ispu.dominant_concentration }} {{ selectedSite.ispu.dominant_unit || 'µg/m³' }})</span></span>
+                  <span class="font-mono text-4xs opacity-75">Permen LHK 14/2020</span>
+                </div>
+              </div>
+              <div v-if="selectedSite.ispu.parameters && selectedSite.ispu.parameters.length > 0" class="space-y-1 pt-0.5">
+                <div
+                  v-for="pm in selectedSite.ispu.parameters.slice(0, 5)"
+                  :key="'ispu-p-' + pm.code"
+                  class="flex items-center gap-2 text-3xs"
+                >
+                  <span class="w-10 font-mono font-bold text-slate-600 dark:text-slate-300">{{ pm.code }}</span>
+                  <div class="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all"
+                      :class="ispuSolidBadgeClass(pm.category)"
+                      :style="{ width: Math.min(100, Math.max(6, (Number(pm.sub_index || 0) / 300) * 100)) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="w-8 text-right font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">{{ Math.round(pm.sub_index || 0) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-else-if="(selectedSite.monitoring_domain === 'WQMS' || selectedSite.monitoring_domain === 'ONLIMO') && selectedSite.wqms && selectedSite.wqms.available"
+              class="px-3 py-2 border-b border-slate-100 dark:border-slate-800/80 space-y-1.5"
+            >
+              <div class="grid grid-cols-2 gap-1.5">
+                <div class="p-2 rounded-xl border" :class="wqmsIPBannerClass(selectedSite.wqms.ip_category)">
+                  <div class="text-4xs font-bold uppercase opacity-80">IP (Kepmen 115)</div>
+                  <div class="text-base font-extrabold font-mono leading-tight tabular-nums mt-0.5">{{ Number(selectedSite.wqms.ip_score || 0).toFixed(2) }}</div>
+                  <div class="mt-1">
+                    <span class="px-1.5 py-0.2 rounded text-4xs font-extrabold text-white badge-text" :class="wqmsIPSolidBadgeClass(selectedSite.wqms.ip_category)">
+                      {{ selectedSite.wqms.ip_category_label || selectedSite.wqms.ip_category }}
+                    </span>
+                  </div>
+                  <div v-if="selectedSite.wqms.dominant_parameter" class="text-4xs mt-1 opacity-85 truncate">
+                    Dominan: <strong>{{ selectedSite.wqms.dominant_parameter }}</strong>
+                  </div>
+                </div>
+                <div class="p-2 rounded-xl border" :class="wqmsIKABannerClass(selectedSite.wqms.ika_category)">
+                  <div class="text-4xs font-bold uppercase opacity-80">IKA (Permen 27)</div>
+                  <div class="text-base font-extrabold font-mono leading-tight tabular-nums mt-0.5">{{ Math.round(selectedSite.wqms.ika_score || 0) }}<span class="text-3xs font-normal opacity-75">/100</span></div>
+                  <div class="mt-1">
+                    <span class="px-1.5 py-0.2 rounded text-4xs font-extrabold text-white badge-text" :class="wqmsIKASolidBadgeClass(selectedSite.wqms.ika_category)">
+                      {{ selectedSite.wqms.ika_category_label || selectedSite.wqms.ika_category }}
+                    </span>
+                  </div>
+                  <div class="text-4xs mt-1 opacity-85 truncate">
+                    Mutu: <strong>{{ formatWaterClassLabel(selectedSite.wqms.water_class) }}</strong>
+                  </div>
+                </div>
+              </div>
+              <div v-if="selectedSite.wqms.parameters && selectedSite.wqms.parameters.length > 0" class="flex items-center gap-1 flex-wrap pt-0.5">
+                <span
+                  v-for="wp in selectedSite.wqms.parameters.slice(0, 6)"
+                  :key="'wq-p-' + wp.code"
+                  class="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-4xs font-mono text-slate-700 dark:text-slate-200"
+                >
+                  <strong>{{ wp.code }}</strong> {{ wp.concentration }}{{ wp.unit && wp.unit !== 'pH' ? ' ' + wp.unit : '' }}
+                </span>
+              </div>
+            </div>
+
             <!-- Active Alarms List (Scrollable if multiple) -->
             <div class="px-3 py-2 overflow-y-auto max-h-40 space-y-1.5">
               <template v-if="selectedSite.active_alarms && selectedSite.active_alarms.length > 0">
@@ -638,6 +873,23 @@
                   {{ (!isSuperAdmin && isCloudMode) ? `Live Data (${selectedSite.device_count})` : `Perangkat (${selectedSite.device_count})` }}
                 </button>
                 <button
+                  v-if="selectedSite.monitoring_domain === 'AQMS'"
+                  type="button"
+                  @click="openSiteModule(selectedSite, '/monitoring/ispu')"
+                  class="py-1 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-3xs font-bold transition cursor-pointer"
+                >
+                  Analisis ISPU
+                </button>
+                <button
+                  v-else-if="selectedSite.monitoring_domain === 'WQMS' || selectedSite.monitoring_domain === 'ONLIMO'"
+                  type="button"
+                  @click="openSiteModule(selectedSite, '/monitoring/wqms')"
+                  class="py-1 px-2 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-3xs font-bold transition cursor-pointer"
+                >
+                  Analisis IP/IKA
+                </button>
+                <button
+                  v-else
                   type="button"
                   @click="openSiteModule(selectedSite, '/alarm/active')"
                   class="py-1 px-2 rounded-lg bg-white hover:bg-slate-100 dark:bg-slate-800/90 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-3xs font-bold transition cursor-pointer"
@@ -816,6 +1068,14 @@
 
             <!-- Right Indicators & Quick Action -->
             <div class="flex items-center gap-1 flex-shrink-0">
+              <span
+                v-if="pinDisplayMode === 'env' && getSiteEnvDockBadge(site)"
+                class="w-6 h-6 rounded-full text-4xs font-mono font-extrabold text-white badge-text flex items-center justify-center shadow-2xs"
+                :style="{ background: getSiteEnvDockBadge(site).bg }"
+                :title="getSiteEnvDockBadge(site).tooltip"
+              >
+                {{ getSiteEnvDockBadge(site).label }}
+              </span>
               <span
                 v-if="site.total_active_alarms > 0"
                 class="px-1.5 py-0.5 rounded-full text-4xs font-mono font-extrabold text-white badge-text"
@@ -1290,6 +1550,8 @@ export default {
       hasInitialFitDone: false,
       isTilesOnline: true,
       mapStyle: 'auto', // 'auto' | 'osm' | 'clean' | 'satellite' | 'dark'
+      pinDisplayMode: 'status', // 'status' | 'env'
+      wqmsIndexMode: 'ip', // 'ip' | 'ika'
       spiderfiedClusterKey: '',
       selectedSiteId: 0,
       switchingSiteId: 0,
@@ -1527,9 +1789,19 @@ export default {
       return this.filteredSites.filter(s => !s.has_coordinates);
     },
     dockDisplayedSites() {
-      if (this.dockTab === 'ISSUES') return this.issueFilteredSites;
-      if (this.dockTab === 'NOGPS') return this.noGpsFilteredSites;
-      return this.filteredSites;
+      let base = this.filteredSites;
+      if (this.dockTab === 'ISSUES') base = this.issueFilteredSites;
+      else if (this.dockTab === 'NOGPS') return this.noGpsFilteredSites;
+
+      if (this.pinDisplayMode === 'env') {
+        return [...base].sort((a, b) => {
+          const ma = this.resolveSiteEnvPinMeta(a);
+          const mb = this.resolveSiteEnvPinMeta(b);
+          if (mb.urgencyRank !== ma.urgencyRank) return mb.urgencyRank - ma.urgencyRank;
+          return (mb.numericScore || 0) - (ma.numericScore || 0);
+        });
+      }
+      return base;
     },
     selectedSite() {
       if (!this.selectedSiteId) return null;
@@ -1564,6 +1836,14 @@ export default {
   watch: {
     resolvedTileTheme() {
       this.applyTileLayer();
+    },
+    pinDisplayMode() {
+      this.syncMapMarkers();
+    },
+    wqmsIndexMode() {
+      if (this.pinDisplayMode === 'env') {
+        this.syncMapMarkers();
+      }
     },
     mappedFilteredSites() {
       this.syncMapMarkers();
@@ -2040,7 +2320,197 @@ export default {
       }
     },
 
+    resolveSiteEnvPinMeta(site) {
+      const fallback = {
+        available: false,
+        label: '–',
+        bg: '#64748b',
+        haloBg: 'rgba(100, 116, 139, 0.22)',
+        borderColor: '',
+        pulse: false,
+        urgencyRank: 0,
+        numericScore: 0,
+        clusterTone: 'INACTIVE',
+        tooltipLine: 'Indeks belum tersedia',
+      };
+      if (!site) return fallback;
+      const dom = String(site.monitoring_domain || 'AQMS').toUpperCase();
+
+      if (dom === 'AQMS' && site.ispu && site.ispu.available) {
+        const score = Math.round(Number(site.ispu.score) || 0);
+        const cat = String(site.ispu.category || '').toUpperCase();
+        const catLabel = site.ispu.category_label || cat;
+        const domPoll = site.ispu.dominant_pollutant ? ` · ${site.ispu.dominant_pollutant}` : '';
+        let bg = '#10b981';
+        let haloBg = 'rgba(16, 185, 129, 0.28)';
+        let borderColor = '';
+        let pulse = false;
+        let urgencyRank = 1;
+        let clusterTone = 'NORMAL';
+
+        if (cat === 'SEDANG') {
+          bg = '#0284c7';
+          haloBg = 'rgba(2, 132, 199, 0.30)';
+          urgencyRank = 2;
+          clusterTone = 'SEDANG';
+        } else if (cat === 'TIDAK_SEHAT') {
+          bg = '#d97706';
+          haloBg = 'rgba(245, 158, 11, 0.34)';
+          urgencyRank = 3;
+          clusterTone = 'WARNING';
+        } else if (cat === 'SANGAT_TIDAK_SEHAT') {
+          bg = '#e11d48';
+          haloBg = 'rgba(225, 29, 72, 0.38)';
+          pulse = true;
+          urgencyRank = 4;
+          clusterTone = 'CRITICAL';
+        } else if (cat === 'BERBAHAYA') {
+          bg = '#0f172a';
+          borderColor = '#ef4444';
+          haloBg = 'rgba(239, 68, 68, 0.44)';
+          pulse = true;
+          urgencyRank = 5;
+          clusterTone = 'HAZARDOUS';
+        }
+
+        return {
+          available: true,
+          label: String(score),
+          bg,
+          haloBg,
+          borderColor,
+          pulse,
+          urgencyRank,
+          numericScore: score,
+          clusterTone,
+          tooltipLine: `ISPU ${score} (${catLabel}${domPoll})`,
+        };
+      }
+
+      if ((dom === 'WQMS' || dom === 'ONLIMO') && site.wqms && site.wqms.available) {
+        if (this.wqmsIndexMode === 'ika') {
+          const ika = Math.round(Number(site.wqms.ika_score) || 0);
+          const cat = String(site.wqms.ika_category || '').toUpperCase();
+          const catLabel = site.wqms.ika_category_label || cat;
+          let bg = '#059669';
+          let haloBg = 'rgba(16, 185, 129, 0.28)';
+          let pulse = false;
+          let urgencyRank = 1;
+          let clusterTone = 'NORMAL';
+
+          if (cat === 'BAIK') {
+            bg = '#0284c7';
+            haloBg = 'rgba(2, 132, 199, 0.30)';
+            urgencyRank = 2;
+            clusterTone = 'SEDANG';
+          } else if (cat === 'SEDANG') {
+            bg = '#d97706';
+            haloBg = 'rgba(245, 158, 11, 0.34)';
+            urgencyRank = 3;
+            clusterTone = 'WARNING';
+          } else if (cat === 'KURANG') {
+            bg = '#ea580c';
+            haloBg = 'rgba(234, 88, 12, 0.35)';
+            urgencyRank = 4;
+            clusterTone = 'ORANGE';
+          } else if (cat === 'SANGAT_KURANG') {
+            bg = '#e11d48';
+            haloBg = 'rgba(225, 29, 72, 0.38)';
+            pulse = true;
+            urgencyRank = 5;
+            clusterTone = 'CRITICAL';
+          }
+
+          return {
+            available: true,
+            label: String(ika),
+            bg,
+            haloBg,
+            borderColor: '',
+            pulse,
+            urgencyRank,
+            numericScore: 100 - ika,
+            clusterTone,
+            tooltipLine: `IKA ${ika}/100 (${catLabel}) · IP ${Number(site.wqms.ip_score || 0).toFixed(2)}`,
+          };
+        }
+
+        const ip = Number(site.wqms.ip_score) || 0;
+        const ipText = ip < 10 ? ip.toFixed(1) : String(Math.round(ip));
+        const cat = String(site.wqms.ip_category || '').toUpperCase();
+        const catLabel = site.wqms.ip_category_label || cat;
+        const domParam = site.wqms.dominant_parameter ? ` · ${site.wqms.dominant_parameter}` : '';
+        let bg = '#0d9488';
+        let haloBg = 'rgba(13, 148, 136, 0.28)';
+        let pulse = false;
+        let urgencyRank = 1;
+        let clusterTone = 'NORMAL';
+
+        if (cat === 'CEMAR_RINGAN') {
+          bg = '#d97706';
+          haloBg = 'rgba(245, 158, 11, 0.34)';
+          urgencyRank = 3;
+          clusterTone = 'WARNING';
+        } else if (cat === 'CEMAR_SEDANG') {
+          bg = '#ea580c';
+          haloBg = 'rgba(234, 88, 12, 0.35)';
+          urgencyRank = 4;
+          clusterTone = 'ORANGE';
+        } else if (cat === 'CEMAR_BERAT') {
+          bg = '#e11d48';
+          haloBg = 'rgba(225, 29, 72, 0.38)';
+          pulse = true;
+          urgencyRank = 5;
+          clusterTone = 'CRITICAL';
+        }
+
+        return {
+          available: true,
+          label: ipText,
+          bg,
+          haloBg,
+          borderColor: '',
+          pulse,
+          urgencyRank,
+          numericScore: ip * 20,
+          clusterTone,
+          tooltipLine: `IP ${ip.toFixed(2)} (${catLabel}${domParam}) · IKA ${Math.round(site.wqms.ika_score || 0)}`,
+        };
+      }
+
+      return fallback;
+    },
+
     buildPinIcon(site, isSelected) {
+      if (this.pinDisplayMode === 'env') {
+        const meta = this.resolveSiteEnvPinMeta(site);
+        const size = isSelected ? 34 : 28;
+        const borderCol = isSelected ? '#38bdf8' : meta.borderColor || '#ffffff';
+        const shadowCss = isSelected
+          ? `0 0 0 4px rgba(14, 165, 233, 0.45), 0 6px 16px rgba(15, 23, 42, 0.48)`
+          : `0 0 0 3px ${meta.haloBg}, 0 3px 10px rgba(15, 23, 42, 0.40)`;
+        const pulseHtml = meta.pulse
+          ? `<span class="fleet-pin-pulse" style="background:${meta.haloBg};"></span>`
+          : '';
+        const fontSize = meta.label.length >= 4 ? '8.5px' : meta.label.length === 3 ? '9.5px' : '10.5px';
+
+        const html = `
+          <div class="fleet-pin-root" style="width:${size}px;height:${size}px;">
+            ${pulseHtml}
+            <div class="fleet-pin-core" style="width:${size}px;height:${size}px;background:${meta.bg};border:2.5px solid ${borderCol};box-shadow:${shadowCss};">
+              <span class="fleet-pin-score" style="font-size:${fontSize};">${meta.label}</span>
+            </div>
+          </div>
+        `;
+
+        return L.divIcon({
+          className: 'fleet-leaflet-div-icon',
+          html,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        });
+      }
+
       const sev = site.severity_state || 'NORMAL';
       let coreBg = '#10b981'; // emerald
       let ringBg = 'rgba(16, 185, 129, 0.28)';
@@ -2103,15 +2573,27 @@ export default {
       const sev = group.worstSeverity || 'NORMAL';
       let coreBg = '#059669'; // emerald-600
       let haloBg = 'rgba(16, 185, 129, 0.28)';
+      let borderCol = '#ffffff';
       let pulseHtml = '';
 
-      if (sev === 'CRITICAL') {
+      if (sev === 'HAZARDOUS') {
+        coreBg = '#0f172a';
+        borderCol = '#ef4444';
+        haloBg = 'rgba(239, 68, 68, 0.40)';
+        pulseHtml = `<span class="fleet-pin-pulse" style="background:${haloBg};"></span>`;
+      } else if (sev === 'CRITICAL') {
         coreBg = '#e11d48'; // rose-600
         haloBg = 'rgba(225, 29, 72, 0.34)';
         pulseHtml = `<span class="fleet-pin-pulse" style="background:${haloBg};"></span>`;
+      } else if (sev === 'ORANGE') {
+        coreBg = '#ea580c';
+        haloBg = 'rgba(234, 88, 12, 0.34)';
       } else if (sev === 'WARNING') {
         coreBg = '#d97706'; // amber-600
         haloBg = 'rgba(245, 158, 11, 0.32)';
+      } else if (sev === 'SEDANG') {
+        coreBg = '#0284c7'; // sky-600
+        haloBg = 'rgba(2, 132, 199, 0.30)';
       } else if (sev === 'INACTIVE') {
         coreBg = '#64748b';
         haloBg = 'rgba(100, 116, 139, 0.26)';
@@ -2122,14 +2604,14 @@ export default {
       const alarmCount = Number(group.totalAlarms) || 0;
       const alarmLabel = alarmCount > 99 ? '99+' : String(alarmCount);
       const alarmBadgeHtml =
-        alarmCount > 0
+        this.pinDisplayMode === 'status' && alarmCount > 0
           ? `<span class="fleet-pin-badge" title="${alarmCount} Alarm Aktif">!${alarmLabel}</span>`
           : '';
 
       const html = `
         <div class="fleet-cluster-root" style="width:${outerSize}px;height:${outerSize}px;background:${haloBg};">
           ${pulseHtml}
-          <div class="fleet-cluster-core" style="width:${coreSize}px;height:${coreSize}px;background:${coreBg};">
+          <div class="fleet-cluster-core" style="width:${coreSize}px;height:${coreSize}px;background:${coreBg};border-color:${borderCol};">
             <span class="fleet-cluster-count">${count}</span>
           </div>
           ${alarmBadgeHtml}
@@ -2145,13 +2627,18 @@ export default {
     },
 
     buildScreenClusters(validSites) {
+      const isEnvMode = this.pinDisplayMode === 'env';
+      const sevRank = { HAZARDOUS: 5, CRITICAL: 4, ORANGE: 3.5, WARNING: 3, SEDANG: 2, NORMAL: 1, INACTIVE: 0 };
+      const getSiteTone = (s) =>
+        isEnvMode ? this.resolveSiteEnvPinMeta(s).clusterTone : (s.severity_state || 'NORMAL');
+
       if (!this.map || validSites.length <= 1) {
         return validSites.map((s) => ({
           key: String(s.site_id),
           lat: Number(s.latitude),
           lng: Number(s.longitude),
           sites: [s],
-          worstSeverity: s.severity_state || 'NORMAL',
+          worstSeverity: getSiteTone(s),
           totalAlarms: Number(s.total_active_alarms) || 0,
         }));
       }
@@ -2162,7 +2649,6 @@ export default {
       else if (zoom >= 11) radiusPx = 38;
       else if (zoom >= 8) radiusPx = 44;
 
-      const sevRank = { CRITICAL: 3, WARNING: 2, NORMAL: 1, INACTIVE: 0 };
       const sorted = [...validSites].sort((a, b) => Number(a.site_id) - Number(b.site_id));
       const clusters = [];
 
@@ -2183,7 +2669,7 @@ export default {
           }
         }
 
-        const sSev = site.severity_state || 'NORMAL';
+        const sSev = getSiteTone(site);
         const sAlarms = Number(site.total_active_alarms) || 0;
 
         if (bestIdx >= 0) {
@@ -2223,8 +2709,11 @@ export default {
 
     attachSingleStationMarker(site, lat, lng, zBoost = 0) {
       const isSelected = Number(this.selectedSiteId) === Number(site.site_id);
+      const envMeta = this.pinDisplayMode === 'env' ? this.resolveSiteEnvPinMeta(site) : null;
       const baseZ = isSelected
         ? 950
+        : envMeta
+        ? 100 + envMeta.urgencyRank * 100
         : site.severity_state === 'CRITICAL'
         ? 500
         : site.severity_state === 'WARNING'
@@ -2240,9 +2729,13 @@ export default {
       const safeTenant = this.escapeHtml(site.tenant_name);
       const safeAge = this.escapeHtml(this.formatRelativeAge(site));
       const yearSuffix = Number(site.project_year) > 0 ? ` · ${Number(site.project_year)}` : '';
+      const envLineHtml =
+        envMeta && envMeta.available
+          ? `<br/><span style="font-weight:700;color:#0284c7;">${this.escapeHtml(envMeta.tooltipLine)}</span>`
+          : '';
       marker.bindTooltip(
-        `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.84;">${safeTenant}${yearSuffix} · ${safeAge}</span></div>`,
-        { direction: 'top', offset: [0, -12], opacity: 0.96 }
+        `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.84;">${safeTenant}${yearSuffix} · ${safeAge}</span>${envLineHtml}</div>`,
+        { direction: 'top', offset: [0, -14], opacity: 0.96 }
       );
 
       marker.on('click', (ev) => {
@@ -2749,6 +3242,72 @@ export default {
       return 'text-slate-400';
     },
 
+    getSiteEnvDockBadge(site) {
+      const meta = this.resolveSiteEnvPinMeta(site);
+      if (!meta || !meta.available) return null;
+      return {
+        label: meta.label,
+        bg: meta.bg,
+        tooltip: meta.tooltipLine,
+      };
+    },
+
+    formatWaterClassLabel(wc) {
+      const map = { CLASS_1: 'Kelas I', CLASS_2: 'Kelas II', CLASS_3: 'Kelas III', CLASS_4: 'Kelas IV' };
+      return map[String(wc || '').toUpperCase()] || 'Kelas II';
+    },
+
+    ispuBannerClass(cat) {
+      const c = String(cat || '').toUpperCase();
+      if (c === 'BERBAHAYA' || c === 'SANGAT_TIDAK_SEHAT') return 'bg-rose-500/10 border-rose-500/35 text-rose-800 dark:text-rose-200';
+      if (c === 'TIDAK_SEHAT') return 'bg-amber-500/10 border-amber-500/35 text-amber-800 dark:text-amber-200';
+      if (c === 'SEDANG') return 'bg-sky-500/10 border-sky-500/35 text-sky-800 dark:text-sky-200';
+      return 'bg-emerald-500/10 border-emerald-500/35 text-emerald-800 dark:text-emerald-200';
+    },
+
+    ispuSolidBadgeClass(cat) {
+      const c = String(cat || '').toUpperCase();
+      if (c === 'BERBAHAYA') return 'bg-slate-950 border border-rose-500';
+      if (c === 'SANGAT_TIDAK_SEHAT') return 'bg-rose-600';
+      if (c === 'TIDAK_SEHAT') return 'bg-amber-500';
+      if (c === 'SEDANG') return 'bg-sky-600';
+      return 'bg-emerald-600';
+    },
+
+    wqmsIPBannerClass(cat) {
+      const c = String(cat || '').toUpperCase();
+      if (c === 'CEMAR_BERAT') return 'bg-rose-500/10 border-rose-500/35 text-rose-800 dark:text-rose-200';
+      if (c === 'CEMAR_SEDANG') return 'bg-orange-500/10 border-orange-500/35 text-orange-800 dark:text-orange-200';
+      if (c === 'CEMAR_RINGAN') return 'bg-amber-500/10 border-amber-500/35 text-amber-800 dark:text-amber-200';
+      return 'bg-teal-500/10 border-teal-500/35 text-teal-800 dark:text-teal-200';
+    },
+
+    wqmsIPSolidBadgeClass(cat) {
+      const c = String(cat || '').toUpperCase();
+      if (c === 'CEMAR_BERAT') return 'bg-rose-600';
+      if (c === 'CEMAR_SEDANG') return 'bg-orange-600';
+      if (c === 'CEMAR_RINGAN') return 'bg-amber-500';
+      return 'bg-teal-600';
+    },
+
+    wqmsIKABannerClass(cat) {
+      const c = String(cat || '').toUpperCase();
+      if (c === 'SANGAT_KURANG') return 'bg-rose-500/10 border-rose-500/35 text-rose-800 dark:text-rose-200';
+      if (c === 'KURANG') return 'bg-orange-500/10 border-orange-500/35 text-orange-800 dark:text-orange-200';
+      if (c === 'SEDANG') return 'bg-amber-500/10 border-amber-500/35 text-amber-800 dark:text-amber-200';
+      if (c === 'BAIK') return 'bg-sky-500/10 border-sky-500/35 text-sky-800 dark:text-sky-200';
+      return 'bg-emerald-500/10 border-emerald-500/35 text-emerald-800 dark:text-emerald-200';
+    },
+
+    wqmsIKASolidBadgeClass(cat) {
+      const c = String(cat || '').toUpperCase();
+      if (c === 'SANGAT_KURANG') return 'bg-rose-600';
+      if (c === 'KURANG') return 'bg-orange-600';
+      if (c === 'SEDANG') return 'bg-amber-500';
+      if (c === 'BAIK') return 'bg-sky-600';
+      return 'bg-emerald-600';
+    },
+
     escapeHtml(raw) {
       return String(raw || '')
         .replace(/&/g, '&amp;')
@@ -2788,6 +3347,13 @@ export default {
   font-size: 10px;
   font-weight: 800;
   font-family: Inter, system-ui, sans-serif;
+  line-height: 1;
+}
+.fleet-pin-score {
+  color: #ffffff;
+  font-weight: 800;
+  font-family: JetBrains Mono, Inter, system-ui, sans-serif;
+  letter-spacing: -0.03em;
   line-height: 1;
 }
 .fleet-pin-pulse {

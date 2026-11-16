@@ -36,42 +36,87 @@ type FleetSiteDeviceBrief struct {
 	LastSeenAt       *time.Time `json:"last_seen_at"`
 }
 
-// FleetSiteItem represents a single Tenant Station / Site with coordinates, freshness, devices, and alarms.
+// FleetEnvParamMetric represents a compact per-pollutant (ISPU) or per-water-parameter (WQMS) breakdown metric.
+type FleetEnvParamMetric struct {
+	Code          string  `json:"code"`
+	Concentration float64 `json:"concentration"`
+	Unit          string  `json:"unit"`
+	SubIndex      float64 `json:"sub_index"`
+	Category      string  `json:"category,omitempty"`
+}
+
+// FleetSiteISPUSummary holds the latest Air Pollution Standard Index (Permen LHK No. 14/2020) for an AQMS station.
+type FleetSiteISPUSummary struct {
+	Available           bool                  `json:"available"`
+	Score               int                   `json:"score"`
+	RawScore            float64               `json:"raw_score"`
+	Category            string                `json:"category"`
+	CategoryLabel       string                `json:"category_label"`
+	DominantPollutant   string                `json:"dominant_pollutant"`
+	DominantConc        float64               `json:"dominant_concentration"`
+	DominantUnit        string                `json:"dominant_unit"`
+	CompletenessPercent float64               `json:"completeness_percent"`
+	CalculationMode     string                `json:"calculation_mode"`
+	CalculatedAt        *time.Time            `json:"calculated_at,omitempty"`
+	Parameters          []FleetEnvParamMetric `json:"parameters,omitempty"`
+}
+
+// FleetSiteWQMSSummary holds the latest Pollution Index (IP - Kepmen LH 115/2003) & Water Quality Index (IKA - Permen LHK 27/2021) for a WQMS/ONLIMO station.
+type FleetSiteWQMSSummary struct {
+	Available         bool                  `json:"available"`
+	WaterClass        string                `json:"water_class"`
+	IPScore           float64               `json:"ip_score"`
+	IPCategory        string                `json:"ip_category"`
+	IPCategoryLabel   string                `json:"ip_category_label"`
+	DominantParameter string                `json:"dominant_parameter"`
+	DominantConc      float64               `json:"dominant_concentration"`
+	DominantUnit      string                `json:"dominant_unit"`
+	IKAScore          float64               `json:"ika_score"`
+	IKACategory       string                `json:"ika_category"`
+	IKACategoryLabel  string                `json:"ika_category_label"`
+	CalculationMode   string                `json:"calculation_mode"`
+	CalculatedAt      *time.Time            `json:"calculated_at,omitempty"`
+	Parameters        []FleetEnvParamMetric `json:"parameters,omitempty"`
+}
+
+// FleetSiteItem represents a single Tenant Station / Site with coordinates, freshness, devices, alarms, and environmental indices.
 type FleetSiteItem struct {
-	SiteID             uint                   `json:"site_id"`
-	SiteCode           string                 `json:"site_code"`
-	SiteName           string                 `json:"site_name"`
-	TenantID           uint                   `json:"tenant_id"`
-	TenantCode         string                 `json:"tenant_code"`
+	SiteID              uint                   `json:"site_id"`
+	SiteCode            string                 `json:"site_code"`
+	SiteName            string                 `json:"site_name"`
+	TenantID            uint                   `json:"tenant_id"`
+	TenantCode          string                 `json:"tenant_code"`
 	TenantName          string                 `json:"tenant_name"`
 	TenantStatus        string                 `json:"tenant_status"`
 	CustomerName        string                 `json:"customer_name"`
 	ProjectYear         int                    `json:"project_year"`
 	MonitoringDomain    string                 `json:"monitoring_domain"`
-	Enabled            bool                   `json:"enabled"`
-	Address            string                 `json:"address"`
-	Timezone           string                 `json:"timezone"`
-	HasCoordinates     bool                   `json:"has_coordinates"`
-	Latitude           *float64               `json:"latitude"`
-	Longitude          *float64               `json:"longitude"`
-	LocationSource     string                 `json:"location_source"`
-	DeviceCount        int                    `json:"device_count"`
-	EnabledDeviceCount int                    `json:"enabled_device_count"`
-	OnlineDeviceCount  int                    `json:"online_device_count"`
-	OfflineDeviceCount int                    `json:"offline_device_count"`
-	PrimaryProtocol    string                 `json:"primary_protocol"`
-	EffectiveTimeoutSec int                   `json:"effective_timeout_seconds"`
-	LastDataAt         *time.Time             `json:"last_data_at"`
-	LastSeenAt         *time.Time             `json:"last_seen_at"`
-	LastTransmissionAt *time.Time             `json:"last_transmission_at"`
-	DataAgeSeconds     *int64                 `json:"data_age_seconds"`
-	DeliveryStatus     string                 `json:"delivery_status"` // ONLINE | DELAYED | OFFLINE | INACTIVE
-	SeverityState      string                 `json:"severity_state"`  // CRITICAL | WARNING | NORMAL | INACTIVE
-	CriticalAlarmCount int                    `json:"critical_alarm_count"`
-	WarningAlarmCount  int                    `json:"warning_alarm_count"`
-	TotalActiveAlarms  int                    `json:"total_active_alarms"`
-	ActiveAlarms       []FleetSiteAlarmItem   `json:"active_alarms"`
-	Devices            []FleetSiteDeviceBrief `json:"devices"`
+	Enabled             bool                   `json:"enabled"`
+	Address             string                 `json:"address"`
+	Timezone            string                 `json:"timezone"`
+	HasCoordinates      bool                   `json:"has_coordinates"`
+	Latitude            *float64               `json:"latitude"`
+	Longitude           *float64               `json:"longitude"`
+	LocationSource      string                 `json:"location_source"`
+	DeviceCount         int                    `json:"device_count"`
+	EnabledDeviceCount  int                    `json:"enabled_device_count"`
+	OnlineDeviceCount   int                    `json:"online_device_count"`
+	OfflineDeviceCount  int                    `json:"offline_device_count"`
+	PrimaryProtocol     string                 `json:"primary_protocol"`
+	EffectiveTimeoutSec int                    `json:"effective_timeout_seconds"`
+	LastDataAt          *time.Time             `json:"last_data_at"`
+	LastSeenAt          *time.Time             `json:"last_seen_at"`
+	LastTransmissionAt  *time.Time             `json:"last_transmission_at"`
+	DataAgeSeconds      *int64                 `json:"data_age_seconds"`
+	DeliveryStatus      string                 `json:"delivery_status"` // ONLINE | DELAYED | OFFLINE | INACTIVE
+	SeverityState       string                 `json:"severity_state"`  // CRITICAL | WARNING | NORMAL | INACTIVE
+	CriticalAlarmCount  int                    `json:"critical_alarm_count"`
+	WarningAlarmCount   int                    `json:"warning_alarm_count"`
+	TotalActiveAlarms   int                    `json:"total_active_alarms"`
+	ActiveAlarms        []FleetSiteAlarmItem   `json:"active_alarms"`
+	Devices             []FleetSiteDeviceBrief `json:"devices"`
+	ISPU                *FleetSiteISPUSummary  `json:"ispu,omitempty"`
+	WQMS                *FleetSiteWQMSSummary  `json:"wqms,omitempty"`
 }
 
 // FleetTenantOption represents a lightweight tenant summary for filter dropdowns on the Fleet Map.
@@ -224,7 +269,7 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 	}
 
 	var devices []model.Device
-	if err := db.Preload("Connection").Order("id ASC").Find(&devices).Error; err != nil {
+	if err := db.Preload("Connection").Preload("Parameters", "deleted_at IS NULL").Order("id ASC").Find(&devices).Error; err != nil {
 		return nil, err
 	}
 	deviceByID := make(map[uint]*model.Device, len(devices))
@@ -278,6 +323,96 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 			alarmsBySite[sid] = append(alarmsBySite[sid], al)
 		}
 	}
+
+	resolveResultSiteID := func(tenantID, siteID, deviceID uint) uint {
+		if siteID > 0 && siteExists[siteID] {
+			return siteID
+		}
+		if deviceID > 0 {
+			if dev, ok := deviceByID[deviceID]; ok && siteExists[dev.SiteID] {
+				return dev.SiteID
+			}
+		}
+		if fallbackSid, ok := defaultSiteByTenant[tenantID]; ok && siteExists[fallbackSid] {
+			return fallbackSid
+		}
+		return 0
+	}
+
+	// Bulk-load latest ISPU & WQMS/IKA environmental index evaluations across all sites (zero N+1 queries)
+	latestISPUBySite := make(map[uint]model.ISPUCalculationResult)
+	if db.Migrator().HasTable(&model.ISPUCalculationResult{}) {
+		var ispuRows []model.ISPUCalculationResult
+		_ = db.Preload("ParameterResults").
+			Where("calculated_at >= ? AND overall_category <> ?", now.Add(-48*time.Hour), string(model.CategoryUnavailable)).
+			Order("calculated_at DESC, id DESC").
+			Limit(500).
+			Find(&ispuRows).Error
+		for _, r := range ispuRows {
+			sid := resolveResultSiteID(r.TenantID, r.SiteID, r.DeviceID)
+			if sid > 0 {
+				if _, exists := latestISPUBySite[sid]; !exists {
+					latestISPUBySite[sid] = r
+				}
+			}
+		}
+	}
+
+	waterClassBySite := make(map[uint]model.WQMSWaterClass)
+	if db.Migrator().HasTable(&model.WQMSStationConfig{}) {
+		var wqmsConfigs []model.WQMSStationConfig
+		_ = db.Order("id DESC").Find(&wqmsConfigs).Error
+		for _, cfg := range wqmsConfigs {
+			sid := resolveResultSiteID(cfg.TenantID, cfg.SiteID, cfg.DeviceID)
+			if sid > 0 {
+				if _, exists := waterClassBySite[sid]; !exists && cfg.WaterClass != "" {
+					waterClassBySite[sid] = NormalizeWaterClass(string(cfg.WaterClass))
+				}
+			}
+		}
+	}
+
+	latestWQMSBySite := make(map[uint]model.WQMSCalculationResult)
+	ikaCategoriesBySite := make(map[uint][]model.WQMSIPCategory)
+	if db.Migrator().HasTable(&model.WQMSCalculationResult{}) {
+		var wqmsRows []model.WQMSCalculationResult
+		_ = db.Preload("ParameterResults").
+			Where("calculated_at >= ? AND overall_category <> ?", now.Add(-48*time.Hour), string(model.WQMSCategoryUnavailable)).
+			Order("calculated_at DESC, id DESC").
+			Limit(500).
+			Find(&wqmsRows).Error
+		for _, r := range wqmsRows {
+			sid := resolveResultSiteID(r.TenantID, r.SiteID, r.DeviceID)
+			if sid > 0 {
+				if _, exists := latestWQMSBySite[sid]; !exists {
+					latestWQMSBySite[sid] = r
+				}
+			}
+		}
+
+		type wqmsCatRow struct {
+			TenantID        uint                 `gorm:"column:tenant_id"`
+			SiteID          uint                 `gorm:"column:site_id"`
+			DeviceID        uint                 `gorm:"column:device_id"`
+			OverallCategory model.WQMSIPCategory `gorm:"column:overall_category"`
+		}
+		var histRows []wqmsCatRow
+		_ = db.Model(&model.WQMSCalculationResult{}).
+			Select("tenant_id, site_id, device_id, overall_category").
+			Where("calculated_at >= ? AND overall_category <> ?", now.Add(-30*24*time.Hour), string(model.WQMSCategoryUnavailable)).
+			Order("calculated_at DESC").
+			Limit(5000).
+			Scan(&histRows).Error
+		for _, hr := range histRows {
+			sid := resolveResultSiteID(hr.TenantID, hr.SiteID, hr.DeviceID)
+			if sid > 0 && len(ikaCategoriesBySite[sid]) < 720 {
+				ikaCategoriesBySite[sid] = append(ikaCategoriesBySite[sid], hr.OverallCategory)
+			}
+		}
+	}
+
+	ispuCalc := NewISPUCalculator()
+	wqmsCalc := NewWQMSCalculator()
 
 	yearSet := make(map[int]struct{})
 	tenantStats := make(map[uint]*FleetTenantOption, len(tenants))
@@ -544,6 +679,18 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 			yearSet[effectiveYear] = struct{}{}
 		}
 
+		var siteISPUSummary *FleetSiteISPUSummary
+		var siteWQMSSummary *FleetSiteWQMSSummary
+		if dom == "AQMS" {
+			siteISPUSummary = buildFleetSiteISPUSummary(st.ID, siteDevs, latestISPUBySite, ispuCalc)
+		} else if dom == "WQMS" || dom == "ONLIMO" {
+			wc := waterClassBySite[st.ID]
+			if wc == "" {
+				wc = model.WaterClass2
+			}
+			siteWQMSSummary = buildFleetSiteWQMSSummary(st.ID, siteDevs, wc, latestWQMSBySite, ikaCategoriesBySite[st.ID], wqmsCalc)
+		}
+
 		item := FleetSiteItem{
 			SiteID:              st.ID,
 			SiteCode:            st.Code,
@@ -579,6 +726,8 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 			TotalActiveAlarms:   totalSiteAlarms,
 			ActiveAlarms:        alarmItems,
 			Devices:             devBriefs,
+			ISPU:                siteISPUSummary,
+			WQMS:                siteWQMSSummary,
 		}
 		out.Sites = append(out.Sites, item)
 
@@ -688,4 +837,366 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func formatISPUCategoryLabel(cat model.ISPUCategory) string {
+	switch cat {
+	case model.CategoryBaik:
+		return "Baik"
+	case model.CategorySedang:
+		return "Sedang"
+	case model.CategoryTidakSehat:
+		return "Tidak Sehat"
+	case model.CategorySangatTidakSehat:
+		return "Sangat Tidak Sehat"
+	case model.CategoryBerbahaya:
+		return "Berbahaya"
+	default:
+		return "Tidak Tersedia"
+	}
+}
+
+func formatWQMSIPCategoryLabel(cat model.WQMSIPCategory) string {
+	switch cat {
+	case model.WQMSCategoryMemenuhi:
+		return "Memenuhi Baku Mutu"
+	case model.WQMSCategoryCemarRingan:
+		return "Cemar Ringan"
+	case model.WQMSCategoryCemarSedang:
+		return "Cemar Sedang"
+	case model.WQMSCategoryCemarBerat:
+		return "Cemar Berat"
+	default:
+		return "Tidak Tersedia"
+	}
+}
+
+func resolveLiveParamValue(p *model.Parameter) (float64, bool) {
+	if p == nil || !p.Enabled {
+		return 0, false
+	}
+	if p.CurrentFormulaValue != nil && !math.IsNaN(*p.CurrentFormulaValue) && !math.IsInf(*p.CurrentFormulaValue, 0) {
+		return *p.CurrentFormulaValue, true
+	}
+	if p.CurrentValue != nil && !math.IsNaN(*p.CurrentValue) && !math.IsInf(*p.CurrentValue, 0) {
+		return *p.CurrentValue, true
+	}
+	return 0, false
+}
+
+func buildFleetSiteISPUSummary(
+	siteID uint,
+	siteDevs []*model.Device,
+	latestBySite map[uint]model.ISPUCalculationResult,
+	calc *ISPUCalculator,
+) *FleetSiteISPUSummary {
+	if r, ok := latestBySite[siteID]; ok && r.OverallCategory != model.CategoryUnavailable {
+		rawScore := r.OverallISPU
+		cat := r.OverallCategory
+		domPoll := r.DominantPollutant
+		if r.CalculationMode == model.CalculationModeOperational && r.AggregationISPU > 0 && r.AggregationCategory != "" && r.AggregationCategory != model.CategoryUnavailable {
+			rawScore = r.AggregationISPU
+			cat = r.AggregationCategory
+			if r.AggregationDominant != "" {
+				domPoll = r.AggregationDominant
+			}
+		}
+		calcAt := r.CalculatedAt.UTC()
+		metrics := make([]FleetEnvParamMetric, 0, len(r.ParameterResults))
+		var domConc float64
+		domUnit := "µg/m³"
+		for _, pr := range r.ParameterResults {
+			subIdx := pr.CalculatedISPU
+			conc := pr.NormalizedConcentration
+			pCat := pr.Category
+			if r.CalculationMode == model.CalculationModeOperational && pr.AggregationISPU > 0 {
+				subIdx = pr.AggregationISPU
+				conc = pr.AggregationConcentration
+				if pr.AggregationCategory != "" && pr.AggregationCategory != model.CategoryUnavailable {
+					pCat = pr.AggregationCategory
+				}
+			}
+			u := pr.NormalizedUnit
+			if u == "" {
+				u = "µg/m³"
+			}
+			if pr.PollutantCode == domPoll {
+				domConc = roundTo(conc, 2)
+				domUnit = u
+			}
+			metrics = append(metrics, FleetEnvParamMetric{
+				Code:          string(pr.PollutantCode),
+				Concentration: roundTo(conc, 2),
+				Unit:          u,
+				SubIndex:      math.Round(subIdx),
+				Category:      string(pCat),
+			})
+		}
+		sort.SliceStable(metrics, func(i, j int) bool {
+			return metrics[i].SubIndex > metrics[j].SubIndex
+		})
+		return &FleetSiteISPUSummary{
+			Available:           true,
+			Score:               int(math.Round(rawScore)),
+			RawScore:            roundTo(rawScore, 1),
+			Category:            string(cat),
+			CategoryLabel:       formatISPUCategoryLabel(cat),
+			DominantPollutant:   string(domPoll),
+			DominantConc:        domConc,
+			DominantUnit:        domUnit,
+			CompletenessPercent: roundTo(r.CompletenessPercent, 1),
+			CalculationMode:     string(r.CalculationMode),
+			CalculatedAt:        &calcAt,
+			Parameters:          metrics,
+		}
+	}
+
+	// Instant live-sensor fallback for AQMS stations with active telemetry parameters
+	if calc == nil {
+		return &FleetSiteISPUSummary{Available: false, Category: string(model.CategoryUnavailable), CategoryLabel: "Tidak Tersedia"}
+	}
+	bestByPollutant := make(map[model.ISPUParameter]ParameterCalculationOutput)
+	var latestParamTime *time.Time
+	for _, dev := range siteDevs {
+		if isDeviceAdminDisabled(dev) {
+			continue
+		}
+		for i := range dev.Parameters {
+			p := &dev.Parameters[i]
+			val, ok := resolveLiveParamValue(p)
+			if !ok || val < 0 {
+				continue
+			}
+			pCode := p.ParameterCode
+			if pCode == "" {
+				pCode = p.Code
+			}
+			pName := p.ParameterName
+			if pName == "" {
+				pName = p.Name
+			}
+			poll, unit, factor := DetectOfficialPollutant(pCode, pName, p.Unit)
+			if poll == "" {
+				continue
+			}
+			eval := calc.CalculateParameter(ParameterCalculationInput{
+				PollutantCode:    poll,
+				ParameterID:      p.ID,
+				RawConcentration: val,
+				SourceUnit:       unit,
+				ConversionFactor: factor,
+				ValidSamples:     1,
+				ExpectedSamples:  1,
+				MinCompleteness:  75.0,
+			})
+			if !eval.IsEligible || eval.ErrorMessage != "" {
+				continue
+			}
+			if prev, exists := bestByPollutant[poll]; !exists || eval.CalculatedISPU > prev.CalculatedISPU {
+				bestByPollutant[poll] = eval
+			}
+			if p.LastUpdated != nil && (latestParamTime == nil || p.LastUpdated.After(*latestParamTime)) {
+				tCopy := p.LastUpdated.UTC()
+				latestParamTime = &tCopy
+			}
+		}
+	}
+
+	if len(bestByPollutant) == 0 {
+		return &FleetSiteISPUSummary{Available: false, Category: string(model.CategoryUnavailable), CategoryLabel: "Tidak Tersedia"}
+	}
+
+	paramOuts := make([]ParameterCalculationOutput, 0, len(bestByPollutant))
+	for _, po := range bestByPollutant {
+		paramOuts = append(paramOuts, po)
+	}
+	overall := calc.CalculateOverall(paramOuts, 75.0)
+	if overall.Category == model.CategoryUnavailable {
+		return &FleetSiteISPUSummary{Available: false, Category: string(model.CategoryUnavailable), CategoryLabel: "Tidak Tersedia"}
+	}
+
+	metrics := make([]FleetEnvParamMetric, 0, len(paramOuts))
+	var domConc float64
+	domUnit := "µg/m³"
+	for _, po := range paramOuts {
+		if po.PollutantCode == overall.DominantPollutant {
+			domConc = roundTo(po.NormalizedConcentration, 2)
+			if po.NormalizedUnit != "" {
+				domUnit = po.NormalizedUnit
+			}
+		}
+		metrics = append(metrics, FleetEnvParamMetric{
+			Code:          string(po.PollutantCode),
+			Concentration: roundTo(po.NormalizedConcentration, 2),
+			Unit:          po.NormalizedUnit,
+			SubIndex:      float64(po.DisplayISPU),
+			Category:      string(po.Category),
+		})
+	}
+	sort.SliceStable(metrics, func(i, j int) bool {
+		return metrics[i].SubIndex > metrics[j].SubIndex
+	})
+
+	return &FleetSiteISPUSummary{
+		Available:           true,
+		Score:               overall.DisplayISPU,
+		RawScore:            roundTo(overall.OverallISPU, 1),
+		Category:            string(overall.Category),
+		CategoryLabel:       formatISPUCategoryLabel(overall.Category),
+		DominantPollutant:   string(overall.DominantPollutant),
+		DominantConc:        domConc,
+		DominantUnit:        domUnit,
+		CompletenessPercent: roundTo(overall.CompletenessPercent, 1),
+		CalculationMode:     "LIVE_SENSOR",
+		CalculatedAt:        latestParamTime,
+		Parameters:          metrics,
+	}
+}
+
+func buildFleetSiteWQMSSummary(
+	siteID uint,
+	siteDevs []*model.Device,
+	waterClass model.WQMSWaterClass,
+	latestBySite map[uint]model.WQMSCalculationResult,
+	histCats []model.WQMSIPCategory,
+	calc *WQMSCalculator,
+) *FleetSiteWQMSSummary {
+	wc := NormalizeWaterClass(string(waterClass))
+	if r, ok := latestBySite[siteID]; ok && r.OverallCategory != model.WQMSCategoryUnavailable {
+		if r.WaterClass != "" {
+			wc = NormalizeWaterClass(string(r.WaterClass))
+		}
+		cats := histCats
+		if len(cats) == 0 {
+			cats = []model.WQMSIPCategory{r.OverallCategory}
+		}
+		var ika model.WQMSIKASummary
+		if calc != nil {
+			ika = calc.ComputeIKASummary(cats, wc, 30, string(r.CalculationMode))
+		}
+		calcAt := r.CalculatedAt.UTC()
+		metrics := make([]FleetEnvParamMetric, 0, len(r.ParameterResults))
+		for _, pr := range r.ParameterResults {
+			metrics = append(metrics, FleetEnvParamMetric{
+				Code:          string(pr.ParamCode),
+				Concentration: roundTo(pr.NormalizedMeasured, 2),
+				Unit:          pr.NormalizedUnit,
+				SubIndex:      roundTo(pr.AdjustedRatio, 2),
+			})
+		}
+		sort.SliceStable(metrics, func(i, j int) bool {
+			return metrics[i].SubIndex > metrics[j].SubIndex
+		})
+		return &FleetSiteWQMSSummary{
+			Available:         true,
+			WaterClass:        string(wc),
+			IPScore:           roundTo(r.OverallIP, 2),
+			IPCategory:        string(r.OverallCategory),
+			IPCategoryLabel:   formatWQMSIPCategoryLabel(r.OverallCategory),
+			DominantParameter: string(r.DominantParameter),
+			DominantConc:      roundTo(r.DominantConcentration, 2),
+			DominantUnit:      r.DominantUnit,
+			IKAScore:          ika.Score,
+			IKACategory:       string(ika.Category),
+			IKACategoryLabel:  ika.CategoryLabel,
+			CalculationMode:   string(r.CalculationMode),
+			CalculatedAt:      &calcAt,
+			Parameters:        metrics,
+		}
+	}
+
+	// Instant live-sensor fallback for WQMS / ONLIMO stations with active water parameters
+	if calc == nil {
+		return &FleetSiteWQMSSummary{Available: false, WaterClass: string(wc), IPCategory: string(model.WQMSCategoryUnavailable), IKACategory: string(model.IKACategoryUnavailable)}
+	}
+	inputsByCode := make(map[model.WQMSParamCode]WQMSParameterInput)
+	var latestParamTime *time.Time
+	for _, dev := range siteDevs {
+		if isDeviceAdminDisabled(dev) {
+			continue
+		}
+		for i := range dev.Parameters {
+			p := &dev.Parameters[i]
+			val, ok := resolveLiveParamValue(p)
+			if !ok || val < 0 {
+				continue
+			}
+			pCode := p.ParameterCode
+			if pCode == "" {
+				pCode = p.Code
+			}
+			pName := p.ParameterName
+			if pName == "" {
+				pName = p.Name
+			}
+			wParam, unit, factor := DetectOfficialWQMSParameter(pCode, pName, p.Unit)
+			if wParam == "" {
+				continue
+			}
+			pid := p.ID
+			inputsByCode[wParam] = WQMSParameterInput{
+				ParamCode:        wParam,
+				ParameterID:      &pid,
+				SourceType:       "SENSOR",
+				RawMeasured:      val,
+				SourceUnit:       unit,
+				ConversionFactor: factor,
+				ValidSamples:     1,
+				ExpectedSamples:  1,
+				MinCompleteness:  75.0,
+			}
+			if p.LastUpdated != nil && (latestParamTime == nil || p.LastUpdated.After(*latestParamTime)) {
+				tCopy := p.LastUpdated.UTC()
+				latestParamTime = &tCopy
+			}
+		}
+	}
+
+	if len(inputsByCode) == 0 {
+		return &FleetSiteWQMSSummary{Available: false, WaterClass: string(wc), IPCategory: string(model.WQMSCategoryUnavailable), IKACategory: string(model.IKACategoryUnavailable)}
+	}
+
+	inputs := make([]WQMSParameterInput, 0, len(inputsByCode))
+	for _, in := range inputsByCode {
+		inputs = append(inputs, in)
+	}
+	eval := calc.EvaluateStation(inputs, wc, 8.0)
+	if eval.OverallCategory == model.WQMSCategoryUnavailable {
+		return &FleetSiteWQMSSummary{Available: false, WaterClass: string(wc), IPCategory: string(model.WQMSCategoryUnavailable), IKACategory: string(model.IKACategoryUnavailable)}
+	}
+	cats := histCats
+	if len(cats) == 0 {
+		cats = []model.WQMSIPCategory{eval.OverallCategory}
+	}
+	ika := calc.ComputeIKASummary(cats, wc, 30, "LIVE_SENSOR")
+
+	metrics := make([]FleetEnvParamMetric, 0, len(eval.ParameterResults))
+	for _, pr := range eval.ParameterResults {
+		metrics = append(metrics, FleetEnvParamMetric{
+			Code:          string(pr.ParamCode),
+			Concentration: roundTo(pr.NormalizedMeasured, 2),
+			Unit:          pr.NormalizedUnit,
+			SubIndex:      roundTo(pr.AdjustedRatio, 2),
+		})
+	}
+	sort.SliceStable(metrics, func(i, j int) bool {
+		return metrics[i].SubIndex > metrics[j].SubIndex
+	})
+
+	return &FleetSiteWQMSSummary{
+		Available:         true,
+		WaterClass:        string(wc),
+		IPScore:           eval.OverallIP,
+		IPCategory:        string(eval.OverallCategory),
+		IPCategoryLabel:   formatWQMSIPCategoryLabel(eval.OverallCategory),
+		DominantParameter: string(eval.DominantParameter),
+		DominantConc:      roundTo(eval.DominantConcentration, 2),
+		DominantUnit:      eval.DominantUnit,
+		IKAScore:          ika.Score,
+		IKACategory:       string(ika.Category),
+		IKACategoryLabel:  ika.CategoryLabel,
+		CalculationMode:   "LIVE_SENSOR",
+		CalculatedAt:      latestParamTime,
+		Parameters:        metrics,
+	}
 }
