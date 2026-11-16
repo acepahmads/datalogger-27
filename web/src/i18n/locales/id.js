@@ -109,6 +109,7 @@ export default {
     "clear": "Bersihkan",
     "all": "Semua",
     "edit": "Ubah",
+    "copy": "Salin",
     "delete": "Hapus",
     "create": "Buat",
     "update": "Perbarui",
@@ -269,7 +270,8 @@ export default {
     "live": "Langsung",
     "code": "Kode",
     "copyDevice": "Salin Perangkat",
-    "copiedSuccess": "Perangkat '{name}' berhasil dibuat dari salinan!",
+    "copiedSuccess": "Perangkat '{name}' beserta seluruh parameternya berhasil disalin!",
+    "copiedSuccessWithCount": "Perangkat '{name}' beserta {count} parameter berhasil disalin!",
     "viewCopiedDevice": "Lihat Perangkat Baru",
     "total": "Total"
   },
@@ -739,8 +741,8 @@ export default {
     "savedSuccess": "Perangkat berhasil disimpan!",
     "titleCopy": "Salin Konfigurasi Perangkat Edge",
     "subtitleCopy": "Kloning konfigurasi perangkat untuk membuat perangkat baru yang independen.",
-    "copyBannerTitle": "Menyalin konfigurasi dari {code}",
-    "copyBannerDesc": "Tinjau dan tentukan kode perangkat unik baru serta sesuaikan pengaturan sebelum aktivasi.",
+    "copyBannerTitle": "Menyalin konfigurasi lengkap & parameter dari {code}",
+    "copyBannerDesc": "Seluruh parameter (alamat register, skala, formula, kalibrasi, batas alarm & deteksi stuck/spike), pengaturan koneksi, agregasi rollup, serta aktuator akan ikut disalin otomatis. Tentukan kode perangkat unik sebelum menyimpan.",
     "serialPortConflictWarning": "Peringatan: Port serial '{port}' juga dikonfigurasi pada perangkat '{device}'. Pastikan Slave ID unik pada bus RS-485 bersama, atau pilih port khusus sebelum aktivasi.",
     "copyButton": "Buat Perangkat Salinan"
   },

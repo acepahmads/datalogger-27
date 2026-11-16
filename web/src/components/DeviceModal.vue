@@ -52,13 +52,33 @@
         <!-- Copy Source Indicator Banner -->
         <div v-if="isCopying && sourceDevice" class="p-3.5 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-700/60 rounded-xl flex items-start space-x-3 text-xs shadow-xs animate-fade-in">
           <span class="text-cyan-600 dark:text-cyan-400 mt-0.5 text-base leading-none">📋</span>
-          <div class="flex-1">
-            <div class="font-bold text-cyan-950 dark:text-cyan-200">
-              {{ $t('deviceModal.copyBannerTitle', { code: sourceDevice.device_code || sourceDevice.code }) }}
-              <span class="font-normal text-cyan-700 dark:text-cyan-400">({{ sourceDevice.device_name || sourceDevice.name }})</span>
+          <div class="flex-1 space-y-1.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="font-bold text-cyan-950 dark:text-cyan-200">
+                {{ $t('deviceModal.copyBannerTitle', { code: sourceDevice.device_code || sourceDevice.code }) }}
+                <span class="font-normal text-cyan-700 dark:text-cyan-400">({{ sourceDevice.device_name || sourceDevice.name }})</span>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                ✓ {{ sourceParametersList.length }} Parameter Ikut Tersalin
+              </span>
             </div>
-            <div class="text-3xs text-cyan-800 dark:text-cyan-300/80 mt-1 leading-relaxed">
+            <div class="text-3xs text-cyan-800 dark:text-cyan-300/80 leading-relaxed">
               {{ $t('deviceModal.copyBannerDesc') }}
+            </div>
+            <div v-if="sourceParametersList.length > 0" class="flex flex-wrap items-center gap-1 pt-0.5">
+              <span
+                v-for="sp in sourceParametersList.slice(0, 12)"
+                :key="'copy-chip-' + sp.id"
+                class="px-1.5 py-0.5 rounded bg-white/90 dark:bg-[#0B0F19] border border-cyan-200 dark:border-cyan-800/70 font-mono text-4xs text-cyan-900 dark:text-cyan-200"
+              >
+                {{ sp.parameter_code || sp.code }}
+              </span>
+              <span
+                v-if="sourceParametersList.length > 12"
+                class="px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/50 font-mono text-4xs font-bold text-cyan-800 dark:text-cyan-200"
+              >
+                +{{ sourceParametersList.length - 12 }} lainnya
+              </span>
             </div>
           </div>
         </div>
@@ -105,8 +125,38 @@
             </div>
           </div>
 
-          <!-- Multi-Site Station Assignment -->
-          <div v-if="availableSites.length > 0">
+          <!-- Multi-Tenant & Multi-Site Station Assignment -->
+          <div v-if="isSuperAdmin && availableTenants.length > 1 && !isEditing" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Organisasi Tenant
+              </label>
+              <select
+                v-model.number="form.tenant_id"
+                @change="onTenantSelectionChange"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+              >
+                <option v-for="t in availableTenants" :key="'dm-tenant-' + t.id" :value="t.id">
+                  🏢 {{ t.name }} ({{ t.code }})
+                </option>
+              </select>
+            </div>
+            <div v-if="availableSites.length > 0">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Stasiun / Titik Pantau (Site)
+              </label>
+              <select
+                v-model.number="form.site_id"
+                @change="onSiteSelectionChange"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+              >
+                <option v-for="s in availableSites" :key="'dm-site-' + s.id" :value="s.id">
+                  📍 {{ s.name }} ({{ s.code }} · {{ s.monitoring_domain || 'AQMS' }})
+                </option>
+              </select>
+            </div>
+          </div>
+          <div v-else-if="availableSites.length > 0">
             <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Stasiun / Titik Pantau (Site)
             </label>
@@ -834,8 +884,10 @@ export default {
       detailedPorts: [],
       loadingPorts: false,
       useCustomPort: false,
+      fetchedSourceParams: null,
       fallbackPorts: ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyS0'],
       form: {
+        tenant_id: 1,
         site_id: 1,
         device_code: '',
         device_name: '',
@@ -913,8 +965,28 @@ export default {
       }
       return null;
     },
+    isSuperAdmin() {
+      if (this.$store && this.$store.getters && this.$store.getters.isSuperAdmin) return true;
+      const role = String((this.$store && this.$store.state && this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      return role === 'SUPERADMIN' || role === 'ADMINISTRATOR';
+    },
+    availableTenants() {
+      return (this.$store && this.$store.state && this.$store.state.availableTenants) || [];
+    },
     availableSites() {
+      const allSites = (this.$store && this.$store.state && this.$store.state.availableSites) || [];
+      if (this.isSuperAdmin && Number(this.form.tenant_id) > 0) {
+        const filtered = allSites.filter(s => Number(s.tenant_id) === Number(this.form.tenant_id));
+        if (filtered.length > 0) return filtered;
+      }
       return (this.$store && this.$store.getters && this.$store.getters.availableSites) || [];
+    },
+    sourceParametersList() {
+      if (Array.isArray(this.fetchedSourceParams)) return this.fetchedSourceParams;
+      if (this.sourceDevice && Array.isArray(this.sourceDevice.parameters)) {
+        return this.sourceDevice.parameters;
+      }
+      return [];
     },
     isCustomProtocol() {
       return this.form.connection.protocol === 'CUSTOM';
@@ -1090,14 +1162,40 @@ export default {
       }
       return candidate;
     },
+    async ensureSourceParametersLoaded(source) {
+      if (!source || !source.id) {
+        this.fetchedSourceParams = null;
+        return;
+      }
+      if (Array.isArray(source.parameters) && source.parameters.length > 0) {
+        this.fetchedSourceParams = source.parameters;
+        return;
+      }
+      try {
+        const res = await axios.get(`/api/devices/${source.id}`);
+        const fullDev = res && res.data && res.data.data;
+        if (fullDev && Array.isArray(fullDev.parameters)) {
+          this.fetchedSourceParams = fullDev.parameters;
+        }
+      } catch (_) {
+        this.fetchedSourceParams = Array.isArray(source.parameters) ? source.parameters : [];
+      }
+    },
     populateFromSource(source) {
+      this.ensureSourceParametersLoaded(source);
       let proto = (source.connection && source.connection.protocol) || source.device_type || 'MODBUS_TCP';
       if (proto === 'HTTP/REST' || proto === 'REST') proto = 'HTTP';
+      const isPassive = proto === 'EDGE_PUSH' || proto === 'MQTT';
+      const rawTimeout = (source.connection && (source.connection.timeout || source.connection.timeout_ms)) || 0;
+      const resolvedTimeout = isPassive
+        ? ((rawTimeout <= 0 || rawTimeout === 1000) ? 300 : rawTimeout)
+        : (rawTimeout || 1000);
       const suggestedCode = this.generateSuggestedCode(source.device_code || source.code);
       const baseName = source.device_name || source.name || 'Device';
       const suggestedName = `${baseName} (Copy)`;
 
       this.form = {
+        tenant_id: source.tenant_id || this.defaultTenantId(),
         site_id: source.site_id || this.defaultSiteId(),
         device_code: suggestedCode,
         device_name: suggestedName,
@@ -1109,16 +1207,16 @@ export default {
         firmware_version: source.firmware_version || '',
         description: source.description || '',
         location: source.location || '',
-        latitude: source.latitude || null,
-        longitude: source.longitude || null,
+        latitude: source.latitude !== undefined ? source.latitude : null,
+        longitude: source.longitude !== undefined ? source.longitude : null,
         timezone: source.timezone || 'UTC',
         status: 'ACTIVE',
-        enabled: false, // Rule 3E: disabled by default to prevent polling collision
+        enabled: false, // Rule 3E: disabled by default to prevent polling collision until user activates
         connection: {
           protocol: proto,
           connection_type: (source.connection && source.connection.connection_type) || (proto === 'MODBUS_RTU' || proto === 'SERIAL' ? 'SERIAL' : 'ETHERNET'),
           host: (source.connection && (source.connection.host || source.connection.address)) || '',
-          port: (source.connection && source.connection.port) || (proto === 'MODBUS_TCP' ? 502 : 502),
+          port: (source.connection && source.connection.port) || (proto === 'MODBUS_TCP' ? 502 : (proto === 'MQTT' ? 1883 : 502)),
           slave_id: (source.connection && source.connection.slave_id) || 1,
           byte_order: (source.connection && source.connection.byte_order) || 'ABCD',
           serial_port: (source.connection && (source.connection.serial_port || source.connection.address)) || 'COM1',
@@ -1126,10 +1224,10 @@ export default {
           data_bits: (source.connection && source.connection.data_bits) || 8,
           parity: (source.connection && source.connection.parity) || 'N',
           stop_bits: (source.connection && source.connection.stop_bits) || 1,
-          timeout: (source.connection && (source.connection.timeout || source.connection.timeout_ms)) || 1000,
+          timeout: resolvedTimeout,
           retry_count: (source.connection && source.connection.retry_count) || 3,
           polling_interval: (source.connection && (source.connection.polling_interval || source.connection.poll_interval_ms)) || 1000,
-          enabled: false,
+          enabled: source.connection && source.connection.enabled !== undefined ? source.connection.enabled : true,
           extra_config: (source.connection && source.connection.extra_config) || '',
           batch_read_enabled: !!(source.connection && source.connection.batch_read_enabled),
           max_batch_registers: (source.connection && source.connection.max_batch_registers) || 32,
@@ -1223,11 +1321,24 @@ export default {
         }
       }
     },
+    defaultTenantId() {
+      const active = Number(this.$store && this.$store.state && this.$store.state.activeTenantId);
+      if (active > 0) return active;
+      if (this.availableTenants.length > 0) return this.availableTenants[0].id;
+      return 1;
+    },
     defaultSiteId() {
       const active = Number(this.$store && this.$store.state && this.$store.state.activeSiteId);
       if (active > 0) return active;
       if (this.availableSites.length > 0) return this.availableSites[0].id;
       return 1;
+    },
+    onTenantSelectionChange() {
+      const sites = this.availableSites;
+      if (sites.length > 0 && !sites.some(s => Number(s.id) === Number(this.form.site_id))) {
+        this.form.site_id = sites[0].id;
+        this.onSiteSelectionChange();
+      }
     },
     onSiteSelectionChange() {
       const chosen = this.availableSites.find(s => Number(s.id) === Number(this.form.site_id));
@@ -1236,7 +1347,9 @@ export default {
       }
     },
     resetForm() {
+      this.fetchedSourceParams = null;
       this.form = {
+        tenant_id: this.defaultTenantId(),
         site_id: this.defaultSiteId(),
         device_code: '',
         device_name: '',
@@ -1332,9 +1445,13 @@ export default {
             source_device_id: (this.isCopying && this.sourceDevice) ? this.sourceDevice.id : undefined,
           };
           const createdDev = await this.$store.dispatch('createDevice', payload);
+          const copiedParamsCount = (createdDev && Array.isArray(createdDev.parameters))
+            ? createdDev.parameters.length
+            : (this.isCopying ? this.sourceParametersList.length : 0);
           this.$emit('saved', {
             ...(createdDev || {}),
             isCopy: this.isCopying,
+            copiedParamsCount,
             deviceCode: (createdDev && (createdDev.device_code || createdDev.code)) || this.form.device_code,
             deviceName: (createdDev && (createdDev.device_name || createdDev.name)) || this.form.device_name,
             id: createdDev ? createdDev.id : undefined,

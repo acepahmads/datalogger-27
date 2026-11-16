@@ -688,8 +688,26 @@ func TestSingleProtocolSelectionAndSync(t *testing.T) {
 
 func TestCloneDevice(t *testing.T) {
 	db, devService, _ := setupDeviceTestDB(t)
+	_ = db.AutoMigrate(
+		&model.ParameterCategory{},
+		&model.AggregationDefinition{},
+		&model.DeviceActuator{},
+		&model.ActuationSchedule{},
+		&model.ISPUParameterMapping{},
+	)
 
-	// 1. Create source device
+	// 1. Create source device with category, parameters, aggregation, actuator+schedule, and ISPU mapping
+	cat := &model.ParameterCategory{
+		TenantID: 1,
+		Name:     "Particulate",
+		Code:     "PARTICULATE",
+		ColorKey: "cyan",
+		Enabled:  true,
+	}
+	if err := db.Create(cat).Error; err != nil {
+		t.Fatalf("Failed to create category: %v", err)
+	}
+
 	srcDev, err := devService.CreateDevice(&service.CreateDeviceRequest{
 		DeviceCode: "AQMS-SRC-01",
 		DeviceName: "Source AQMS Station",
@@ -711,7 +729,114 @@ func TestCloneDevice(t *testing.T) {
 		t.Fatalf("Failed to create source device: %v", err)
 	}
 
-	// 2. Clone device with new unique code and SourceDeviceID
+	liveVal := 38.75
+	warnHigh := 55.0
+	critHigh := 150.0
+	stuckOn := true
+	pollMs := 2000
+	srcPM25 := &model.Parameter{
+		DeviceID:                 srcDev.ID,
+		ParameterCode:            "PM25",
+		ParameterName:            "Particulate Matter 2.5",
+		DataType:                 model.DataTypeFloat32,
+		Unit:                     "µg/m³",
+		CategoryID:               &cat.ID,
+		SlaveID:                  1,
+		RegisterAddress:          40001,
+		RegisterType:             "HOLDING_REGISTER",
+		ByteOrder:                "CDAB",
+		Scale:                    0.1,
+		Offset:                   1.5,
+		Precision:                2,
+		Formula:                  "x * 1.02",
+		HoldLastValueEnabled:     true,
+		HoldLastValueSeconds:     180,
+		CalibrationEnabled:       true,
+		CalibrationModel:         "LINEAR",
+		CalC1:                    1.05,
+		CalC0:                    -0.4,
+		WarningHigh:              &warnHigh,
+		CriticalHigh:             &critHigh,
+		QualityValidationEnabled: true,
+		ProcessingEnabled:        true,
+		StaleTimeoutSeconds:      180,
+		SpikeDetectionEnabled:    true,
+		SpikeThreshold:           50.0,
+		SpikeWindowSize:          5,
+		StuckDetectionEnabled:    &stuckOn,
+		StuckCountThreshold:      15,
+		PollingIntervalMs:        &pollMs,
+		CurrentValue:             &liveVal,
+		Enabled:                  true,
+	}
+	if err := db.Create(srcPM25).Error; err != nil {
+		t.Fatalf("Failed to create source PM25 parameter: %v", err)
+	}
+	srcTemp := &model.Parameter{
+		DeviceID:        srcDev.ID,
+		ParameterCode:   "TEMP",
+		ParameterName:   "Ambient Temperature",
+		DataType:        model.DataTypeFloat32,
+		Unit:            "°C",
+		SlaveID:         1,
+		RegisterAddress: 40003,
+		RegisterType:    "HOLDING_REGISTER",
+		Scale:           0.01,
+		Enabled:         true,
+	}
+	if err := db.Create(srcTemp).Error; err != nil {
+		t.Fatalf("Failed to create source TEMP parameter: %v", err)
+	}
+
+	db.Create(&model.AggregationDefinition{
+		TenantID:        1,
+		SiteID:          1,
+		Name:            "Rollup 2m - PM2.5",
+		Code:            fmt.Sprintf("AGG_%d_PM25_120S", srcDev.ID),
+		SourceType:      model.SourceCustomerProcessed,
+		DeviceID:        srcDev.ID,
+		ParameterID:     srcPM25.ID,
+		Function:        model.FunctionAvg,
+		IntervalSeconds: 120,
+		Enabled:         true,
+	})
+	srcAct := &model.DeviceActuator{
+		TenantID:            1,
+		SiteID:              1,
+		DeviceID:            srcDev.ID,
+		ActuatorCode:        "ZERO_VALVE",
+		ActuatorName:        "Zero Calibration Solenoid",
+		ControlType:         "COIL_FC05",
+		SlaveID:             1,
+		RegisterAddress:     10,
+		FeedbackParameterID: &srcTemp.ID,
+		CurrentState:        "ON",
+		Enabled:             true,
+	}
+	db.Create(srcAct)
+	db.Create(&model.ActuationSchedule{
+		ActuatorID:      srcAct.ID,
+		ScheduleName:    "Every 2 Hours Purge",
+		ScheduleType:    "INTERVAL",
+		IntervalSeconds: 7200,
+		DurationSeconds: 120,
+		Enabled:         true,
+	})
+	db.Create(&model.ISPUParameterMapping{
+		TenantID:         1,
+		SiteID:           1,
+		DeviceID:         srcDev.ID,
+		ParameterID:      srcPM25.ID,
+		PollutantCode:    model.PollutantPM25,
+		SourceUnit:       "µg/m³",
+		NormalizedUnit:   "µg/m³",
+		ConversionFactor: 1.0,
+		ConversionRule:   "DIRECT",
+		DailyStartHour:   9,
+		Enabled:          true,
+	})
+
+	// 2. Clone device with new unique code, SourceDeviceID, and distinct SlaveID=2
 	clonedDev, err := devService.CreateDevice(&service.CreateDeviceRequest{
 		DeviceCode:     "AQMS-CLONE-02",
 		DeviceName:     "Cloned AQMS Station",
@@ -724,7 +849,7 @@ func TestCloneDevice(t *testing.T) {
 			DataBits:        8,
 			Parity:          "N",
 			StopBits:        1,
-			SlaveID:         2, // distinct slave ID
+			SlaveID:         2, // distinct slave ID on shared RS-485 bus
 			Timeout:         1000,
 			RetryCount:      3,
 			PollingInterval: 2000,
@@ -741,13 +866,63 @@ func TestCloneDevice(t *testing.T) {
 	if clonedDev.DeviceCode != "AQMS-CLONE-02" {
 		t.Errorf("Expected cloned code AQMS-CLONE-02, got %s", clonedDev.DeviceCode)
 	}
+	if len(clonedDev.Parameters) != 2 {
+		t.Fatalf("Expected 2 cloned parameters preloaded on returned device, got %d", len(clonedDev.Parameters))
+	}
+
+	var clonedPM25, clonedTemp model.Parameter
+	for _, cp := range clonedDev.Parameters {
+		switch cp.ParameterCode {
+		case "PM25":
+			clonedPM25 = cp
+		case "TEMP":
+			clonedTemp = cp
+		}
+	}
+	if clonedPM25.ID == 0 || clonedPM25.ID == srcPM25.ID {
+		t.Fatalf("Expected distinct cloned PM25 parameter ID, got %d", clonedPM25.ID)
+	}
+	if clonedPM25.RegisterAddress != 40001 || clonedPM25.ByteOrder != "CDAB" || clonedPM25.Scale != 0.1 || clonedPM25.Offset != 1.5 {
+		t.Errorf("Cloned PM25 register/scaling mismatch: %+v", clonedPM25)
+	}
+	if clonedPM25.SlaveID != 2 || clonedTemp.SlaveID != 2 {
+		t.Errorf("Expected uniform SlaveID 1 -> 2 remapping on cloned parameters, got PM25=%d TEMP=%d", clonedPM25.SlaveID, clonedTemp.SlaveID)
+	}
+	if clonedPM25.Formula != "x * 1.02" || !clonedPM25.CalibrationEnabled || clonedPM25.CalC1 != 1.05 {
+		t.Errorf("Cloned PM25 formula/calibration mismatch: formula=%q calEnabled=%v calC1=%v", clonedPM25.Formula, clonedPM25.CalibrationEnabled, clonedPM25.CalC1)
+	}
+	if clonedPM25.WarningHigh == nil || *clonedPM25.WarningHigh != 55.0 || clonedPM25.StuckCountThreshold != 15 || !clonedPM25.SpikeDetectionEnabled {
+		t.Errorf("Cloned PM25 alarm/quality config mismatch: %+v", clonedPM25)
+	}
+	if clonedPM25.CurrentValue != nil {
+		t.Errorf("Expected cloned parameter runtime CurrentValue to be reset (nil), got %v", *clonedPM25.CurrentValue)
+	}
+
+	// Verify AggregationDefinition, Actuator+Schedule, and ISPUParameterMapping were also cloned and remapped
+	var clonedAggs []model.AggregationDefinition
+	db.Where("device_id = ?", clonedDev.ID).Find(&clonedAggs)
+	if len(clonedAggs) != 1 || clonedAggs[0].ParameterID != clonedPM25.ID {
+		t.Fatalf("Expected 1 cloned AggregationDefinition pointing to clonedPM25 (%d), got %+v", clonedPM25.ID, clonedAggs)
+	}
+
+	var clonedActs []model.DeviceActuator
+	db.Preload("Schedules").Where("device_id = ?", clonedDev.ID).Find(&clonedActs)
+	if len(clonedActs) != 1 || clonedActs[0].FeedbackParameterID == nil || *clonedActs[0].FeedbackParameterID != clonedTemp.ID || len(clonedActs[0].Schedules) != 1 {
+		t.Fatalf("Expected cloned DeviceActuator with remapped FeedbackParameterID=%d and 1 schedule, got %+v", clonedTemp.ID, clonedActs)
+	}
+
+	var clonedMaps []model.ISPUParameterMapping
+	db.Where("device_id = ?", clonedDev.ID).Find(&clonedMaps)
+	if len(clonedMaps) != 1 || clonedMaps[0].ParameterID != clonedPM25.ID || clonedMaps[0].DailyStartHour != 9 {
+		t.Fatalf("Expected cloned ISPUParameterMapping for clonedPM25 (%d), got %+v", clonedPM25.ID, clonedMaps)
+	}
 
 	freshSrc, err := devService.GetDeviceByID(srcDev.ID)
 	if err != nil {
 		t.Fatalf("Failed to fetch fresh source: %v", err)
 	}
-	if freshSrc.DeviceCode != "AQMS-SRC-01" {
-		t.Errorf("Source device code modified! Got %s", freshSrc.DeviceCode)
+	if freshSrc.DeviceCode != "AQMS-SRC-01" || len(freshSrc.Parameters) != 2 {
+		t.Errorf("Source device or its parameters modified! Got code=%s params=%d", freshSrc.DeviceCode, len(freshSrc.Parameters))
 	}
 
 	// 3. Verify duplicate code rejection
@@ -759,7 +934,7 @@ func TestCloneDevice(t *testing.T) {
 		t.Fatalf("Expected duplicate device code to be rejected, but succeeded")
 	}
 
-	// 4. Verify audit trail recorded CLONE_DEVICE
+	// 4. Verify audit trail recorded CLONE_DEVICE + cloned_parameters_count
 	var audits []model.AuditTrail
 	err = db.Where("action = ?", "CLONE_DEVICE").Find(&audits).Error
 	if err != nil {
@@ -772,8 +947,8 @@ func TestCloneDevice(t *testing.T) {
 	for _, a := range audits {
 		if a.Action == "CLONE_DEVICE" && strings.Contains(a.Details, fmt.Sprintf(`"device_id":%d`, clonedDev.ID)) {
 			foundCloneAudit = true
-			if !strings.Contains(a.Details, "cloned_from_device_id") {
-				t.Errorf("Expected audit Details to contain cloned_from_device_id, got: %s", a.Details)
+			if !strings.Contains(a.Details, "cloned_from_device_id") || !strings.Contains(a.Details, `"cloned_parameters_count":2`) {
+				t.Errorf("Expected audit Details to contain cloned_from_device_id and cloned_parameters_count:2, got: %s", a.Details)
 			}
 		}
 	}

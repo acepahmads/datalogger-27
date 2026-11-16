@@ -162,13 +162,29 @@ func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 	}
 
 	scope := middleware.GetScope(c)
+	var srcDevForScope *model.Device
+	if req.SourceDeviceID != nil && *req.SourceDeviceID > 0 {
+		srcDev, ok := h.checkDeviceAccess(c, *req.SourceDeviceID)
+		if !ok {
+			return
+		}
+		srcDevForScope = srcDev
+	}
+
 	if scope.Authenticated {
 		if !scope.IsSuperAdmin && scope.UserTenantID != nil && *scope.UserTenantID > 0 && isHostSerialProtocol(req.DeviceType, req.Connection) {
 			response.Forbidden(c, "Host physical serial ports (MODBUS_RTU / SERIAL) can only be configured by SUPERADMIN")
 			return
 		}
-		req.TenantID = scope.WriteTenantID(req.TenantID)
-		req.SiteID = scope.WriteSiteID(req.SiteID)
+		if scope.IsSuperAdmin && scope.TenantID == 0 && req.TenantID == 0 && srcDevForScope != nil && srcDevForScope.TenantID > 0 {
+			req.TenantID = srcDevForScope.TenantID
+			if req.SiteID == 0 && srcDevForScope.SiteID > 0 {
+				req.SiteID = srcDevForScope.SiteID
+			}
+		} else {
+			req.TenantID = scope.WriteTenantID(req.TenantID)
+			req.SiteID = scope.WriteSiteID(req.SiteID)
+		}
 		if req.SiteID > 0 && !scope.IsSiteAllowed(req.SiteID) {
 			response.Forbidden(c, "Access denied to selected station")
 			return

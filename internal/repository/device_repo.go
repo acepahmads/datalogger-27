@@ -311,9 +311,426 @@ func (r *DeviceRepository) Delete(id uint) error {
 	})
 }
 
-// SetEnabled toggles enabled status
+// SetEnabled toggles enabled status (and ensures transport connection is enabled when activating)
 func (r *DeviceRepository) SetEnabled(id uint, enabled bool) error {
-	return r.db.Model(&model.Device{}).Where("id = ?", id).Update("enabled", enabled).Error
+	if err := r.db.Model(&model.Device{}).Where("id = ?", id).Update("enabled", enabled).Error; err != nil {
+		return err
+	}
+	if enabled {
+		_ = r.db.Model(&model.DeviceConnection{}).Where("device_id = ?", id).Update("enabled", true).Error
+	}
+	return nil
+}
+
+// DeviceCloneSummary reports how many child records were deep-copied onto a cloned device.
+type DeviceCloneSummary struct {
+	Parameters    int `json:"parameters"`
+	Sensors       int `json:"sensors"`
+	Aggregations  int `json:"aggregations"`
+	Actuators     int `json:"actuators"`
+	Schedules     int `json:"schedules"`
+	ISPUMappings  int `json:"ispu_mappings"`
+}
+
+func cloneFloat64Ptr(p *float64) *float64 {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
+func cloneIntPtr(p *int) *int {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
+func cloneBoolPtr(p *bool) *bool {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
+func cloneTimePtr(p *time.Time) *time.Time {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
+// CloneDeviceChildren deep-copies all parameters (including register setup, scaling, limits, formulas,
+// calibration curves, quality/stuck/spike detection, and cross-tenant categories), sensor metadata,
+// aggregation rollup definitions, actuators + schedules, and ISPU mappings from srcDevice to targetDevice.
+func (r *DeviceRepository) CloneDeviceChildren(srcDevice, targetDevice *model.Device) (*DeviceCloneSummary, error) {
+	summary := &DeviceCloneSummary{}
+	if srcDevice == nil || targetDevice == nil || srcDevice.ID == 0 || targetDevice.ID == 0 {
+		return summary, nil
+	}
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var srcParams []model.Parameter
+		if err := tx.Preload("Category").
+			Where("device_id = ? AND deleted_at IS NULL", srcDevice.ID).
+			Order("id ASC").
+			Find(&srcParams).Error; err != nil {
+			return err
+		}
+
+		srcConnSlave := 0
+		if srcDevice.Connection != nil {
+			srcConnSlave = srcDevice.Connection.SlaveID
+		}
+		dstConnSlave := 0
+		if targetDevice.Connection != nil {
+			dstConnSlave = targetDevice.Connection.SlaveID
+		}
+
+		// Remap parameter SlaveID only when source had uniform SlaveID matching source connection
+		// AND the user explicitly changed SlaveID on the cloned connection (e.g. shared RS-485 bus).
+		remapUniformSlave := srcConnSlave > 0 && dstConnSlave > 0 && srcConnSlave != dstConnSlave
+		if remapUniformSlave {
+			for _, sp := range srcParams {
+				if sp.SlaveID > 0 && sp.SlaveID != srcConnSlave {
+					remapUniformSlave = false
+					break
+				}
+			}
+		}
+
+		catCache := make(map[uint]*uint)
+		resolveCategoryID := func(sp *model.Parameter) (*uint, error) {
+			if sp.CategoryID == nil || *sp.CategoryID == 0 {
+				return nil, nil
+			}
+			srcCatID := *sp.CategoryID
+			if cached, ok := catCache[srcCatID]; ok {
+				return cached, nil
+			}
+
+			var srcCat model.ParameterCategory
+			if sp.Category != nil && sp.Category.ID == srcCatID {
+				srcCat = *sp.Category
+			} else if err := tx.Where("id = ? AND deleted_at IS NULL", srcCatID).First(&srcCat).Error; err != nil {
+				catCache[srcCatID] = nil
+				return nil, nil
+			}
+
+			if srcCat.TenantID == targetDevice.TenantID || targetDevice.TenantID == 0 {
+				cid := srcCat.ID
+				catCache[srcCatID] = &cid
+				return &cid, nil
+			}
+
+			// Cross-tenant copy: find or create matching ParameterCategory in target tenant
+			var dstCat model.ParameterCategory
+			err := tx.Where("tenant_id = ? AND deleted_at IS NULL AND (LOWER(code) = LOWER(?) OR LOWER(name) = LOWER(?))",
+				targetDevice.TenantID, srcCat.Code, srcCat.Name).
+				First(&dstCat).Error
+			if err != nil {
+				dstCat = model.ParameterCategory{
+					TenantID:          targetDevice.TenantID,
+					Name:              srcCat.Name,
+					Code:              srcCat.Code,
+					Description:       srcCat.Description,
+					IconKey:           srcCat.IconKey,
+					ColorKey:          srcCat.ColorKey,
+					DisplayOrder:      srcCat.DisplayOrder,
+					DefaultColumnSpan: srcCat.DefaultColumnSpan,
+					Enabled:           srcCat.Enabled,
+					Domain:            srcCat.Domain,
+				}
+				if cErr := tx.Create(&dstCat).Error; cErr != nil {
+					return nil, cErr
+				}
+			}
+			cid := dstCat.ID
+			catCache[srcCatID] = &cid
+			return &cid, nil
+		}
+
+		paramIDMap := make(map[uint]uint, len(srcParams))
+		hasSensorTable := tx.Migrator().HasTable(&model.Sensor{})
+
+		for i := range srcParams {
+			sp := &srcParams[i]
+			resolvedCatID, err := resolveCategoryID(sp)
+			if err != nil {
+				return err
+			}
+
+			targetSlaveID := sp.SlaveID
+			if remapUniformSlave {
+				targetSlaveID = dstConnSlave
+			}
+
+			newParam := model.Parameter{
+				DeviceID:                 targetDevice.ID,
+				ParameterCode:            sp.ParameterCode,
+				ParameterName:            sp.ParameterName,
+				Code:                     sp.Code,
+				Name:                     sp.Name,
+				DataType:                 sp.DataType,
+				Unit:                     sp.Unit,
+				Icon:                     sp.Icon,
+				StatusOnLabel:            sp.StatusOnLabel,
+				StatusOffLabel:           sp.StatusOffLabel,
+				ZeroValueAlarmPolicy:     sp.ZeroValueAlarmPolicy,
+				CategoryID:               resolvedCatID,
+				Description:              sp.Description,
+				MinValue:                 cloneFloat64Ptr(sp.MinValue),
+				MaxValue:                 cloneFloat64Ptr(sp.MaxValue),
+				LowLimit:                 cloneFloat64Ptr(sp.LowLimit),
+				HighLimit:                cloneFloat64Ptr(sp.HighLimit),
+				WarningLow:               cloneFloat64Ptr(sp.WarningLow),
+				WarningHigh:              cloneFloat64Ptr(sp.WarningHigh),
+				CriticalLow:              cloneFloat64Ptr(sp.CriticalLow),
+				CriticalHigh:             cloneFloat64Ptr(sp.CriticalHigh),
+				Hysteresis:               cloneFloat64Ptr(sp.Hysteresis),
+				Precision:                sp.Precision,
+				Scale:                    sp.Scale,
+				ScaleFactor:              sp.ScaleFactor,
+				Offset:                   sp.Offset,
+				SlaveID:                  targetSlaveID,
+				RegisterAddress:          sp.RegisterAddress,
+				RegisterType:             sp.RegisterType,
+				ByteOrder:                sp.ByteOrder,
+				BatchMode:                sp.BatchMode,
+				Enabled:                  sp.Enabled,
+				PollingIntervalMs:        cloneIntPtr(sp.PollingIntervalMs),
+				Formula:                  sp.Formula,
+				HoldLastValueEnabled:     sp.HoldLastValueEnabled,
+				HoldLastValueSeconds:     sp.HoldLastValueSeconds,
+				CalibrationEnabled:       sp.CalibrationEnabled,
+				CalibrationModel:         sp.CalibrationModel,
+				CalibrationDomain:        sp.CalibrationDomain,
+				CalC2:                    sp.CalC2,
+				CalC1:                    sp.CalC1,
+				CalC0:                    sp.CalC0,
+				CalMinR2:                 sp.CalMinR2,
+				CalR2:                    cloneFloat64Ptr(sp.CalR2),
+				CalRMSE:                  cloneFloat64Ptr(sp.CalRMSE),
+				CalPointCount:            sp.CalPointCount,
+				CalPointsJSON:            sp.CalPointsJSON,
+				CalStandardNote:          sp.CalStandardNote,
+				CalUpdatedAt:             cloneTimePtr(sp.CalUpdatedAt),
+				CalUpdatedBy:             sp.CalUpdatedBy,
+				CalibrationSessionActive: false,
+				QualityValidationEnabled: sp.QualityValidationEnabled,
+				ProcessingEnabled:        sp.ProcessingEnabled,
+				StaleTimeoutSeconds:      sp.StaleTimeoutSeconds,
+				SpikeDetectionEnabled:    sp.SpikeDetectionEnabled,
+				SpikeThreshold:           sp.SpikeThreshold,
+				SpikeWindowSize:          sp.SpikeWindowSize,
+				StuckDetectionEnabled:    cloneBoolPtr(sp.StuckDetectionEnabled),
+				StuckCountThreshold:      sp.StuckCountThreshold,
+				CurrentQuality:           model.QualityUnknown,
+				CurrentQualityReason:     model.ReasonNone,
+			}
+
+			if err := tx.Create(&newParam).Error; err != nil {
+				return err
+			}
+			paramIDMap[sp.ID] = newParam.ID
+			summary.Parameters++
+
+			if hasSensorTable {
+				var srcSensors []model.Sensor
+				if sErr := tx.Where("parameter_id = ?", sp.ID).Order("id ASC").Find(&srcSensors).Error; sErr == nil {
+					for _, ss := range srcSensors {
+						newSensor := model.Sensor{
+							ParameterID: newParam.ID,
+							Model:       ss.Model,
+							SerialNo:    ss.SerialNo,
+							Calibration: cloneTimePtr(ss.Calibration),
+							Accuracy:    ss.Accuracy,
+							RangeMin:    ss.RangeMin,
+							RangeMax:    ss.RangeMax,
+						}
+						if err := tx.Create(&newSensor).Error; err == nil {
+							summary.Sensors++
+						}
+					}
+				}
+			}
+		}
+
+		// 2. Clone AggregationDefinitions mapped to newly created parameter IDs
+		if len(paramIDMap) > 0 && tx.Migrator().HasTable(&model.AggregationDefinition{}) {
+			var srcAggs []model.AggregationDefinition
+			if aErr := tx.Where("device_id = ? AND deleted_at IS NULL", srcDevice.ID).Order("id ASC").Find(&srcAggs).Error; aErr == nil {
+				srcPrefix := "AGG_" + strconv.FormatUint(uint64(srcDevice.ID), 10) + "_"
+				dstPrefix := "AGG_" + strconv.FormatUint(uint64(targetDevice.ID), 10) + "_"
+				usedCodes := make(map[string]bool)
+
+				for _, sa := range srcAggs {
+					newParamID, ok := paramIDMap[sa.ParameterID]
+					if !ok || newParamID == 0 {
+						continue
+					}
+					aggCode := sa.Code
+					if strings.HasPrefix(aggCode, srcPrefix) {
+						aggCode = dstPrefix + strings.TrimPrefix(aggCode, srcPrefix)
+					}
+					if len(aggCode) > 64 {
+						aggCode = aggCode[:64]
+					}
+					if usedCodes[strings.ToUpper(aggCode)] {
+						suffix := "_" + strconv.FormatUint(uint64(newParamID), 10)
+						maxBase := 64 - len(suffix)
+						if len(aggCode) > maxBase {
+							aggCode = aggCode[:maxBase]
+						}
+						aggCode += suffix
+					}
+					usedCodes[strings.ToUpper(aggCode)] = true
+
+					newAgg := model.AggregationDefinition{
+						TenantID:           targetDevice.TenantID,
+						SiteID:             targetDevice.SiteID,
+						Name:               sa.Name,
+						Code:               aggCode,
+						SourceType:         sa.SourceType,
+						DeviceID:           targetDevice.ID,
+						ParameterID:        newParamID,
+						Function:           sa.Function,
+						IntervalSeconds:    sa.IntervalSeconds,
+						Timezone:           sa.Timezone,
+						Enabled:            sa.Enabled,
+						QualityPolicy:      sa.QualityPolicy,
+						IdentifierFormat:   sa.IdentifierFormat,
+						DestinationType:    sa.DestinationType,
+						GracePeriodSeconds: sa.GracePeriodSeconds,
+						StartAt:            cloneTimePtr(sa.StartAt),
+						EndAt:              cloneTimePtr(sa.EndAt),
+					}
+					if err := tx.Create(&newAgg).Error; err != nil {
+						return err
+					}
+					summary.Aggregations++
+				}
+			}
+		}
+
+		// 3. Clone DeviceActuators & ActuationSchedules
+		if tx.Migrator().HasTable(&model.DeviceActuator{}) {
+			var srcActs []model.DeviceActuator
+			q := tx.Where("device_id = ?", srcDevice.ID).Order("id ASC")
+			if tx.Migrator().HasTable(&model.ActuationSchedule{}) {
+				q = q.Preload("Schedules")
+			}
+			if actErr := q.Find(&srcActs).Error; actErr == nil && len(srcActs) > 0 {
+				remapActSlave := srcConnSlave > 0 && dstConnSlave > 0 && srcConnSlave != dstConnSlave && dstConnSlave <= 255
+				if remapActSlave {
+					for _, sa := range srcActs {
+						if int(sa.SlaveID) > 0 && int(sa.SlaveID) != srcConnSlave {
+							remapActSlave = false
+							break
+						}
+					}
+				}
+
+				for _, sa := range srcActs {
+					var newFeedbackID *uint
+					if sa.FeedbackParameterID != nil && *sa.FeedbackParameterID > 0 {
+						if mappedID, ok := paramIDMap[*sa.FeedbackParameterID]; ok && mappedID > 0 {
+							fid := mappedID
+							newFeedbackID = &fid
+						}
+					}
+					actSlave := sa.SlaveID
+					if remapActSlave {
+						actSlave = byte(dstConnSlave)
+					}
+
+					newAct := model.DeviceActuator{
+						TenantID:             targetDevice.TenantID,
+						SiteID:               targetDevice.SiteID,
+						DeviceID:             targetDevice.ID,
+						ActuatorCode:         sa.ActuatorCode,
+						ActuatorName:         sa.ActuatorName,
+						Description:          sa.Description,
+						Icon:                 sa.Icon,
+						ControlType:          sa.ControlType,
+						SlaveID:              actSlave,
+						RegisterAddress:      sa.RegisterAddress,
+						OnPayload:            sa.OnPayload,
+						OffPayload:           sa.OffPayload,
+						SafetyTimeoutSeconds: sa.SafetyTimeoutSeconds,
+						SafetyWatchdogActive: sa.SafetyWatchdogActive,
+						FeedbackParameterID:  newFeedbackID,
+						CurrentState:         "UNKNOWN",
+						Enabled:              sa.Enabled,
+					}
+					if err := tx.Omit("Schedules").Create(&newAct).Error; err != nil {
+						return err
+					}
+					summary.Actuators++
+
+					if len(sa.Schedules) > 0 && tx.Migrator().HasTable(&model.ActuationSchedule{}) {
+						for _, sch := range sa.Schedules {
+							newSch := model.ActuationSchedule{
+								ActuatorID:      newAct.ID,
+								ScheduleName:    sch.ScheduleName,
+								ScheduleType:    sch.ScheduleType,
+								IntervalSeconds: sch.IntervalSeconds,
+								DurationSeconds: sch.DurationSeconds,
+								MinuteOfHour:    sch.MinuteOfHour,
+								StartTimeStr:    sch.StartTimeStr,
+								EndTimeStr:      sch.EndTimeStr,
+								CronExpression:  sch.CronExpression,
+								DaysOfWeek:      sch.DaysOfWeek,
+								Enabled:         sch.Enabled,
+							}
+							if err := tx.Create(&newSch).Error; err != nil {
+								return err
+							}
+							summary.Schedules++
+						}
+					}
+				}
+			}
+		}
+
+		// 4. Clone device-specific ISPUParameterMappings
+		if len(paramIDMap) > 0 && tx.Migrator().HasTable(&model.ISPUParameterMapping{}) {
+			var srcMappings []model.ISPUParameterMapping
+			if mErr := tx.Where("device_id = ?", srcDevice.ID).Order("id ASC").Find(&srcMappings).Error; mErr == nil {
+				for _, sm := range srcMappings {
+					newParamID, ok := paramIDMap[sm.ParameterID]
+					if !ok || newParamID == 0 {
+						continue
+					}
+					newMap := model.ISPUParameterMapping{
+						TenantID:         targetDevice.TenantID,
+						SiteID:           targetDevice.SiteID,
+						DeviceID:         targetDevice.ID,
+						ParameterID:      newParamID,
+						PollutantCode:    sm.PollutantCode,
+						SourceUnit:       sm.SourceUnit,
+						NormalizedUnit:   sm.NormalizedUnit,
+						ConversionFactor: sm.ConversionFactor,
+						ConversionRule:   sm.ConversionRule,
+						MinCompleteness:  sm.MinCompleteness,
+						DailyStartHour:   sm.DailyStartHour,
+						Enabled:          sm.Enabled,
+					}
+					if err := tx.Create(&newMap).Error; err == nil {
+						summary.ISPUMappings++
+					}
+				}
+			}
+		}
+
+		return nil
+	})
+
+	return summary, err
 }
 
 // SetStatus updates administrative status

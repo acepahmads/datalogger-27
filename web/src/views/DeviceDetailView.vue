@@ -4922,7 +4922,12 @@ export default {
     },
     handleDeviceSaved(savedData) {
       if (savedData && savedData.isCopy) {
-        this.showToast(this.$t('devices.copiedSuccess', { name: savedData.deviceName || savedData.deviceCode }) || 'Device created from copy successfully!', 'success');
+        const devLabel = savedData.deviceName || savedData.deviceCode;
+        const pCount = Number(savedData.copiedParamsCount || (Array.isArray(savedData.parameters) ? savedData.parameters.length : 0));
+        const msg = pCount > 0
+          ? this.$t('devices.copiedSuccessWithCount', { name: devLabel, count: pCount })
+          : (this.$t('devices.copiedSuccess', { name: devLabel }) || 'Device created from copy successfully!');
+        this.showToast(msg, 'success');
         this.isCopyDeviceModal = false;
         this.isEditModalOpen = false;
         this.$store.dispatch('fetchDevices');

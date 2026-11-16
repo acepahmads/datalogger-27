@@ -716,11 +716,26 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 		devType = normalizeProtocol(devType)
 	}
 
+	var srcDevice *model.Device
+	if req.SourceDeviceID != nil && *req.SourceDeviceID > 0 {
+		foundSrc, err := s.repo.GetByID(*req.SourceDeviceID)
+		if err != nil || foundSrc == nil {
+			return nil, fmt.Errorf("source device (%d) not found for copy", *req.SourceDeviceID)
+		}
+		srcDevice = foundSrc
+	}
+
 	tenantID := req.TenantID
+	if tenantID == 0 && srcDevice != nil && srcDevice.TenantID > 0 {
+		tenantID = srcDevice.TenantID
+	}
 	if tenantID == 0 {
 		tenantID = 1
 	}
 	siteID := req.SiteID
+	if siteID == 0 && srcDevice != nil && srcDevice.TenantID == tenantID && srcDevice.SiteID > 0 {
+		siteID = srcDevice.SiteID
+	}
 
 	if s.tenantService != nil {
 		if err := s.tenantService.CheckDeviceQuota(tenantID, 1); err != nil {
@@ -810,6 +825,17 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 	if err := s.repo.Create(device); err != nil {
 		return nil, fmt.Errorf("failed to create device: %w", err)
 	}
+
+	var cloneSummary *repository.DeviceCloneSummary
+	if srcDevice != nil {
+		cloned, cErr := s.repo.CloneDeviceChildren(srcDevice, device)
+		if cErr != nil {
+			_ = s.repo.Delete(device.ID)
+			return nil, fmt.Errorf("failed to clone parameters and configurations from source device: %w", cErr)
+		}
+		cloneSummary = cloned
+	}
+
 	if reloaded, err := s.repo.GetByID(device.ID); err == nil && reloaded != nil {
 		device = reloaded
 	}
@@ -828,6 +854,12 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 	if req.SourceDeviceID != nil && *req.SourceDeviceID > 0 {
 		action = "CLONE_DEVICE"
 		auditPayload["cloned_from_device_id"] = *req.SourceDeviceID
+		if cloneSummary != nil {
+			auditPayload["cloned_parameters_count"] = cloneSummary.Parameters
+			auditPayload["cloned_aggregations_count"] = cloneSummary.Aggregations
+			auditPayload["cloned_actuators_count"] = cloneSummary.Actuators
+			auditPayload["cloned_ispu_mappings_count"] = cloneSummary.ISPUMappings
+		}
 	}
 	auditDetails, _ := json.Marshal(auditPayload)
 	s.recordAuditWithTenant(device.TenantID, username, action, "DEVICE", string(auditDetails), ipAddress, userAgent)

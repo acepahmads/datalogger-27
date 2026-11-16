@@ -109,6 +109,7 @@ export default {
     "clear": "Clear",
     "all": "All",
     "edit": "Edit",
+    "copy": "Copy",
     "delete": "Delete",
     "create": "Create",
     "update": "Update",
@@ -269,7 +270,8 @@ export default {
     "live": "Live",
     "code": "Code",
     "copyDevice": "Copy Device",
-    "copiedSuccess": "Device '{name}' created from copy successfully!",
+    "copiedSuccess": "Device '{name}' and all its parameters were copied successfully!",
+    "copiedSuccessWithCount": "Device '{name}' and {count} parameter(s) were copied successfully!",
     "viewCopiedDevice": "View New Device",
     "total": "Total"
   },
@@ -739,8 +741,8 @@ export default {
     "savedSuccess": "Device saved successfully!",
     "titleCopy": "Copy Edge Device Configuration",
     "subtitleCopy": "Clone device configuration to create a new independent device.",
-    "copyBannerTitle": "Copying configuration from {code}",
-    "copyBannerDesc": "Review and assign a unique device code and adjust settings before activation.",
+    "copyBannerTitle": "Copying full configuration & parameters from {code}",
+    "copyBannerDesc": "All parameters (register addresses, scaling, formulas, calibration, alarm limits & stuck/spike rules), connection settings, rollup aggregations, and actuators will be copied automatically. Assign a unique device code before saving.",
     "serialPortConflictWarning": "Warning: Serial port '{port}' is also configured on device '{device}'. Ensure unique slave IDs on shared RS-485 bus, or select a dedicated port before activation.",
     "copyButton": "Create Copied Device"
   },

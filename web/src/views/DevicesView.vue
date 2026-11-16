@@ -613,9 +613,11 @@ export default {
       this.loadDevices();
       if (this.isCopyModal && createdDev) {
         this.createdCopiedDevice = createdDev;
-        this.copySuccessMessage = this.$t('devices.copiedSuccess', {
-          name: createdDev.deviceName || createdDev.device_name || createdDev.name || createdDev.deviceCode || createdDev.device_code,
-        });
+        const devLabel = createdDev.deviceName || createdDev.device_name || createdDev.name || createdDev.deviceCode || createdDev.device_code;
+        const pCount = Number(createdDev.copiedParamsCount || (Array.isArray(createdDev.parameters) ? createdDev.parameters.length : 0));
+        this.copySuccessMessage = pCount > 0
+          ? this.$t('devices.copiedSuccessWithCount', { name: devLabel, count: pCount })
+          : this.$t('devices.copiedSuccess', { name: devLabel });
         setTimeout(() => {
           this.copySuccessMessage = '';
           this.createdCopiedDevice = null;
