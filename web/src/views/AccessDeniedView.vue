@@ -124,8 +124,12 @@ export default {
       const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
       return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
     },
+    showOperatorConsole() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.show_operator_console === true);
+    },
     useDashboardOperatorHome() {
-      return this.isOperator || ((this.isAdmin || this.isCustomerService || this.isEngineer) && this.isCloudMode);
+      return !this.showOperatorConsole || this.isOperator || ((this.isAdmin || this.isCustomerService || this.isEngineer) && this.isCloudMode);
     },
     attemptedUrl() {
       return this.$route.query.from || '';

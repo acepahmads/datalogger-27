@@ -55,8 +55,8 @@
 
     <!-- Navigation List -->
     <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6" @click="onNavClick">
-      <!-- DEVELOPMENT (Strictly SUPERADMIN Only) -->
-      <div v-if="isSuperAdmin">
+      <!-- DEVELOPMENT (Strictly SUPERADMIN Only & Governed by Global Config, Default Hidden) -->
+      <div v-if="isSuperAdmin && showDevelopmentMenuConfig">
         <div class="px-3 text-3xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-sans">
           {{ $t('navigation.development') }}
         </div>
@@ -131,8 +131,8 @@
             </span>
           </router-link>
 
-          <!-- Operator Command Center / SCADA Console (Hidden for Operator role, and hidden for Admin / Customer Service / Engineer in Cloud mode) -->
-          <router-link v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
+          <!-- Operator Command Center / SCADA Console (Governed by Global Config Default Hide; Hidden for Operator role & Cloud Admin/CS/Engineer) -->
+          <router-link v-if="showOperatorConsoleConfig && !isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-cyan-500 dark:text-cyan-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
@@ -534,6 +534,12 @@ export default {
         (this.systemStatus && this.systemStatus.cloud_mode) ||
         this.monitoringDomain === 'CLOUD'
       );
+    },
+    showOperatorConsoleConfig() {
+      return Boolean(this.systemStatus && this.systemStatus.show_operator_console === true);
+    },
+    showDevelopmentMenuConfig() {
+      return Boolean(this.systemStatus && this.systemStatus.show_development_menu === true);
     },
     showIspuMenu() {
       if (this.monitoringDomain === 'AQMS' || this.monitoringDomain === 'CUSTOM') {

@@ -55,6 +55,8 @@ type SystemStatusOverview struct {
 	CloudMode                 bool   `json:"cloud_mode"`
 	SensorPollingEnabled      bool   `json:"sensor_polling_enabled"`
 	RawTelemetryMaxRangeHours int    `json:"raw_telemetry_max_range_hours"`
+	ShowOperatorConsole       bool   `json:"show_operator_console"`
+	ShowDevelopmentMenu       bool   `json:"show_development_menu"`
 
 	// Datalogger service status
 	ServiceStatus   string `json:"service_status"`

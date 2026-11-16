@@ -69,6 +69,10 @@ type Config struct {
 	// Raw Telemetry Query Governance: Maximum allowed time span in hours (default 168 = 7 days)
 	RawTelemetryMaxRangeHours int `json:"raw_telemetry_max_range_hours"`
 
+	// Global UI Navigation Visibility Governance (Default FALSE / Hidden)
+	ShowOperatorConsole bool `json:"show_operator_console"`
+	ShowDevelopmentMenu bool `json:"show_development_menu"`
+
 	// Communication / Serial Bus Defaults (Phase 7 #83)
 	SerialPort      string `json:"serial_port"`
 	SerialBaudRate  int    `json:"serial_baud_rate"`
@@ -128,6 +132,8 @@ func DefaultConfig() *Config {
 		MQTTBrokerURL:               "",
 		MQTTTopicPrefix:             "datalogger/ingest/+",
 		RawTelemetryMaxRangeHours:   168,
+		ShowOperatorConsole:         false,
+		ShowDevelopmentMenu:         false,
 		SerialPort:                  "COM1",
 		SerialBaudRate:              9600,
 		SerialDataBits:              8,
@@ -292,6 +298,19 @@ func Load(configPath string) (*Config, error) {
 	if cfg.RawTelemetryMaxRangeHours <= 0 {
 		cfg.RawTelemetryMaxRangeHours = 168
 	}
+
+	if showOp := strings.TrimSpace(os.Getenv("SHOW_OPERATOR_CONSOLE")); showOp != "" {
+		cfg.ShowOperatorConsole = parseBoolEnvValue(showOp)
+	} else if showOp2 := strings.TrimSpace(os.Getenv("DATALOGGER_SHOW_OPERATOR_CONSOLE")); showOp2 != "" {
+		cfg.ShowOperatorConsole = parseBoolEnvValue(showOp2)
+	}
+
+	if showDev := strings.TrimSpace(os.Getenv("SHOW_DEVELOPMENT_MENU")); showDev != "" {
+		cfg.ShowDevelopmentMenu = parseBoolEnvValue(showDev)
+	} else if showDev2 := strings.TrimSpace(os.Getenv("DATALOGGER_SHOW_DEVELOPMENT_MENU")); showDev2 != "" {
+		cfg.ShowDevelopmentMenu = parseBoolEnvValue(showDev2)
+	}
+
 	hasEnvSeedUsers := false
 	if sUsers := strings.TrimSpace(os.Getenv("SEED_USERS")); sUsers != "" {
 		cfg.SeedUsers = parseBoolEnvValue(sUsers)

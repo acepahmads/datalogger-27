@@ -103,6 +103,7 @@ func setupDeviceTestRouter(t *testing.T) *TestEnv {
 			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
 			devicesGroup.POST("/:id/parameters/bulk-enable", middleware.RequirePermission("device.manage"), deviceHandler.BulkToggleParametersEnabled)
+			devicesGroup.POST("/:id/parameters/bulk-delete", middleware.RequirePermission("device.manage"), deviceHandler.BulkDeleteParameters)
 			devicesGroup.POST("/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 			devicesGroup.POST("/:id/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 			devicesGroup.GET("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.view"), deviceHandler.GetParameterQuality)
@@ -909,5 +910,140 @@ func TestGetDevicePollingPlan(t *testing.T) {
 		t.Errorf("Expected non-empty reason for device with 0 parameters")
 	}
 }
+
+func TestBulkDeleteParametersSelectedAndAll(t *testing.T) {
+	env := setupDeviceTestRouter(t)
+
+	devBody, _ := json.Marshal(map[string]interface{}{
+		"device_code": "BULK-DEL-01",
+		"device_name": "Bulk Delete Weather Node",
+		"device_type": "AQMS",
+		"connection": map[string]interface{}{
+			"protocol":       "MODBUS_RTU",
+			"serial_port":    "COM3",
+			"baud_rate":      9600,
+			"slave_id":       1,
+			"poll_interval":  2000,
+			"socket_timeout": 1000,
+		},
+	})
+	createReq, _ := http.NewRequest("POST", "/api/devices", bytes.NewBuffer(devBody))
+	createReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+	env.Router.ServeHTTP(createW, createReq)
+	if createW.Code != http.StatusCreated {
+		t.Fatalf("Expected 201 creating device, got %d: %s", createW.Code, createW.Body.String())
+	}
+
+	var devRes struct {
+		Data struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(createW.Body.Bytes(), &devRes)
+	devID := devRes.Data.ID
+
+	createParam := func(code, name string, reg int) uint {
+		pBody, _ := json.Marshal(map[string]interface{}{
+			"parameter_code":   code,
+			"parameter_name":   name,
+			"data_type":        "FLOAT32",
+			"unit":             "C",
+			"register_address": reg,
+			"register_type":    "HOLDING_REGISTER",
+		})
+		pReq, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters", devID), bytes.NewBuffer(pBody))
+		pReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+		pReq.Header.Set("Content-Type", "application/json")
+		pW := httptest.NewRecorder()
+		env.Router.ServeHTTP(pW, pReq)
+		if pW.Code != http.StatusCreated {
+			t.Fatalf("Expected 201 creating parameter %s, got %d: %s", code, pW.Code, pW.Body.String())
+		}
+		var pRes struct {
+			Data struct {
+				ID uint `json:"id"`
+			} `json:"data"`
+		}
+		_ = json.Unmarshal(pW.Body.Bytes(), &pRes)
+		return pRes.Data.ID
+	}
+
+	p1 := createParam("temperature", "Temperature", 0)
+	p2 := createParam("wspeed", "Wind Speed", 2)
+	p3 := createParam("wangle", "Wind Angle", 4)
+	_ = createParam("humidity", "Humidity", 6)
+
+	// 1. Operator must receive 403 Forbidden on bulk-delete
+	opBody, _ := json.Marshal(map[string]interface{}{"delete_all": true})
+	opReq, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters/bulk-delete", devID), bytes.NewBuffer(opBody))
+	opReq.Header.Set("Authorization", "Bearer "+env.OpToken)
+	opReq.Header.Set("Content-Type", "application/json")
+	opW := httptest.NewRecorder()
+	env.Router.ServeHTTP(opW, opReq)
+	if opW.Code != http.StatusForbidden {
+		t.Fatalf("Expected 403 for Operator bulk-delete, got %d", opW.Code)
+	}
+
+	// 2. Bulk delete selected (p1, p2) -> leaves 2 parameters
+	selBody, _ := json.Marshal(map[string]interface{}{
+		"parameter_ids": []uint{p1, p2},
+		"delete_all":    false,
+	})
+	selReq, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters/bulk-delete", devID), bytes.NewBuffer(selBody))
+	selReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	selReq.Header.Set("Content-Type", "application/json")
+	selW := httptest.NewRecorder()
+	env.Router.ServeHTTP(selW, selReq)
+	if selW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on selected bulk-delete, got %d: %s", selW.Code, selW.Body.String())
+	}
+
+	listReq1, _ := http.NewRequest("GET", fmt.Sprintf("/api/devices/%d/parameters", devID), nil)
+	listReq1.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	listW1 := httptest.NewRecorder()
+	env.Router.ServeHTTP(listW1, listReq1)
+	var listRes1 struct {
+		Data []struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(listW1.Body.Bytes(), &listRes1)
+	if len(listRes1.Data) != 2 || listRes1.Data[0].ID != p3 {
+		t.Fatalf("Expected 2 remaining parameters starting with %d, got %+v", p3, listRes1.Data)
+	}
+
+	// 3. Re-creating previously deleted parameter code ("temperature") succeeds without unique index collision
+	_ = createParam("temperature", "Temperature Recreated", 0)
+
+	// 4. Bulk delete ALL -> leaves 0 parameters
+	allBody, _ := json.Marshal(map[string]interface{}{
+		"delete_all": true,
+	})
+	allReq, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters/bulk-delete", devID), bytes.NewBuffer(allBody))
+	allReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	allReq.Header.Set("Content-Type", "application/json")
+	allW := httptest.NewRecorder()
+	env.Router.ServeHTTP(allW, allReq)
+	if allW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on delete_all bulk-delete, got %d: %s", allW.Code, allW.Body.String())
+	}
+
+	listReq2, _ := http.NewRequest("GET", fmt.Sprintf("/api/devices/%d/parameters", devID), nil)
+	listReq2.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	listW2 := httptest.NewRecorder()
+	env.Router.ServeHTTP(listW2, listReq2)
+	var listRes2 struct {
+		Data []struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(listW2.Body.Bytes(), &listRes2)
+	if len(listRes2.Data) != 0 {
+		t.Fatalf("Expected 0 remaining parameters after delete_all, got %d", len(listRes2.Data))
+	}
+}
+
 
 

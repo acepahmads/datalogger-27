@@ -301,7 +301,9 @@ router.beforeEach(async (to, from, next) => {
   const isCustomerService = ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(rawRole);
   const isEngineer = rawRole === 'ENGINEER';
   const isOperator = rawRole === 'OPERATOR';
-  const usesDashboardOperatorLanding = isOperator || ((isAdmin || isCustomerService || isEngineer) && isCloudMode);
+  const showOperatorConsole = Boolean(store.state.systemStatus && store.state.systemStatus.show_operator_console === true);
+  const showDevelopmentMenu = Boolean(store.state.systemStatus && store.state.systemStatus.show_development_menu === true);
+  const usesDashboardOperatorLanding = !showOperatorConsole || isOperator || ((isAdmin || isCustomerService || isEngineer) && isCloudMode);
 
   // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to role default landing
   if (isAuth && isLoginPage && !to.query.switch) {
@@ -311,9 +313,14 @@ router.beforeEach(async (to, from, next) => {
     });
   }
 
-  // 2b. Role OPERATOR (and Role ADMIN / CUSTOMER_SERVICE / ENGINEER in Cloud mode) default landing & Operator Console hiding -> redirect straight to Dashboard Operator
+  // 2b. Global Operator Console hide config (default hidden) + Role OPERATOR / Cloud Admin/CS/Engineer -> redirect straight to Dashboard Operator
   if (isAuth && usesDashboardOperatorLanding && (to.path === '/' || to.path === '/operator' || to.path === '/monitoring/operator')) {
     return next({ path: '/monitoring/dashboard-operator', replace: true });
+  }
+
+  // 2b-dev-visibility. Global Development Menu hide config (default hidden) -> redirect Superadmin cleanly when hidden (non-Superadmin still receives 403 below)
+  if (isAuth && isSuper && !showDevelopmentMenu && (to.path === '/development' || to.path.startsWith('/development/'))) {
+    return next({ path: '/monitoring/fleet-map', replace: true });
   }
 
   // 2b-cloud-admin. Role ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode cannot access Live Sensor Comm, Configuration, Backup & Restore, or Retention & Storage

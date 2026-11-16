@@ -22,5 +22,7 @@
   "cloud_mode": false,
   "seed_users": true,
   "seed_sample_data": true,
-  "superadmin_username": "admin"
+  "superadmin_username": "admin",
+  "show_operator_console": false,
+  "show_development_menu": false
 }

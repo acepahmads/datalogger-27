@@ -2081,6 +2081,62 @@ func (s *DeviceService) BulkToggleParametersEnabled(deviceID uint, paramIDs []ui
 	return validIDs, nil
 }
 
+func (s *DeviceService) BulkDeleteParameters(deviceID uint, paramIDs []uint, deleteAll bool, username, ipAddress, userAgent string) ([]uint, error) {
+	if _, err := s.repo.GetByID(deviceID); err != nil {
+		return nil, errors.New("device not found")
+	}
+	if !deleteAll && len(paramIDs) == 0 {
+		return nil, errors.New("no parameter IDs provided")
+	}
+
+	params, err := s.repo.ListParameters(deviceID)
+	if err != nil {
+		return nil, err
+	}
+
+	wanted := make(map[uint]struct{}, len(paramIDs))
+	for _, pid := range paramIDs {
+		if pid > 0 {
+			wanted[pid] = struct{}{}
+		}
+	}
+
+	validIDs := make([]uint, 0, len(params))
+	codes := make([]string, 0, len(params))
+	for _, p := range params {
+		if deleteAll {
+			validIDs = append(validIDs, p.ID)
+			codes = append(codes, p.ParameterCode)
+		} else if _, ok := wanted[p.ID]; ok {
+			validIDs = append(validIDs, p.ID)
+			codes = append(codes, p.ParameterCode)
+		}
+	}
+	if len(validIDs) == 0 {
+		return nil, errors.New("no matching parameters found for device")
+	}
+
+	if err := s.repo.DeleteParametersBulk(deviceID, validIDs); err != nil {
+		return nil, fmt.Errorf("failed to bulk delete parameters: %w", err)
+	}
+
+	for _, pid := range validIDs {
+		s.clearParameterAlarms(pid)
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":       deviceID,
+		"parameter_ids":   validIDs,
+		"parameter_codes": codes,
+		"count":           len(validIDs),
+		"delete_all":      deleteAll,
+		"bulk_delete":     true,
+	})
+	s.recordAudit(username, "DELETE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+
+	return validIDs, nil
+}
+
 // GetDeviceAuditTrail fetches audit trail for a device
 func (s *DeviceService) GetDeviceAuditTrail(deviceID uint, limit int) ([]model.AuditTrail, error) {
 	dev, err := s.repo.GetByID(deviceID)

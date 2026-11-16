@@ -193,6 +193,8 @@ func (s *SystemService) GetSystemStatusOverviewScoped(ctx context.Context) (*mod
 		CloudMode:                 config.Get().IsCloudMode(),
 		SensorPollingEnabled:      config.Get().SensorPollingEnabled && !config.Get().IsCloudMode(),
 		RawTelemetryMaxRangeHours: config.Get().EffectiveRawTelemetryMaxRangeHours(),
+		ShowOperatorConsole:       config.Get().ShowOperatorConsole,
+		ShowDevelopmentMenu:       config.Get().ShowDevelopmentMenu,
 
 		ServiceStatus:   "RUNNING",
 		WorkerStatus:    "READY",
@@ -482,6 +484,8 @@ type SystemConfigDTO struct {
 	MQTTBrokerURL               string `json:"mqtt_broker_url"`
 	MQTTTopicPrefix             string `json:"mqtt_topic_prefix"`
 	RawTelemetryMaxRangeHours   int    `json:"raw_telemetry_max_range_hours"`
+	ShowOperatorConsole         bool   `json:"show_operator_console"`
+	ShowDevelopmentMenu         bool   `json:"show_development_menu"`
 }
 
 type ReassignParameterCategoryItem struct {
@@ -516,6 +520,8 @@ type SaveSystemConfigRequest struct {
 	MQTTBrokerURL             *string                         `json:"mqtt_broker_url,omitempty"`
 	MQTTTopicPrefix           *string                         `json:"mqtt_topic_prefix,omitempty"`
 	RawTelemetryMaxRangeHours int                             `json:"raw_telemetry_max_range_hours"`
+	ShowOperatorConsole       *bool                           `json:"show_operator_console,omitempty"`
+	ShowDevelopmentMenu       *bool                           `json:"show_development_menu,omitempty"`
 	Reassignments             []ReassignParameterCategoryItem `json:"reassignments,omitempty"`
 }
 
@@ -567,6 +573,8 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		MQTTBrokerURL:               cfg.MQTTBrokerURL,
 		MQTTTopicPrefix:             cfg.MQTTTopicPrefix,
 		RawTelemetryMaxRangeHours:   cfg.EffectiveRawTelemetryMaxRangeHours(),
+		ShowOperatorConsole:         cfg.ShowOperatorConsole,
+		ShowDevelopmentMenu:         cfg.ShowDevelopmentMenu,
 	}
 }
 
@@ -742,6 +750,16 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 			changedNotes = append(changedNotes, fmt.Sprintf("superadmin_username: %s -> %s", cfg.EffectiveSuperadminUsername(), su))
 			cfg.SuperadminUsername = su
 		}
+	}
+
+	// Global UI Navigation Visibility Governance
+	if req.ShowOperatorConsole != nil && *req.ShowOperatorConsole != cfg.ShowOperatorConsole {
+		changedNotes = append(changedNotes, fmt.Sprintf("show_operator_console: %t -> %t", cfg.ShowOperatorConsole, *req.ShowOperatorConsole))
+		cfg.ShowOperatorConsole = *req.ShowOperatorConsole
+	}
+	if req.ShowDevelopmentMenu != nil && *req.ShowDevelopmentMenu != cfg.ShowDevelopmentMenu {
+		changedNotes = append(changedNotes, fmt.Sprintf("show_development_menu: %t -> %t", cfg.ShowDevelopmentMenu, *req.ShowDevelopmentMenu))
+		cfg.ShowDevelopmentMenu = *req.ShowDevelopmentMenu
 	}
 
 	// Monitoring Domain & Platform Cloud Mode

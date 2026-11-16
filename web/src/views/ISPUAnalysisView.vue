@@ -1319,8 +1319,12 @@ export default {
       if (this.userRole === 'OPERATOR') return true;
       return Boolean(this.$store && this.$store.getters && this.$store.getters.isOperator);
     },
+    showOperatorConsole() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.show_operator_console === true);
+    },
     backRoutePath() {
-      return this.isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator';
+      return (this.isOperator || !this.showOperatorConsole) ? '/monitoring/dashboard-operator' : '/monitoring/operator';
     },
     ispuScaleMarkerPct() {
       const v = Number(this.displayISPU);

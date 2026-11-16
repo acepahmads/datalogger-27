@@ -911,6 +911,57 @@
             </div>
           </div>
 
+          <!-- Global UI Navigation & Menu Visibility Governance (SUPERADMIN Only — Default Hidden) -->
+          <div v-if="isSuperAdmin" class="border-t border-slate-200 dark:border-slate-800/80 pt-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  {{ $t('config.globalMenuVisibilityTitle') || 'Navigasi & Visibilitas Menu Global (Operator Console & Development)' }}
+                </h3>
+                <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {{ $t('config.globalMenuVisibilityDesc') || 'Atur visibilitas global halaman Operator Console dan grup menu Development pada sidebar & header. Default keduanya disembunyikan (Hide / OFF).' }}
+                </p>
+              </div>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                Superadmin Only · Default Hide
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
+                <input id="cfg-show-operator-console" type="checkbox" v-model="form.show_operator_console" class="mt-0.5 rounded text-cyan-600" />
+                <div>
+                  <div class="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                    <span>{{ $t('config.showOperatorConsoleLabel') || 'Tampilkan Halaman Operator Console' }}</span>
+                    <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold"
+                          :class="form.show_operator_console ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700'">
+                      {{ form.show_operator_console ? 'SHOW' : 'HIDDEN (DEFAULT)' }}
+                    </span>
+                  </div>
+                  <div class="text-3xs text-slate-500 mt-0.5">
+                    {{ $t('config.showOperatorConsoleHint') || 'Jika OFF (default), menu & pintasan Operator Console (/monitoring/operator) disembunyikan secara global dan pengguna otomatis diarahkan ke Dashboard Operator.' }}
+                  </div>
+                </div>
+              </label>
+
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
+                <input id="cfg-show-development-menu" type="checkbox" v-model="form.show_development_menu" class="mt-0.5 rounded text-indigo-600" />
+                <div>
+                  <div class="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                    <span>{{ $t('config.showDevelopmentMenuLabel') || 'Tampilkan Menu Development' }}</span>
+                    <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold"
+                          :class="form.show_development_menu ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700'">
+                      {{ form.show_development_menu ? 'SHOW' : 'HIDDEN (DEFAULT)' }}
+                    </span>
+                  </div>
+                  <div class="text-3xs text-slate-500 mt-0.5">
+                    {{ $t('config.showDevelopmentMenuHint') || 'Jika OFF (default), grup menu Development (Overview & Phases, Tasks Manager, Activity Log, Release & Docs) disembunyikan dari sidebar.' }}
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <!-- Configurable Telemetry Acquisition Modules (SUPERADMIN Only) -->
           <div v-if="isSuperAdmin" class="border-t border-slate-200 dark:border-slate-800/80 pt-4 space-y-3">
             <div class="flex items-center justify-between">
@@ -1496,6 +1547,8 @@ export default {
         mqtt_topic_prefix: 'datalogger/ingest/+',
         seed_users: true,
         seed_sample_data: true,
+        show_operator_console: false,
+        show_development_menu: false,
       },
     };
   },
@@ -1750,6 +1803,8 @@ export default {
           payload.mqtt_ingest_enabled = nextIsCloud ? false : this.form.mqtt_ingest_enabled;
           payload.seed_users = nextIsCloud ? false : this.form.seed_users;
           payload.seed_sample_data = nextIsCloud ? false : this.form.seed_sample_data;
+          payload.show_operator_console = Boolean(this.form.show_operator_console);
+          payload.show_development_menu = Boolean(this.form.show_development_menu);
         } else {
           delete payload.sensor_polling_enabled;
           delete payload.mqtt_ingest_enabled;
@@ -1757,6 +1812,8 @@ export default {
           delete payload.mqtt_topic_prefix;
           delete payload.seed_users;
           delete payload.seed_sample_data;
+          delete payload.show_operator_console;
+          delete payload.show_development_menu;
         }
 
         const res = await axios.post('/api/system/config', payload);
@@ -1852,7 +1909,13 @@ export default {
             mqtt_topic_prefix: cfg.mqtt_topic_prefix || 'datalogger/ingest/+',
             seed_users: typeof cfg.seed_users === 'boolean' ? cfg.seed_users : !isCloudCfg,
             seed_sample_data: typeof cfg.seed_sample_data === 'boolean' ? cfg.seed_sample_data : !isCloudCfg,
+            show_operator_console: Boolean(cfg.show_operator_console === true),
+            show_development_menu: Boolean(cfg.show_development_menu === true),
           };
+          this.$store.commit('SET_SYSTEM_STATUS', {
+            show_operator_console: Boolean(cfg.show_operator_console === true),
+            show_development_menu: Boolean(cfg.show_development_menu === true),
+          });
         }
       } catch (err) {
         console.warn('Failed to fetch system config:', err);
@@ -1920,13 +1983,20 @@ export default {
           delete payload.mqtt_topic_prefix;
           delete payload.seed_users;
           delete payload.seed_sample_data;
+          delete payload.show_operator_console;
+          delete payload.show_development_menu;
         }
         const res = await axios.post('/api/system/config', payload);
         if (res.data && res.data.success) {
           this.saveResult = res.data.data;
-          this.$store.commit('SET_SYSTEM_STATUS', {
+          const statusPatch = {
             raw_telemetry_max_range_hours: Number(this.form.raw_telemetry_max_range_hours) || 168,
-          });
+          };
+          if (this.isSuperAdmin) {
+            statusPatch.show_operator_console = Boolean(this.form.show_operator_console);
+            statusPatch.show_development_menu = Boolean(this.form.show_development_menu);
+          }
+          this.$store.commit('SET_SYSTEM_STATUS', statusPatch);
           this.fetchDbStatus();
         }
         this.saveExportLimitFromConfig();

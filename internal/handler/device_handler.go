@@ -743,6 +743,60 @@ func (h *DeviceHandler) BulkToggleParametersEnabled(c *gin.Context) {
 	})
 }
 
+// BulkDeleteParameters handles POST /api/devices/:id/parameters/bulk-delete
+func (h *DeviceHandler) BulkDeleteParameters(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
+
+	var req struct {
+		ParameterIDs []uint `json:"parameter_ids"`
+		DeleteAll    bool   `json:"delete_all"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid payload")
+		return
+	}
+
+	username := h.getUsername(c)
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+
+	deletedIDs, err := h.deviceService.BulkDeleteParameters(uint(id), req.ParameterIDs, req.DeleteAll, username, ip, ua)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	if h.pollingEngine != nil {
+		ae := h.pollingEngine.GetAlarmEvaluator()
+		ts := h.pollingEngine.GetTelemetryService()
+		for _, pid := range deletedIDs {
+			if ae != nil {
+				ae.ClearParameterAlarms(c.Request.Context(), uint(id), pid)
+			}
+			if ts != nil {
+				ts.ClearParameterCache(pid)
+			}
+		}
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev != nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
+	}
+
+	response.OK(c, gin.H{
+		"deleted":       true,
+		"device_id":     id,
+		"parameter_ids": deletedIDs,
+		"count":         len(deletedIDs),
+	})
+}
+
 // GetParameterQuality handles GET /api/devices/:id/parameters/:paramId/quality
 func (h *DeviceHandler) GetParameterQuality(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)

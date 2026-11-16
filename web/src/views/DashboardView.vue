@@ -17,10 +17,10 @@
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
           {{ $t('navigation.fleetMap') || 'Peta Tenant & Stasiun' }}
         </router-link>
-        <router-link to="/monitoring/operator"
+        <router-link :to="showOperatorConsole ? '/monitoring/operator' : '/monitoring/dashboard-operator'"
                      class="px-3 py-1.5 bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
           <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 mr-1.5 animate-pulse"></span>
-          {{ $t('navigation.operatorConsole') || 'Operator Console' }}
+          {{ showOperatorConsole ? ($t('navigation.operatorConsole') || 'Operator Console') : ($t('navigation.dashboardOperator') || 'Dashboard Operator') }}
         </router-link>
         <button v-if="isSuperAdmin" @click="showNewTaskModal = true"
                 class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
@@ -198,7 +198,7 @@
               <h2 class="text-sm font-bold text-slate-800 dark:text-white font-sans tracking-tight">{{ $t('dashboard.activeMilestone') }}</h2>
               <span class="text-2xs text-blue-600 dark:text-blue-400 font-sans font-medium">{{ progress.current_phase }}</span>
             </div>
-            <router-link to="/development" class="text-2xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-white font-sans flex items-center">
+            <router-link v-if="showDevelopmentMenu" to="/development" class="text-2xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-white font-sans flex items-center">
               {{ $t('dashboard.viewAllPhases') }} &rarr;
             </router-link>
           </div>
@@ -231,7 +231,7 @@
         <div class="saas-card p-5 space-y-3">
           <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-3">
             <h2 class="text-sm font-bold text-slate-800 dark:text-white font-sans tracking-tight">{{ $t('dashboard.recentActivity') }}</h2>
-            <router-link to="/development/activity" class="text-2xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-sans font-medium">
+            <router-link v-if="showDevelopmentMenu" to="/development/activity" class="text-2xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-sans font-medium">
               {{ $t('dashboard.viewAllActivity') }} &rarr;
             </router-link>
           </div>
@@ -420,6 +420,12 @@ export default {
     },
     systemStatus() {
       return this.$store.state.systemStatus;
+    },
+    showOperatorConsole() {
+      return Boolean(this.systemStatus && this.systemStatus.show_operator_console === true);
+    },
+    showDevelopmentMenu() {
+      return Boolean(this.systemStatus && this.systemStatus.show_development_menu === true);
     },
     recentActivities() {
       return this.$store.state.activities.slice(0, 5);

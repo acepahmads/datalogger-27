@@ -165,21 +165,21 @@ const backupRestoreViewCode = fs.readFileSync(path.join(srcDir, 'views', 'Backup
 const retentionStorageViewCode = fs.readFileSync(path.join(srcDir, 'views', 'RetentionStorageView.vue'), 'utf8');
 const accessDeniedViewCode = fs.readFileSync(path.join(srcDir, 'views', 'AccessDeniedView.vue'), 'utf8');
 
-assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
+assert(sidebarCode.includes('v-if="showOperatorConsoleConfig && !isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/monitoring/operator"'), 'Sidebar must hide Operator Console when showOperatorConsoleConfig is false or for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/administration/config"'), 'Sidebar must hide Configuration for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/administration/backup"'), 'Sidebar must hide Backup & Restore for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/administration/retention"'), 'Sidebar must hide Retention & Storage for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 
-assert(headerCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)"'), 'Header must hide Operator Console quick icon for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
-assert(routerCode.includes('const usesDashboardOperatorLanding = isOperator || ((isAdmin || isCustomerService || isEngineer) && isCloudMode)'), 'Router must include Cloud ADMIN, CUSTOMER_SERVICE, and ENGINEER in usesDashboardOperatorLanding');
+assert(headerCode.includes('v-if="showOperatorConsoleConfig && !isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)"'), 'Header must hide Operator Console quick icon when showOperatorConsoleConfig is false or for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
+assert(routerCode.includes('const usesDashboardOperatorLanding = !showOperatorConsole || isOperator || ((isAdmin || isCustomerService || isEngineer) && isCloudMode)'), 'Router must include !showOperatorConsole and Cloud ADMIN, CUSTOMER_SERVICE, and ENGINEER in usesDashboardOperatorLanding');
 assert(routerCode.includes('if (isAuth && (isAdmin || isCustomerService || isEngineer) && isCloudMode)'), 'Router must apply cloudAdminRestrictedPrefixes to ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 for (const blockedPath of ['/alarm/live-comm', '/administration/config', '/administration/backup', '/administration/retention']) {
   assert(routerCode.includes(`'${blockedPath}'`) && routerCode.includes('cloudAdminRestrictedPrefixes'), `Router must block Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE from ${blockedPath}`);
 }
 assert(loginViewCode.includes('if ((isAdmin || isCustomerService || isEngineer) && isCloudAdminRestrictedRoute)'), 'LoginView must redirect Cloud ADMIN, CUSTOMER_SERVICE & ENGINEER away from restricted routes after login');
 assert(loginViewCode.includes('if (isTenantsRoute && !isSuper && !isAdmin && !isCustomerService && !(isEngineer && isCloudMode))'), 'LoginView must allow CUSTOMER_SERVICE and Cloud ENGINEER onto /administration/tenants');
-assert(accessDeniedViewCode.includes('return this.isOperator || ((this.isAdmin || this.isCustomerService || this.isEngineer) && this.isCloudMode);') && accessDeniedViewCode.includes('to="/monitoring/fleet-map"'), 'AccessDeniedView must support Cloud CUSTOMER_SERVICE and Fleet Map shortcut');
+assert(accessDeniedViewCode.includes('return !this.showOperatorConsole || this.isOperator || ((this.isAdmin || this.isCustomerService || this.isEngineer) && this.isCloudMode);') && accessDeniedViewCode.includes('to="/monitoring/fleet-map"'), 'AccessDeniedView must support !showOperatorConsole, Cloud CUSTOMER_SERVICE and Fleet Map shortcut');
 assert(tenantsViewCode.includes('if (this.isEngineer && !this.isCloudMode)'), 'TenantsManagementView must guard against Edge ENGINEER mount while allowing Cloud ENGINEER');
 assert(liveCommViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER' || isCS) && isCloud)"), 'LiveCommView must guard against Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE mount');
 assert(configViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER' || isCS) && isCloud)"), 'ConfigView must guard against Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE mount');

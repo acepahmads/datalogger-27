@@ -15,7 +15,7 @@
         Halaman System Activity Monitor hanya dapat diakses oleh akun dengan hak akses Superadmin.
       </p>
       <router-link
-        to="/monitoring/operator"
+        :to="showOperatorConsole ? '/monitoring/operator' : '/monitoring/dashboard-operator'"
         class="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 transition-opacity"
       >
         Kembali ke Dashboard
@@ -954,6 +954,10 @@ export default {
     },
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    showOperatorConsole() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.show_operator_console === true);
     },
     hasActiveFilters() {
       return (

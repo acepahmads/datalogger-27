@@ -1373,10 +1373,12 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 		req.MQTTTopicPrefix != nil ||
 		req.SeedUsers != nil ||
 		req.SeedSampleData != nil ||
-		req.SuperadminUsername != nil
+		req.SuperadminUsername != nil ||
+		req.ShowOperatorConsole != nil ||
+		req.ShowDevelopmentMenu != nil
 
 	if isAcqModuleChange && !scope.IsSuperAdmin {
-		response.Forbidden(c, "Hanya Superadmin yang dapat mengatur modul pembacaan sensor dan modul MQTT")
+		response.Forbidden(c, "Hanya Superadmin yang dapat mengatur konfigurasi global runtime, modul pembacaan sensor, dan menu sistem")
 		return
 	}
 
@@ -1389,7 +1391,10 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 		return
 	}
 
-	if !isPlatformCloudChange && h.tenantService != nil && ((!scope.IsSuperAdmin && scope.UserTenantID != nil) || (scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1))) {
+	isScopedDomainOnlySave := (!scope.IsSuperAdmin && scope.UserTenantID != nil) ||
+		(scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1) && req.Reassignments != nil)
+
+	if !isPlatformCloudChange && h.tenantService != nil && isScopedDomainOnlySave {
 		result, err := h.systemService.SaveScopedSiteDomainConfig(c.Request.Context(), req, actorID, actorUsername, ip, ua)
 		if err != nil {
 			response.BadRequest(c, err.Error())
@@ -1397,6 +1402,12 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 		}
 		response.OK(c, result)
 		return
+	}
+
+	// When Superadmin updates runtime/database settings while viewing a non-default tenant/site,
+	// do not overwrite global monitoring_domain with the scoped station's domain.
+	if scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1) && !isPlatformCloudChange && req.Reassignments == nil {
+		req.MonitoringDomain = ""
 	}
 
 	result, err := h.systemService.SaveSystemConfig(req, actorID, actorUsername, ip, ua)

@@ -114,6 +114,8 @@ export default new Vuex.Store({
       cloud_mode: false,
       sensor_polling_enabled: true,
       raw_telemetry_max_range_hours: 168,
+      show_operator_console: false,
+      show_development_menu: false,
     },
     progress: {
       overall_percentage: 94.5,
@@ -154,7 +156,9 @@ export default new Vuex.Store({
     canSwitchTenants: (state, getters) => getters.isSuperAdmin || getters.isCustomerService,
     isEngineer: (state, getters) => getters.userRole === 'ENGINEER',
     isOperator: (state, getters) => getters.userRole === 'OPERATOR',
-    canAccessDev: (state, getters) => getters.isSuperAdmin,
+    showOperatorConsole: state => Boolean(state.systemStatus && state.systemStatus.show_operator_console === true),
+    showDevelopmentMenu: state => Boolean(state.systemStatus && state.systemStatus.show_development_menu === true),
+    canAccessDev: (state, getters) => getters.isSuperAdmin && getters.showDevelopmentMenu,
     canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin || getters.isAdmin || getters.isCustomerService,
     canAccessRawTrendMode: (state, getters) => getters.isSuperAdmin || getters.isAdmin || getters.isCustomerService,
     availableTenants: state => (Array.isArray(state.tenants) ? state.tenants : []),
@@ -926,6 +930,20 @@ export default new Vuex.Store({
         return res.data ? res.data.data : null;
       } catch (err) {
         console.error('Failed to bulk toggle parameters enabled:', err);
+        throw err;
+      }
+    },
+    async bulkDeleteParameters({ dispatch }, { deviceId, parameterIds = [], deleteAll = false }) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${deviceId}/parameters/bulk-delete`, {
+          parameter_ids: parameterIds,
+          delete_all: Boolean(deleteAll),
+        });
+        dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to bulk delete parameters:', err);
         throw err;
       }
     },

@@ -141,7 +141,7 @@
 
       <!-- 1. Operator Console / Dashboard Operator Quick Icon Button (Tablet/Desktop >= 640px; mobile uses Drawer) -->
       <router-link
-        v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)"
+        v-if="showOperatorConsoleConfig && !isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)"
         to="/monitoring/operator"
         class="hidden sm:flex relative w-7 h-7 rounded-lg border transition-colors items-center justify-center shadow-xs"
         :class="$route.path === '/monitoring/operator' || $route.path === '/operator'
@@ -650,6 +650,12 @@ export default {
       const sys = this.systemStatus || {};
       return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
     },
+    showOperatorConsoleConfig() {
+      return Boolean(this.systemStatus && this.systemStatus.show_operator_console === true);
+    },
+    showDevelopmentMenuConfig() {
+      return Boolean(this.systemStatus && this.systemStatus.show_development_menu === true);
+    },
     availableTenants() {
       return (this.$store && this.$store.getters && this.$store.getters.availableTenants) || [];
     },
@@ -901,11 +907,13 @@ export default {
         }
       }
       const onOperatorConsole = this.$route.path === '/monitoring/operator' || this.$route.path === '/operator';
+      const onDevRoute = this.$route.path === '/development' || this.$route.path.startsWith('/development/');
+      const operatorConsoleHidden = !this.showOperatorConsoleConfig || isOp || ((isAdm || isCS || isEng) && isCloud);
 
-      if (!allowed || ((isOp || ((isAdm || isCS || isEng) && isCloud)) && onOperatorConsole)) {
+      if (!allowed || (operatorConsoleHidden && onOperatorConsole) || (!this.showDevelopmentMenuConfig && onDevRoute)) {
         if (isSuper || isCS) {
           this.$router.push('/monitoring/fleet-map');
-        } else if (isOp || ((isAdm || isEng) && isCloud)) {
+        } else if (!this.showOperatorConsoleConfig || isOp || ((isAdm || isEng) && isCloud)) {
           this.$router.push('/monitoring/dashboard-operator');
         } else {
           this.$router.push('/monitoring/operator');

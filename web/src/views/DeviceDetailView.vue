@@ -798,7 +798,7 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <!-- Selected Bulk Actions -->
-          <template v-if="selectedParamIds.length > 0">
+          <template v-if="!isReadOnlyRole && !isOperator && selectedParamIds.length > 0">
             <button
               type="button"
               @click="bulkSetParamsEnabled(true)"
@@ -818,6 +818,18 @@
               <span>{{ $t('deviceDetail.deactivateSelected', { count: selectedParamIds.length }) }}</span>
             </button>
             <button
+              id="btn-bulk-delete-selected-params"
+              type="button"
+              @click="openBulkDeleteParamsModal('selected')"
+              :disabled="bulkParamLoading"
+              class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-500/15 dark:hover:bg-rose-500/25 dark:text-rose-300 dark:border-rose-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+            >
+              <svg class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>{{ $t('deviceDetail.deleteSelected', { count: selectedParamIds.length }) || `Delete Selected (${selectedParamIds.length})` }}</span>
+            </button>
+            <button
               type="button"
               @click="selectedParamIds = []"
               class="px-2 py-1.5 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-xs font-mono"
@@ -826,8 +838,8 @@
               ✕
             </button>
           </template>
-          <!-- Quick Activate All / Deactivate All when none explicitly checked -->
-          <template v-else-if="device.parameters && device.parameters.length > 0">
+          <!-- Quick Activate All / Deactivate All / Delete All when none explicitly checked -->
+          <template v-else-if="!isReadOnlyRole && !isOperator && device.parameters && device.parameters.length > 0">
             <button
               v-if="inactiveParamsCount > 0"
               type="button"
@@ -848,9 +860,22 @@
               <span class="w-2 h-2 rounded-full bg-amber-500"></span>
               <span>{{ $t('deviceDetail.deactivateAll') || 'Deactivate All' }}</span>
             </button>
+            <button
+              id="btn-bulk-delete-all-params"
+              type="button"
+              @click="openBulkDeleteParamsModal('all')"
+              :disabled="bulkParamLoading"
+              class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+            >
+              <svg class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>{{ $t('deviceDetail.deleteAllParams') || 'Delete All' }}</span>
+            </button>
           </template>
 
           <button
+            v-if="!isReadOnlyRole && !isOperator"
             @click="openAddParamModal"
             class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow transition flex items-center space-x-1.5"
           >
@@ -3979,6 +4004,96 @@
       </div>
     </div>
 
+    <!-- Bulk Delete Parameters Confirmation Modal -->
+    <div
+      v-if="isBulkDeleteParamModalOpen"
+      @click.self="closeBulkDeleteParamsModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in font-sans"
+    >
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <!-- Header -->
+        <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-rose-50/70 dark:bg-rose-950/25">
+          <div class="flex items-center space-x-3 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white truncate">
+                {{ bulkDeleteMode === 'all'
+                  ? ($t('deviceDetail.bulkDeleteAllTitle', { count: bulkDeleteTargetParams.length }) || `Delete All Parameters (${bulkDeleteTargetParams.length})`)
+                  : ($t('deviceDetail.bulkDeleteSelectedTitle', { count: bulkDeleteTargetParams.length }) || `Delete Selected Parameters (${bulkDeleteTargetParams.length})`) }}
+              </h3>
+              <p v-if="device" class="text-3xs font-mono text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                {{ device.name }} · {{ device.device_code || device.code }}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="closeBulkDeleteParamsModal"
+            :disabled="bulkParamLoading"
+            class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-5 space-y-3.5 overflow-y-auto text-xs">
+          <p class="text-slate-700 dark:text-slate-200 leading-relaxed">
+            {{ bulkDeleteMode === 'all'
+              ? ($t('deviceDetail.bulkDeleteAllDesc', { count: bulkDeleteTargetParams.length, device: (device && (device.device_code || device.code || device.name)) || '' })
+                  || `Are you sure you want to delete ALL ${bulkDeleteTargetParams.length} parameter(s) from this device?`)
+              : ($t('deviceDetail.bulkDeleteSelectedDesc', { count: bulkDeleteTargetParams.length, device: (device && (device.device_code || device.code || device.name)) || '' })
+                  || `Are you sure you want to delete ${bulkDeleteTargetParams.length} selected parameter(s) from this device?`) }}
+          </p>
+
+          <!-- Target Parameter Codes Preview -->
+          <div v-if="bulkDeleteTargetParams.length > 0" class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 max-h-36 overflow-y-auto">
+            <div class="flex flex-wrap gap-1.5">
+              <span
+                v-for="p in bulkDeleteTargetParams"
+                :key="'bdp-' + p.id"
+                class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-3xs font-mono font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30"
+              >
+                <span>{{ p.parameter_code || p.code }}</span>
+                <span v-if="p.parameter_name || p.name" class="text-slate-500 dark:text-slate-400 font-sans font-normal">({{ p.parameter_name || p.name }})</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Safe Historical Preservation Note -->
+          <div class="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 text-2xs text-amber-800 dark:text-amber-300 leading-relaxed">
+            {{ $t('deviceDetail.bulkDeletePreserveNote') || 'Historical telemetry data in the database will remain safely preserved, while active alarms and aggregation rollups for these parameters will be cleaned up automatically.' }}
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#0B0F19]/80 flex items-center justify-end space-x-2.5">
+          <button
+            type="button"
+            @click="closeBulkDeleteParamsModal"
+            :disabled="bulkParamLoading"
+            class="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+          >
+            {{ $t('common.cancel') || 'Cancel' }}
+          </button>
+          <button
+            id="btn-confirm-bulk-delete-params"
+            type="button"
+            @click="executeBulkDeleteParameters"
+            :disabled="bulkParamLoading || bulkDeleteTargetParams.length === 0"
+            class="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-sm transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <span v-if="bulkParamLoading" class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            <span>{{ $t('deviceDetail.confirmBulkDeleteBtn', { count: bulkDeleteTargetParams.length }) || `Yes, Delete (${bulkDeleteTargetParams.length})` }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Global Floating Toast Notification -->
     <div
       v-if="toastMessage"
@@ -4054,6 +4169,8 @@ export default {
       selectedParamIds: [],
       paramToggleLoading: {},
       bulkParamLoading: false,
+      isBulkDeleteParamModalOpen: false,
+      bulkDeleteMode: 'selected',
       deviceToggleLoading: false,
 
       // Modbus Multi-Address Batch Read Polling Plan
@@ -4158,6 +4275,20 @@ export default {
     },
     isOperator() {
       return this.userRole === 'OPERATOR';
+    },
+    isReadOnlyRole() {
+      if (this.$store && this.$store.getters && this.$store.getters.isReadOnlyRole !== undefined) {
+        return Boolean(this.$store.getters.isReadOnlyRole);
+      }
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(this.userRole);
+    },
+    bulkDeleteTargetParams() {
+      const allParams = (this.device && Array.isArray(this.device.parameters)) ? this.device.parameters : [];
+      if (this.bulkDeleteMode === 'all') {
+        return allParams;
+      }
+      const idSet = new Set(this.selectedParamIds);
+      return allParams.filter(p => idSet.has(p.id));
     },
     canAccessRawMode() {
       if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
@@ -5125,6 +5256,50 @@ export default {
         this.loadActivity();
       } catch (err) {
         alert(this.$t('deviceDetail.toggleParamError') + ': ' + ((err.response && err.response.data && err.response.data.error) || err.message));
+      } finally {
+        this.bulkParamLoading = false;
+      }
+    },
+    openBulkDeleteParamsModal(mode = 'selected') {
+      if (!this.device || this.bulkParamLoading) return;
+      this.bulkDeleteMode = mode === 'all' ? 'all' : 'selected';
+      if (this.bulkDeleteMode === 'selected' && !this.selectedParamIds.length) return;
+      if (this.bulkDeleteMode === 'all' && (!this.device.parameters || !this.device.parameters.length)) return;
+      this.isBulkDeleteParamModalOpen = true;
+    },
+    closeBulkDeleteParamsModal() {
+      if (this.bulkParamLoading) return;
+      this.isBulkDeleteParamModalOpen = false;
+    },
+    async executeBulkDeleteParameters() {
+      if (!this.device || this.bulkParamLoading) return;
+      const isAll = this.bulkDeleteMode === 'all';
+      const targetIds = this.bulkDeleteTargetParams.map(p => p.id);
+      if (!targetIds.length) return;
+
+      this.bulkParamLoading = true;
+      try {
+        const res = await this.$store.dispatch('bulkDeleteParameters', {
+          deviceId: this.device.id,
+          parameterIds: targetIds,
+          deleteAll: isAll,
+        });
+        const deletedCount = (res && res.count) || targetIds.length;
+        this.selectedParamIds = [];
+        this.isBulkDeleteParamModalOpen = false;
+        await this.loadDevice();
+        if (this.isModbusDevice) {
+          this.fetchPollingPlan();
+        }
+        this.loadActivity();
+        this.showToast(
+          this.$t('deviceDetail.bulkParamsDeleted', { count: deletedCount })
+            || `${deletedCount} parameter(s) successfully deleted`,
+          'success'
+        );
+      } catch (err) {
+        const msg = (err.response && err.response.data && err.response.data.error) || err.message;
+        alert(this.$t('deviceDetail.deleteParamError') + ': ' + msg);
       } finally {
         this.bulkParamLoading = false;
       }

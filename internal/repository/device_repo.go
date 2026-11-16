@@ -812,13 +812,56 @@ func (r *DeviceRepository) UpdateParameter(param *model.Parameter) error {
 	return nil
 }
 
+func archiveDeletedParameterCode(orig string, id uint) string {
+	suffix := "__del_" + strconv.FormatUint(uint64(id), 10)
+	maxPrefix := 64 - len(suffix)
+	if maxPrefix < 1 {
+		maxPrefix = 1
+	}
+	base := strings.TrimSpace(orig)
+	if len(base) > maxPrefix {
+		base = base[:maxPrefix]
+	}
+	return base + suffix
+}
+
 func (r *DeviceRepository) DeleteParameter(deviceID, paramID uint) error {
+	return r.DeleteParametersBulk(deviceID, []uint{paramID})
+}
+
+func (r *DeviceRepository) DeleteParametersBulk(deviceID uint, paramIDs []uint) error {
+	if deviceID == 0 || len(paramIDs) == 0 {
+		return nil
+	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if tx.Migrator().HasTable(&model.AggregationDefinition{}) {
-			_ = tx.Model(&model.AggregationDefinition{}).Where("device_id = ? AND parameter_id = ?", deviceID, paramID).Update("enabled", false).Error
-			_ = tx.Where("device_id = ? AND parameter_id = ?", deviceID, paramID).Delete(&model.AggregationDefinition{}).Error
+			_ = tx.Model(&model.AggregationDefinition{}).Where("device_id = ? AND parameter_id IN ?", deviceID, paramIDs).Update("enabled", false).Error
+			_ = tx.Where("device_id = ? AND parameter_id IN ?", deviceID, paramIDs).Delete(&model.AggregationDefinition{}).Error
 		}
-		return tx.Where("id = ? AND device_id = ?", paramID, deviceID).Delete(&model.Parameter{}).Error
+		if tx.Migrator().HasTable(&model.ISPUParameterMapping{}) {
+			_ = tx.Where("parameter_id IN ?", paramIDs).Delete(&model.ISPUParameterMapping{}).Error
+		}
+		if tx.Migrator().HasTable(&model.WQMSParameterMapping{}) {
+			_ = tx.Where("parameter_id IN ?", paramIDs).Delete(&model.WQMSParameterMapping{}).Error
+		}
+		if tx.Migrator().HasTable(&model.DeviceActuator{}) {
+			_ = tx.Model(&model.DeviceActuator{}).Where("device_id = ? AND feedback_parameter_id IN ?", deviceID, paramIDs).Update("feedback_parameter_id", nil).Error
+		}
+
+		// Archive unique parameter_code before soft-delete so the same code can be re-created cleanly later
+		var targets []model.Parameter
+		if err := tx.Where("device_id = ? AND id IN ?", deviceID, paramIDs).Find(&targets).Error; err == nil {
+			for _, p := range targets {
+				archived := archiveDeletedParameterCode(p.ParameterCode, p.ID)
+				_ = tx.Model(&model.Parameter{}).Where("id = ? AND device_id = ?", p.ID, deviceID).Updates(map[string]interface{}{
+					"parameter_code": archived,
+					"code":           archived,
+					"enabled":        false,
+				}).Error
+			}
+		}
+
+		return tx.Where("device_id = ? AND id IN ?", deviceID, paramIDs).Delete(&model.Parameter{}).Error
 	})
 }
 

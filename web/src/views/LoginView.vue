@@ -322,13 +322,19 @@ export default {
         const isOperator = role === 'OPERATOR';
         const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
         const isCloudMode = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+        const showOperatorConsole = Boolean(sys.show_operator_console === true);
+        const showDevelopmentMenu = Boolean(sys.show_development_menu === true);
         const defaultLanding = (isSuper || isCustomerService)
           ? '/monitoring/fleet-map'
-          : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator');
+          : ((!showOperatorConsole || isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator');
 
         if (redirect && redirect !== '/login') {
           // Check if destination is restricted for the logged-in role
           const isDevRoute = redirect.startsWith('/development');
+          const isOperatorConsoleRoute =
+            redirect === '/' ||
+            redirect === '/operator' ||
+            redirect.startsWith('/monitoring/operator');
           const isUsersRoute = redirect.startsWith('/administration/users');
           const isRolesRoute = redirect.startsWith('/administration/roles');
           const isTenantsRoute = redirect.startsWith('/administration/tenants');
@@ -393,7 +399,11 @@ export default {
             this.$router.push(defaultLanding);
             return;
           }
-          if (isDevRoute && !isSuper) {
+          if (!showOperatorConsole && isOperatorConsoleRoute) {
+            this.$router.push((isSuper || isCustomerService) ? '/monitoring/fleet-map' : '/monitoring/dashboard-operator');
+            return;
+          }
+          if (isDevRoute && (!isSuper || !showDevelopmentMenu)) {
             this.$router.push(defaultLanding);
             return;
           }
