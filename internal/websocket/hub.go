@@ -112,9 +112,9 @@ func (c *Client) matchesScope(msgTenantID, msgSiteID uint) bool {
 	c.scopeMu.RLock()
 	defer c.scopeMu.RUnlock()
 
-	isSuper := strings.EqualFold(c.role, "SUPERADMIN") || strings.EqualFold(c.role, "Administrator")
+	isGlobal := strings.EqualFold(c.role, "SUPERADMIN") || strings.EqualFold(c.role, "Administrator") || tenantctx.IsCustomerServiceRole(c.role)
 	if msgTenantID > 0 {
-		if !isSuper {
+		if !isGlobal {
 			if c.userTenantID != nil && *c.userTenantID > 0 && *c.userTenantID != msgTenantID {
 				return false
 			}
@@ -126,7 +126,7 @@ func (c *Client) matchesScope(msgTenantID, msgSiteID uint) bool {
 		}
 	}
 	if msgSiteID > 0 {
-		if !isSuper && len(c.allowedSiteIDs) > 0 {
+		if !isGlobal && len(c.allowedSiteIDs) > 0 {
 			allowed := false
 			for _, id := range c.allowedSiteIDs {
 				if id == msgSiteID {
@@ -183,7 +183,7 @@ func (h *Hub) Run() {
 			h.mu.RLock()
 			for client := range h.clients {
 				isSuper := strings.EqualFold(client.role, "SUPERADMIN") || strings.EqualFold(client.role, "Administrator")
-				canRaw := isSuper || strings.EqualFold(client.role, "ADMIN")
+				canRaw := isSuper || strings.EqualFold(client.role, "ADMIN") || tenantctx.IsCustomerServiceRole(client.role)
 
 				// 0. Strict Multi-Tenant & Multi-Site room isolation
 				if !client.matchesScope(msgTenantID, msgSiteID) {
@@ -317,13 +317,13 @@ func ServeWS(hub *Hub, c *gin.Context) {
 		reqSiteID = uint(v)
 	}
 
-	isSuper := strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator")
+	isGlobal := strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator") || tenantctx.IsCustomerServiceRole(role)
 	activeTenantID := reqTenantID
-	if !isSuper && userTenantID != nil && *userTenantID > 0 {
+	if !isGlobal && userTenantID != nil && *userTenantID > 0 {
 		activeTenantID = *userTenantID
 	}
 	activeSiteID := reqSiteID
-	if !isSuper && len(allowedSites) > 0 {
+	if !isGlobal && len(allowedSites) > 0 {
 		allowed := false
 		for _, id := range allowedSites {
 			if id == reqSiteID {
@@ -384,8 +384,8 @@ func (c *Client) readPump() {
 		}
 		if json.Unmarshal(raw, &cmd) == nil && strings.EqualFold(cmd.Type, "SET_SCOPE") {
 			c.scopeMu.Lock()
-			isSuper := strings.EqualFold(c.role, "SUPERADMIN") || strings.EqualFold(c.role, "Administrator")
-			if isSuper {
+			isGlobal := strings.EqualFold(c.role, "SUPERADMIN") || strings.EqualFold(c.role, "Administrator") || tenantctx.IsCustomerServiceRole(c.role)
+			if isGlobal {
 				c.activeTenantID = cmd.TenantID
 				c.activeSiteID = cmd.SiteID
 			} else {

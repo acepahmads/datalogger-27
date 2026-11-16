@@ -132,7 +132,7 @@ type UpdateAPIKeyRequest struct {
 // --- Tenant Operations ---
 
 func (s *TenantService) ListTenants(scope tenantctx.Scope) ([]model.Tenant, error) {
-	if scope.IsSuperAdmin {
+	if scope.CanViewAllTenants() {
 		return s.repo.ListTenants(true)
 	}
 	tid := scope.TenantID
@@ -413,9 +413,9 @@ func (s *TenantService) CheckDeviceQuota(tenantID uint, additional int) error {
 
 func (s *TenantService) ListSites(scope tenantctx.Scope, explicitTenantID uint) ([]model.Site, error) {
 	tid := scope.TenantID
-	if scope.IsSuperAdmin && explicitTenantID > 0 {
+	if scope.CanViewAllTenants() && explicitTenantID > 0 {
 		tid = explicitTenantID
-	} else if !scope.IsSuperAdmin && tid == 0 {
+	} else if !scope.CanViewAllTenants() && tid == 0 {
 		tid = tenantctx.DefaultTenantID
 	}
 	return s.repo.ListSites(tid, scope.AllowedSiteIDs)
@@ -684,12 +684,12 @@ func (s *TenantService) invalidateKeyCache() {
 
 func (s *TenantService) ListAPIKeys(scope tenantctx.Scope, explicitTenantID uint) ([]model.TenantAPIKey, error) {
 	tid := scope.TenantID
-	if scope.IsSuperAdmin && explicitTenantID > 0 {
+	if scope.CanViewAllTenants() && explicitTenantID > 0 {
 		tid = explicitTenantID
-	} else if !scope.IsSuperAdmin && tid == 0 {
+	} else if !scope.CanViewAllTenants() && tid == 0 {
 		tid = tenantctx.DefaultTenantID
 	}
-	return s.repo.ListAPIKeysScoped(tid, scope.IsSuperAdmin)
+	return s.repo.ListAPIKeysScoped(tid, scope.CanViewAllTenants())
 }
 
 func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Scope, ip string) (*model.TenantAPIKey, string, error) {

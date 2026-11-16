@@ -12,7 +12,7 @@
           <h1 class="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2 flex-wrap">
             <span>Manajemen Multi-Tenant, Stasiun &amp; Hybrid Edge</span>
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-              {{ isSuperAdmin ? 'GLOBAL SUPERADMIN' : (isEngineer ? 'TENANT ENGINEER' : 'TENANT ADMIN') }}
+              {{ isSuperAdmin ? 'GLOBAL SUPERADMIN' : (isCustomerService ? 'CUSTOMER SERVICE · READ-ONLY' : (isEngineer ? 'TENANT ENGINEER' : 'TENANT ADMIN')) }}
             </span>
           </h1>
           <p class="text-xs text-slate-500 dark:text-slate-400">
@@ -30,7 +30,7 @@
           class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
           :class="activeTab === 'tenants' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-white font-semibold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
         >
-          <span>🏢 {{ isSuperAdmin ? `Tenant (${tenants.length})` : 'Profil Organisasi' }}</span>
+          <span>🏢 {{ canViewAllTenants ? `Tenant (${tenants.length})` : 'Profil Organisasi' }}</span>
         </button>
 
         <button
@@ -55,9 +55,9 @@
       </div>
     </div>
 
-    <!-- Active Workspace Banner for SUPERADMIN -->
+    <!-- Active Workspace Banner for Global Viewers (SUPERADMIN & CUSTOMER_SERVICE) -->
     <div
-      v-if="isSuperAdmin"
+      v-if="canViewAllTenants"
       class="p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
       :class="activeTenantId > 0
         ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/60 text-purple-900 dark:text-purple-200'
@@ -68,9 +68,10 @@
         <span v-if="activeTenantId > 0">
           Workspace Aktif: <strong>{{ activeTenantName }}</strong>
           <span v-if="activeSiteId > 0"> &bull; Stasiun: <strong>{{ activeSiteName }}</strong></span>
+          <span v-if="isReadOnly" class="ml-1 font-mono text-3xs text-teal-700 dark:text-teal-300">(Read-Only)</span>
         </span>
         <span v-else>
-          Mode <strong>Global Semua Tenant</strong> aktif — Anda melihat seluruh organisasi, stasiun, dan kunci Edge lintas tenant.
+          Mode <strong>Global Semua Tenant</strong> aktif — Anda melihat seluruh organisasi, stasiun, dan kunci Edge lintas tenant<span v-if="isReadOnly"> (Read-Only)</span>.
         </span>
       </div>
       <div class="flex items-center gap-2" v-if="activeTenantId > 0 || activeSiteId > 0">
@@ -100,8 +101,8 @@
     <!-- TAB 1: TENANTS (SUPERADMIN CRUD / TENANT ADMIN SELF-SERVICE)        -->
     <!-- =================================================================== -->
     <div v-if="activeTab === 'tenants'" class="space-y-4">
-      <!-- 1A. SUPERADMIN FULL TENANT LIST & CRUD -->
-      <template v-if="isSuperAdmin">
+      <!-- 1A. GLOBAL TENANT LIST (SUPERADMIN CRUD / CUSTOMER_SERVICE READ-ONLY) -->
+      <template v-if="canViewAllTenants">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
             <div class="text-3xs font-semibold uppercase tracking-wider text-slate-500">Total Tenant</div>
@@ -131,6 +132,7 @@
             class="w-full sm:max-w-sm bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-purple-500"
           />
           <button
+            v-if="isSuperAdmin && !isReadOnly"
             id="btn-create-tenant"
             type="button"
             @click="openCreateTenantModal"
@@ -138,6 +140,12 @@
           >
             <span>+ Tambah Tenant Baru</span>
           </button>
+          <span
+            v-else-if="isReadOnly"
+            class="px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-2xs font-mono font-bold self-start sm:self-auto"
+          >
+            👁️ Mode Read-Only (Tanpa Tambah / Ubah / Hapus)
+          </span>
         </div>
 
         <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
@@ -207,6 +215,7 @@
                         Masuk Workspace
                       </button>
                       <button
+                        v-if="isSuperAdmin && !isReadOnly"
                         type="button"
                         @click="openEditTenantModal(t)"
                         class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-3xs font-semibold cursor-pointer"
@@ -214,7 +223,7 @@
                         Edit
                       </button>
                       <button
-                        v-if="Number(t.id) !== 1"
+                        v-if="isSuperAdmin && !isReadOnly && Number(t.id) !== 1"
                         type="button"
                         @click="confirmDeleteTenant(t)"
                         class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-3xs font-semibold cursor-pointer"
@@ -348,6 +357,7 @@
           </p>
         </div>
         <button
+          v-if="!isReadOnly"
           id="btn-create-site"
           type="button"
           @click="openCreateSiteModal"
@@ -355,6 +365,12 @@
         >
           + Tambah Stasiun Pantau
         </button>
+        <span
+          v-else
+          class="px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-2xs font-mono font-bold self-start sm:self-auto"
+        >
+          👁️ Mode Read-Only
+        </span>
       </div>
 
       <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
@@ -364,7 +380,7 @@
               <tr>
                 <th class="px-4 py-3">Nama Stasiun</th>
                 <th class="px-4 py-3">Kode</th>
-                <th v-if="isSuperAdmin" class="px-4 py-3">Tenant</th>
+                <th v-if="canViewAllTenants" class="px-4 py-3">Tenant</th>
                 <th class="px-4 py-3">Domain</th>
                 <th class="px-4 py-3">Koordinat GPS</th>
                 <th class="px-4 py-3">Perangkat</th>
@@ -392,7 +408,7 @@
                     station_id: {{ s.legacy_station_id }}
                   </div>
                 </td>
-                <td v-if="isSuperAdmin" class="px-4 py-3 text-2xs font-medium">{{ tenantNameById(s.tenant_id) }}</td>
+                <td v-if="canViewAllTenants" class="px-4 py-3 text-2xs font-medium">{{ tenantNameById(s.tenant_id) }}</td>
                 <td class="px-4 py-3">
                   <div class="flex flex-wrap items-center gap-1">
                     <span
@@ -435,6 +451,7 @@
                       Pilih Stasiun
                     </button>
                     <button
+                      v-if="!isReadOnly"
                       type="button"
                       @click="openEditSiteModal(s)"
                       class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-3xs font-semibold cursor-pointer"
@@ -442,6 +459,7 @@
                       Edit
                     </button>
                     <button
+                      v-if="!isReadOnly"
                       type="button"
                       @click="confirmDeleteSite(s)"
                       class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-3xs font-semibold cursor-pointer"
@@ -452,7 +470,7 @@
                 </td>
               </tr>
               <tr v-if="sites.length === 0">
-                <td :colspan="isSuperAdmin ? 8 : 7" class="px-4 py-8 text-center text-slate-500">
+                <td :colspan="canViewAllTenants ? 8 : 7" class="px-4 py-8 text-center text-slate-500">
                   Belum ada stasiun pantau terdaftar pada scope ini.
                 </td>
               </tr>
@@ -541,7 +559,7 @@
             Mendukung <code class="font-mono text-emerald-600 dark:text-emerald-400">Authorization: Bearer ...</code>, <code class="font-mono text-amber-600 dark:text-amber-400">Authorization: Token ...</code>, maupun <code class="font-mono">X-API-Key</code> pada <code class="font-mono">/api/v1/ingest/telemetry</code> &amp; <code class="font-mono">/api/v1/ticks/create_multi</code>. Daftarkan <strong>token lama datalogger</strong> agar alat di lapangan tidak perlu diubah.
           </p>
         </div>
-        <div class="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+        <div v-if="!isReadOnly" class="flex flex-wrap items-center gap-2 self-start lg:self-auto">
           <button
             id="btn-register-legacy-token"
             type="button"
@@ -559,6 +577,12 @@
             + Buat Bearer Token Baru
           </button>
         </div>
+        <span
+          v-else
+          class="px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-2xs font-mono font-bold self-start lg:self-auto"
+        >
+          👁️ Mode Read-Only
+        </span>
       </div>
 
       <!-- Newly Minted Key One-Time Banner -->
@@ -604,19 +628,19 @@
               <tr>
                 <th class="px-4 py-3">Nama Token</th>
                 <th class="px-4 py-3">Bearer Prefix</th>
-                <th v-if="isSuperAdmin" class="px-4 py-3">Tenant</th>
+                <th v-if="canViewAllTenants" class="px-4 py-3">Tenant</th>
                 <th class="px-4 py-3">Target Stasiun</th>
                 <th class="px-4 py-3">Switch Format Penerimaan</th>
                 <th class="px-4 py-3">Pemakaian Terakhir</th>
                 <th class="px-4 py-3">Status</th>
-                <th class="px-4 py-3 text-right">Aksi</th>
+                <th v-if="!isReadOnly" class="px-4 py-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
               <tr v-for="k in ingestKeys" :key="k.id" class="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
                 <td class="px-4 py-3 font-bold text-slate-900 dark:text-white">{{ k.name }}</td>
                 <td class="px-4 py-3 font-mono text-2xs text-emerald-700 dark:text-emerald-400">Bearer {{ k.key_prefix }}••••••</td>
-                <td v-if="isSuperAdmin" class="px-4 py-3 text-2xs">
+                <td v-if="canViewAllTenants" class="px-4 py-3 text-2xs">
                   <span
                     v-if="k.is_global"
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/30"
@@ -637,9 +661,10 @@
                   <div class="flex flex-col gap-1 max-w-[235px]">
                     <select
                       :value="normalizeIngestFormat(k.ingest_format)"
+                      :disabled="isReadOnly"
                       @change="updateIngestKeyFormat(k, $event.target.value)"
-                      class="w-full rounded-lg px-2 py-1 text-3xs font-mono font-bold border cursor-pointer focus:outline-none"
-                      :class="ingestFormatBadgeClass(k.ingest_format)"
+                      class="w-full rounded-lg px-2 py-1 text-3xs font-mono font-bold border focus:outline-none disabled:opacity-75 disabled:cursor-default"
+                      :class="[ingestFormatBadgeClass(k.ingest_format), isReadOnly ? '' : 'cursor-pointer']"
                     >
                       <option value="AUTO">AUTO · Hybrid (Baru + Lama)</option>
                       <option value="STANDARD_V1">STANDARD_V1 · Format Baru</option>
@@ -655,16 +680,17 @@
                 <td class="px-4 py-3">
                   <button
                     type="button"
+                    :disabled="isReadOnly"
                     @click="toggleIngestKey(k)"
-                    class="px-2 py-0.5 rounded-full text-3xs font-bold cursor-pointer border"
-                    :class="k.enabled
+                    class="px-2 py-0.5 rounded-full text-3xs font-bold border disabled:cursor-default"
+                    :class="[k.enabled
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'"
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30', isReadOnly ? '' : 'cursor-pointer']"
                   >
                     {{ k.enabled ? 'ACTIVE' : 'DISABLED' }}
                   </button>
                 </td>
-                <td class="px-4 py-3 text-right">
+                <td v-if="!isReadOnly" class="px-4 py-3 text-right">
                   <div class="inline-flex items-center justify-end gap-1.5">
                     <button
                       type="button"
@@ -685,7 +711,7 @@
                 </td>
               </tr>
               <tr v-if="ingestKeys.length === 0">
-                <td :colspan="isSuperAdmin ? 8 : 7" class="px-4 py-8 text-center text-slate-500">
+                <td :colspan="canViewAllTenants ? (isReadOnly ? 7 : 8) : (isReadOnly ? 6 : 7)" class="px-4 py-8 text-center text-slate-500">
                   Belum ada Bearer Token dibuat.
                 </td>
               </tr>
@@ -792,12 +818,14 @@
                 min="30"
                 max="86400"
                 step="30"
-                class="w-24 px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                :disabled="isReadOnly"
+                class="w-24 px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs font-bold text-slate-900 dark:text-white disabled:opacity-75"
               />
               <span class="text-3xs font-mono text-sky-800 dark:text-sky-300 whitespace-nowrap">
                 detik (={{ Math.round((Number(deviceTimeoutSeconds) || 300) / 60 * 10) / 10 }}m)
               </span>
               <button
+                v-if="!isReadOnly"
                 type="button"
                 :disabled="savingDeviceTimeout"
                 @click="saveBuilderDeviceTimeout"
@@ -807,7 +835,7 @@
               </button>
             </div>
           </div>
-          <div class="flex flex-wrap items-center gap-1.5">
+          <div v-if="!isReadOnly" class="flex flex-wrap items-center gap-1.5">
             <span class="text-3xs font-semibold text-sky-800 dark:text-sky-300 mr-1">Preset Cepat:</span>
             <button
               v-for="pr in [
@@ -830,7 +858,7 @@
             </button>
           </div>
           <p
-            v-if="payloadBuilder.loggerType === 'SPARING'"
+            v-if="payloadBuilder.loggerType === 'SPARING' && !isReadOnly"
             class="text-3xs text-sky-900 dark:text-sky-200 bg-sky-100/80 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-800/70 rounded-lg px-2.5 py-1.5"
           >
             💡 <strong>Pengiriman SPARING Per Jam (30 Data × 2 Menit):</strong> Pilih preset <strong>65 Menit (3900s)</strong> lalu klik <strong>Simpan Timeout</strong> agar status perangkat tetap <strong>ONLINE</strong> di antara siklus pengiriman tiap jam.
@@ -853,7 +881,8 @@
                   v-model.trim="siteLegacyStationId"
                   type="text"
                   placeholder="202"
-                  class="w-20 px-2 py-1 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs text-slate-900 dark:text-white"
+                  :disabled="isReadOnly"
+                  class="w-20 px-2 py-1 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs text-slate-900 dark:text-white disabled:opacity-75"
                 />
               </div>
               <div class="flex items-center gap-1">
@@ -862,10 +891,12 @@
                   v-model.trim="deviceLegacyModuleId"
                   type="text"
                   placeholder="199"
-                  class="w-20 px-2 py-1 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs text-slate-900 dark:text-white"
+                  :disabled="isReadOnly"
+                  class="w-20 px-2 py-1 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs text-slate-900 dark:text-white disabled:opacity-75"
                 />
               </div>
               <button
+                v-if="!isReadOnly"
                 type="button"
                 :disabled="savingLegacyMapping"
                 @click="saveBuilderLegacyMapping"
@@ -1570,6 +1601,15 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isCustomerService() {
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(this.userRole);
+    },
+    isReadOnly() {
+      return this.isCustomerService;
+    },
+    canViewAllTenants() {
+      return this.isSuperAdmin || this.isCustomerService;
+    },
     isEngineer() {
       return this.userRole === 'ENGINEER';
     },
@@ -1623,7 +1663,7 @@ export default {
       return this.tenants.reduce((acc, t) => acc + Number(t.device_count || 0), 0);
     },
     filteredSitesForKeyModal() {
-      if (!this.isSuperAdmin) return this.sites;
+      if (!this.canViewAllTenants) return this.sites;
       const tid = Number(this.keyForm.tenant_id || 0);
       if (!tid) return this.sites;
       return this.sites.filter(s => Number(s.tenant_id) === tid);
@@ -2100,7 +2140,7 @@ export default {
     },
     async loadTenantsOrProfile() {
       try {
-        if (this.isSuperAdmin) {
+        if (this.canViewAllTenants) {
           const res = await axios.get('/api/tenants');
           if (res.data && res.data.data) {
             this.tenants = Array.isArray(res.data.data) ? res.data.data : [];
@@ -2199,7 +2239,7 @@ export default {
       this.showToast('Kembali ke mode Global Semua Tenant.');
     },
     async focusSite(site) {
-      if (this.isSuperAdmin && Number(this.activeTenantId) !== Number(site.tenant_id)) {
+      if (this.canViewAllTenants && Number(this.activeTenantId) !== Number(site.tenant_id)) {
         await this.$store.dispatch('setActiveTenant', site.tenant_id);
       }
       await this.$store.dispatch('setActiveSite', site.id);

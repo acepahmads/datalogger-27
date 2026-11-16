@@ -133,13 +133,13 @@
                 </td>
                 <td class="py-3 px-4 text-center">
                   <div class="flex items-center justify-center space-x-1.5">
-                    <button v-if="alarm.status === 'ACTIVE'"
+                    <button v-if="alarm.status === 'ACTIVE' && !isCustomerService"
                             id="btn-ack-alarm"
                             @click="openAckModal(alarm)"
                             class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-2xs font-sans font-medium transition-colors shadow-xs">
                       {{ $t('alarms.acknowledge') }}
                     </button>
-                    <span v-else class="text-slate-400 text-3xs font-mono">{{ $t('alarms.acked') }}</span>
+                    <span v-else-if="alarm.status !== 'ACTIVE'" class="text-slate-400 text-3xs font-mono">{{ $t('alarms.acked') }}</span>
 
                     <button @click="openIncidentModal(alarm)"
                             class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
@@ -1424,6 +1424,9 @@ export default {
     },
     isOperator() {
       return this.userRole === 'OPERATOR';
+    },
+    isCustomerService() {
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(this.userRole);
     },
     isCloudMode() {
       const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};

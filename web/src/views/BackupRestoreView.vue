@@ -16,7 +16,8 @@
 
       <!-- Action Buttons & Tabs -->
       <div class="flex flex-wrap items-center gap-2">
-        <button @click="showCreateModal = true"
+        <button v-if="!isReadOnlyRole"
+                @click="showCreateModal = true"
                 class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
           <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -25,7 +26,8 @@
           {{ $t('backup.createBackup') }}
         </button>
 
-        <button @click="openImportModal"
+        <button v-if="!isReadOnlyRole"
+                @click="openImportModal"
                 class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
           <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"></path>
@@ -1159,6 +1161,11 @@ export default {
     };
   },
   computed: {
+    isReadOnlyRole() {
+      if (this.$store && this.$store.getters && this.$store.getters.isReadOnlyRole) return true;
+      const role = String((this.$store && this.$store.state && this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(role);
+    },
     totalPages() {
       return Math.ceil(this.totalCount / this.pageSize) || 1;
     },
@@ -1173,7 +1180,8 @@ export default {
     const role = String((this.$store && this.$store.state && this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
     const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
     const isCloud = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
-    if ((role === 'ADMIN' || role === 'ENGINEER') && isCloud) {
+    const isCS = ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(role);
+    if ((role === 'ADMIN' || role === 'ENGINEER' || isCS) && isCloud) {
       this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
       return;
     }

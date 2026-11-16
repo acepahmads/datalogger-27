@@ -43,6 +43,24 @@ func NewAuthService(repo *repository.SystemRepository, cfg *config.Config) *Auth
 	return &AuthService{repo: repo, config: cfg}
 }
 
+func normalizeCanonicalRoleName(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if tenantctx.IsCustomerServiceRole(trimmed) {
+		return "CUSTOMER_SERVICE"
+	}
+	uName := strings.ToUpper(trimmed)
+	if uName == "SUPERADMIN" || uName == "ADMIN" || uName == "ENGINEER" || uName == "OPERATOR" {
+		return uName
+	}
+	return trimmed
+}
+
+func isGlobalCrossTenantRole(roleName string) bool {
+	return strings.EqualFold(roleName, "SUPERADMIN") ||
+		strings.EqualFold(roleName, "Administrator") ||
+		tenantctx.IsCustomerServiceRole(roleName)
+}
+
 func (s *AuthService) Login(username, password, ipAddress, userAgent string) (string, *model.User, error) {
 	user, err := s.repo.GetUserByUsername(username)
 	if err != nil {
@@ -55,15 +73,10 @@ func (s *AuthService) Login(username, password, ipAddress, userAgent string) (st
 
 	roleName := "OPERATOR"
 	if user.Role != nil {
-		uName := strings.ToUpper(user.Role.Name)
-		if uName == "SUPERADMIN" || uName == "ADMIN" || uName == "ENGINEER" || uName == "OPERATOR" {
-			roleName = uName
-		} else {
-			roleName = user.Role.Name
-		}
+		roleName = normalizeCanonicalRoleName(user.Role.Name)
 	}
-	isSuper := strings.EqualFold(roleName, "SUPERADMIN") || strings.EqualFold(roleName, "Administrator")
-	if !isSuper && user.Tenant != nil && strings.EqualFold(user.Tenant.Status, model.TenantStatusSuspended) {
+	isGlobal := isGlobalCrossTenantRole(roleName)
+	if !isGlobal && user.Tenant != nil && strings.EqualFold(user.Tenant.Status, model.TenantStatusSuspended) {
 		return "", nil, errors.New("organization tenant account is currently suspended")
 	}
 
@@ -79,7 +92,7 @@ func (s *AuthService) Login(username, password, ipAddress, userAgent string) (st
 	_ = s.repo.UpdateUserLastLogin(user.ID)
 
 	var claimTenantID *uint
-	if !isSuper && user.TenantID != nil && *user.TenantID > 0 {
+	if !isGlobal && user.TenantID != nil && *user.TenantID > 0 {
 		tid := *user.TenantID
 		claimTenantID = &tid
 	}
@@ -154,12 +167,7 @@ func (s *AuthService) SwitchAccount(callerID uint, callerUsername, targetUsernam
 
 	roleName := "OPERATOR"
 	if targetUser.Role != nil {
-		uName := strings.ToUpper(targetUser.Role.Name)
-		if uName == "SUPERADMIN" || uName == "ADMIN" || uName == "ENGINEER" || uName == "OPERATOR" {
-			roleName = uName
-		} else {
-			roleName = targetUser.Role.Name
-		}
+		roleName = normalizeCanonicalRoleName(targetUser.Role.Name)
 	}
 
 	// Audit trail: Superadmin impersonation / role switch
@@ -184,8 +192,8 @@ func (s *AuthService) SwitchAccount(callerID uint, callerUsername, targetUsernam
 	}
 
 	var targetClaimTenantID *uint
-	isTargetSuper := strings.EqualFold(roleName, "SUPERADMIN") || strings.EqualFold(roleName, "Administrator")
-	if !isTargetSuper && targetUser.TenantID != nil && *targetUser.TenantID > 0 {
+	isTargetGlobal := isGlobalCrossTenantRole(roleName)
+	if !isTargetGlobal && targetUser.TenantID != nil && *targetUser.TenantID > 0 {
 		tid := *targetUser.TenantID
 		targetClaimTenantID = &tid
 	}
@@ -319,15 +327,15 @@ func (s *AuthService) CreateUser(req CreateUserRequest, actorID uint, actorUsern
 	}
 
 	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
-	isTargetSuper := strings.EqualFold(role.Name, "SUPERADMIN") || strings.EqualFold(role.Name, "Administrator")
+	isTargetGlobal := isGlobalCrossTenantRole(role.Name)
 
-	// Privilege escalation prevention
-	if !isSuper && isTargetSuper {
-		return nil, errors.New("access denied: only SUPERADMIN can assign the SUPERADMIN role")
+	// Privilege escalation prevention: global cross-tenant roles (SUPERADMIN & CUSTOMER_SERVICE) require SUPERADMIN
+	if !isSuper && isTargetGlobal {
+		return nil, errors.New("access denied: only SUPERADMIN can assign global cross-tenant roles (SUPERADMIN / CUSTOMER_SERVICE)")
 	}
 
 	var assignedTenantID *uint
-	if !isTargetSuper {
+	if !isTargetGlobal {
 		if !isSuper && actorTenantID != nil {
 			if req.TenantID != nil && *req.TenantID > 0 && *req.TenantID != *actorTenantID {
 				return nil, errors.New("access denied: cannot create user in another tenant")
@@ -394,9 +402,9 @@ func (s *AuthService) UpdateUser(id uint, req UpdateUserRequest, actorID uint, a
 
 	// Privilege escalation & Cross-tenant prevention
 	if !isSuper {
-		// Non-superadmin cannot edit a SUPERADMIN user
-		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
-			return nil, errors.New("access denied: cannot modify a SUPERADMIN account")
+		// Non-superadmin cannot edit a global SUPERADMIN or CUSTOMER_SERVICE user
+		if user.Role != nil && isGlobalCrossTenantRole(user.Role.Name) {
+			return nil, errors.New("access denied: cannot modify a global platform account")
 		}
 		if actorTenantID != nil {
 			if user.TenantID == nil || *user.TenantID != *actorTenantID {
@@ -423,22 +431,22 @@ func (s *AuthService) UpdateUser(id uint, req UpdateUserRequest, actorID uint, a
 		}
 
 		if !isSuper {
-			if strings.EqualFold(newRole.Name, "SUPERADMIN") || strings.EqualFold(newRole.Name, "Administrator") {
-				return nil, errors.New("access denied: cannot elevate user to SUPERADMIN")
+			if isGlobalCrossTenantRole(newRole.Name) {
+				return nil, errors.New("access denied: cannot elevate user to a global cross-tenant role")
 			}
 		}
 
 		user.RoleID = req.RoleID
 		user.Role = newRole
-		if strings.EqualFold(newRole.Name, "SUPERADMIN") || strings.EqualFold(newRole.Name, "Administrator") {
+		if isGlobalCrossTenantRole(newRole.Name) {
 			user.TenantID = nil
 			user.AllowedSiteIDs = ""
 		}
 	}
 
 	if isSuper && req.TenantID != nil {
-		isTargetSuper := user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator"))
-		if isTargetSuper || *req.TenantID == 0 {
+		isTargetGlobal := user.Role != nil && isGlobalCrossTenantRole(user.Role.Name)
+		if isTargetGlobal || *req.TenantID == 0 {
 			user.TenantID = nil
 		} else {
 			tid := *req.TenantID
@@ -501,8 +509,8 @@ func (s *AuthService) SetUserActive(id uint, active bool, actorID uint, actorUse
 
 	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
 	if !isSuper {
-		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
-			return errors.New("access denied: cannot modify active status of a SUPERADMIN account")
+		if user.Role != nil && isGlobalCrossTenantRole(user.Role.Name) {
+			return errors.New("access denied: cannot modify active status of a global platform account")
 		}
 		if actorTenantID != nil && (user.TenantID == nil || *user.TenantID != *actorTenantID) {
 			return errors.New("access denied: user belongs to another tenant")
@@ -554,8 +562,8 @@ func (s *AuthService) ResetPassword(id uint, newPassword string, actorID uint, a
 
 	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
 	if !isSuper {
-		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
-			return errors.New("access denied: cannot reset password of a SUPERADMIN account")
+		if user.Role != nil && isGlobalCrossTenantRole(user.Role.Name) {
+			return errors.New("access denied: cannot reset password of a global platform account")
 		}
 		if actorTenantID != nil && (user.TenantID == nil || *user.TenantID != *actorTenantID) {
 			return errors.New("access denied: user belongs to another tenant")
@@ -593,8 +601,8 @@ func (s *AuthService) DeleteUser(id uint, actorID uint, actorUsername, actorRole
 
 	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
 	if !isSuper {
-		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
-			return errors.New("access denied: cannot delete a SUPERADMIN account")
+		if user.Role != nil && isGlobalCrossTenantRole(user.Role.Name) {
+			return errors.New("access denied: cannot delete a global platform account")
 		}
 		if actorTenantID != nil && (user.TenantID == nil || *user.TenantID != *actorTenantID) {
 			return errors.New("access denied: user belongs to another tenant")
@@ -766,7 +774,7 @@ func (s *AuthService) DeleteRole(id uint, actorID uint, actorUsername, ip, ua st
 		return errors.New("role not found")
 	}
 
-	if strings.EqualFold(role.Name, "SUPERADMIN") || strings.EqualFold(role.Name, "Administrator") || strings.EqualFold(role.Name, "ADMIN") || strings.EqualFold(role.Name, "ENGINEER") || strings.EqualFold(role.Name, "Engineer") || strings.EqualFold(role.Name, "OPERATOR") || strings.EqualFold(role.Name, "Operator") {
+	if strings.EqualFold(role.Name, "SUPERADMIN") || strings.EqualFold(role.Name, "Administrator") || strings.EqualFold(role.Name, "ADMIN") || tenantctx.IsCustomerServiceRole(role.Name) || strings.EqualFold(role.Name, "ENGINEER") || strings.EqualFold(role.Name, "Engineer") || strings.EqualFold(role.Name, "OPERATOR") || strings.EqualFold(role.Name, "Operator") {
 		return errors.New("cannot delete default system role '" + role.Name + "'")
 	}
 
@@ -812,9 +820,21 @@ func (s *AuthService) HasPermission(roleName, permCode string) bool {
 		return true
 	}
 
-	// Mode raw value / telemetry.raw restriction: only ADMIN and SUPERADMIN/Administrator
+	// Mode raw value / telemetry.raw restriction: only ADMIN, CUSTOMER_SERVICE (read-only), and SUPERADMIN/Administrator
 	if permCode == "telemetry.raw" {
-		return strings.EqualFold(roleName, "ADMIN")
+		return strings.EqualFold(roleName, "ADMIN") || tenantctx.IsCustomerServiceRole(roleName)
+	}
+
+	if tenantctx.IsCustomerServiceRole(roleName) {
+		switch strings.ToLower(strings.TrimSpace(permCode)) {
+		case "device.view", "device.communication.view", "telemetry.view", "telemetry.raw",
+			"category.view", "backup.view", "retention.view", "alarm.view", "notification.view",
+			"report.view", "report.generate", "ispu.view", "ispu.export", "wqms.view", "wqms.export",
+			"calibration.view", "site.view", "config.view", "user.view", "role.view", "integration.view":
+			return true
+		default:
+			return false
+		}
 	}
 
 	// Strictly prohibit non-SUPERADMIN from accessing development or platform tenant management

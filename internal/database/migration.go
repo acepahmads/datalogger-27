@@ -3491,13 +3491,14 @@ func ensurePhase7RBAC(db *gorm.DB) {
 		}
 	}
 
-	// 2. Ensure the 4 Canonical Roles exist
+	// 2. Ensure the 5 Canonical Roles exist
 	roles := []struct {
 		Name        string
 		Description string
 	}{
 		{Name: "SUPERADMIN", Description: "Full access to all application modules, development tracking, raw telemetry, and security administration"},
 		{Name: "ADMIN", Description: "Operational and administrative modules without access to development tracking or raw telemetry"},
+		{Name: "CUSTOMER_SERVICE", Description: "Global read-only Customer Service access across all tenants, Fleet Map, and administrative monitoring/reporting views (no create/update/delete)"},
 		{Name: "ENGINEER", Description: "Device configuration, parameter engineering, communication diagnostics, and operational modules"},
 		{Name: "OPERATOR", Description: "Operator Console, monitoring dashboards, alarm acknowledgement, and operational reports"},
 	}
@@ -3505,6 +3506,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 	// Migrate legacy and mixed-case roles to canonical uppercase names
 	_ = db.Exec("UPDATE roles SET name = 'SUPERADMIN' WHERE name IN ('Administrator', 'Superadmin', 'superadmin')").Error
 	_ = db.Exec("UPDATE roles SET name = 'ADMIN' WHERE name IN ('Admin', 'admin')").Error
+	_ = db.Exec("UPDATE roles SET name = 'CUSTOMER_SERVICE' WHERE name IN ('Customer Service', 'Costumer Service', 'customer_service', 'costumer_service', 'COSTUMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER SERVICE')").Error
 	_ = db.Exec("UPDATE roles SET name = 'ENGINEER' WHERE name IN ('Engineer', 'engineer')").Error
 	_ = db.Exec("UPDATE roles SET name = 'OPERATOR' WHERE name IN ('Operator', 'operator')").Error
 
@@ -3548,6 +3550,40 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			adminPerms = append(adminPerms, p)
 		}
 		_ = db.Model(adminRole).Association("Permissions").Replace(adminPerms)
+	}
+
+	// Assign permissions to CUSTOMER_SERVICE: Strictly Read-Only visibility matching ADMIN + Fleet Map (zero create/update/delete)
+	if csRole, ok := roleMap["CUSTOMER_SERVICE"]; ok && csRole != nil {
+		var csPerms []model.Permission
+		csAllowed := map[string]bool{
+			"device.view":               true,
+			"device.communication.view": true,
+			"telemetry.view":            true,
+			"telemetry.raw":             true,
+			"category.view":             true,
+			"backup.view":               true,
+			"retention.view":            true,
+			"alarm.view":                true,
+			"notification.view":         true,
+			"report.view":               true,
+			"report.generate":           true,
+			"ispu.view":                 true,
+			"ispu.export":               true,
+			"wqms.view":                 true,
+			"wqms.export":               true,
+			"calibration.view":          true,
+			"site.view":                 true,
+			"config.view":               true,
+			"user.view":                 true,
+			"role.view":                 true,
+			"integration.view":          true,
+		}
+		for _, p := range dbAllPerms {
+			if csAllowed[p.Code] {
+				csPerms = append(csPerms, p)
+			}
+		}
+		_ = db.Model(csRole).Association("Permissions").Replace(csPerms)
 	}
 
 	// Assign permissions to ENGINEER:
@@ -4475,12 +4511,14 @@ func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
 	_ = ensureDefaultTenantRecord(db)
 	_ = ensureDefaultSiteRecord(db)
 
-	// 3. Backfill users: SUPERADMIN gets tenant_id = NULL (Global); non-SUPERADMIN gets tenant_id = 1 if NULL
-	var superRoleIDs []uint
-	_ = db.Model(&model.Role{}).Where("UPPER(name) IN ?", []string{"SUPERADMIN", "ADMINISTRATOR"}).Pluck("id", &superRoleIDs).Error
-	if len(superRoleIDs) > 0 {
-		_ = db.Model(&model.User{}).Where("role_id IN ? AND tenant_id IS NOT NULL", superRoleIDs).Update("tenant_id", nil).Error
-		_ = db.Model(&model.User{}).Where("role_id NOT IN ? AND (tenant_id IS NULL OR tenant_id = 0)", superRoleIDs).Update("tenant_id", 1).Error
+	// 3. Backfill users: SUPERADMIN & CUSTOMER_SERVICE get tenant_id = NULL (Global); scoped roles get tenant_id = 1 if NULL
+	var globalRoleIDs []uint
+	_ = db.Model(&model.Role{}).Where("UPPER(name) IN ?", []string{
+		"SUPERADMIN", "ADMINISTRATOR", "CUSTOMER_SERVICE", "CUSTOMER SERVICE", "COSTUMER_SERVICE", "COSTUMER SERVICE",
+	}).Pluck("id", &globalRoleIDs).Error
+	if len(globalRoleIDs) > 0 {
+		_ = db.Model(&model.User{}).Where("role_id IN ? AND tenant_id IS NOT NULL", globalRoleIDs).Update("tenant_id", nil).Error
+		_ = db.Model(&model.User{}).Where("role_id NOT IN ? AND (tenant_id IS NULL OR tenant_id = 0)", globalRoleIDs).Update("tenant_id", 1).Error
 	}
 
 	// 4. Backfill domain tables where tenant_id / site_id were 0 or NULL

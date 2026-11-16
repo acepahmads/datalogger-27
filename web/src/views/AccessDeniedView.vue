@@ -70,6 +70,15 @@
         </router-link>
 
         <router-link
+          v-if="isSuperAdmin || isCustomerService"
+          to="/monitoring/fleet-map"
+          class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center justify-center gap-2"
+        >
+          <span>🗺️</span>
+          <span>{{ $t('navigation.fleetMap') || 'Peta Tenant & Stasiun' }}</span>
+        </router-link>
+
+        <router-link
           v-if="isSuperAdmin"
           to="/dashboard"
           class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
@@ -103,6 +112,10 @@ export default {
       const r = (this.currentUser.role || '').toUpperCase();
       return r === 'ADMIN';
     },
+    isCustomerService() {
+      const r = (this.currentUser.role || '').toUpperCase();
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(r);
+    },
     isEngineer() {
       const r = (this.currentUser.role || '').toUpperCase();
       return r === 'ENGINEER';
@@ -112,7 +125,7 @@ export default {
       return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
     },
     useDashboardOperatorHome() {
-      return this.isOperator || ((this.isAdmin || this.isEngineer) && this.isCloudMode);
+      return this.isOperator || ((this.isAdmin || this.isCustomerService || this.isEngineer) && this.isCloudMode);
     },
     attemptedUrl() {
       return this.$route.query.from || '';

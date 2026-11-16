@@ -480,13 +480,13 @@
                 <span v-if="switchingSiteId === selectedSite.site_id">Membuka Stasiun...</span>
                 <span v-else>Buka Dashboard Stasiun →</span>
               </button>
-              <div class="grid grid-cols-3 gap-1.5">
+              <div class="grid gap-1.5" :class="canEditStationGps ? 'grid-cols-3' : 'grid-cols-2'">
                 <button
                   type="button"
-                  @click="openSiteModule(selectedSite, '/monitoring/devices')"
+                  @click="openSiteModule(selectedSite, (!isSuperAdmin && isCloudMode) ? '/monitoring/telemetry' : '/monitoring/devices')"
                   class="py-1 px-2 rounded-lg bg-white hover:bg-slate-100 dark:bg-slate-800/90 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-3xs font-bold transition cursor-pointer"
                 >
-                  Perangkat ({{ selectedSite.device_count }})
+                  {{ (!isSuperAdmin && isCloudMode) ? `Live Data (${selectedSite.device_count})` : `Perangkat (${selectedSite.device_count})` }}
                 </button>
                 <button
                   type="button"
@@ -496,6 +496,7 @@
                   Detail Alarm
                 </button>
                 <button
+                  v-if="canEditStationGps"
                   type="button"
                   @click="openGpsModal(selectedSite)"
                   class="py-1 px-2 rounded-lg bg-white hover:bg-slate-100 dark:bg-slate-800/90 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sky-600 dark:text-sky-400 text-3xs font-bold transition cursor-pointer"
@@ -669,7 +670,7 @@
                 🚨 {{ site.total_active_alarms }}
               </span>
               <button
-                v-if="!site.has_coordinates"
+                v-if="!site.has_coordinates && canEditStationGps"
                 type="button"
                 @click.stop="openGpsModal(site)"
                 class="px-1.5 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-4xs font-bold cursor-pointer"
@@ -677,6 +678,12 @@
               >
                 + GPS
               </button>
+              <span
+                v-else-if="!site.has_coordinates"
+                class="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 text-4xs font-mono font-bold"
+              >
+                NO-GPS
+              </span>
               <button
                 type="button"
                 @click.stop="openSiteDashboard(site)"
@@ -764,7 +771,7 @@
               📍 Peta
             </button>
             <button
-              v-else
+              v-else-if="canEditStationGps"
               type="button"
               @click="openGpsModal(site)"
               class="px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-2xs font-bold cursor-pointer"
@@ -1107,6 +1114,16 @@ export default {
     isSuperAdmin() {
       return Boolean(this.$store && this.$store.getters && this.$store.getters.isSuperAdmin);
     },
+    isCustomerService() {
+      return Boolean(this.$store && this.$store.getters && this.$store.getters.isCustomerService);
+    },
+    canEditStationGps() {
+      return this.isSuperAdmin && !this.isCustomerService;
+    },
+    isCloudMode() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     isDesktopViewport() {
       return this.viewportWidth >= 768;
     },
@@ -1306,7 +1323,7 @@ export default {
     },
   },
   mounted() {
-    if (!this.isSuperAdmin) {
+    if (!this.isSuperAdmin && !this.isCustomerService) {
       this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
       return;
     }
@@ -1917,7 +1934,7 @@ export default {
     },
 
     openGpsModal(site) {
-      if (!site) return;
+      if (!site || !this.canEditStationGps) return;
       const hasValid = site.has_coordinates && isValidStationCoordinate(site.latitude, site.longitude);
       this.gpsForm = {
         site_id: site.site_id,

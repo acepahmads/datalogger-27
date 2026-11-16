@@ -29,7 +29,7 @@
         </p>
       </div>
 
-      <div class="flex items-center space-x-3">
+      <div v-if="!isReadOnlyRole" class="flex items-center space-x-3">
         <!-- Add Device Button -->
         <button
           @click="openAddModal"
@@ -270,6 +270,7 @@
               <td class="py-3.5 px-3.5 text-center whitespace-nowrap">
                 <div class="inline-flex items-center space-x-2">
                   <button
+                    v-if="!isReadOnlyRole"
                     @click="toggleDeviceEnabled(dev)"
                     :disabled="!!togglingDeviceIds[dev.id]"
                     class="relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50"
@@ -294,6 +295,7 @@
               <td class="py-3.5 px-4 text-right whitespace-nowrap pr-5">
                 <div class="flex items-center justify-end space-x-1.5">
                   <button
+                    v-if="!isReadOnlyRole"
                     @click="toggleDeviceEnabled(dev)"
                     :disabled="!!togglingDeviceIds[dev.id]"
                     :class="dev.enabled
@@ -323,6 +325,7 @@
                   </router-link>
 
                   <button
+                    v-if="!isReadOnlyRole"
                     @click="openCopyModal(dev)"
                     class="inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:text-cyan-400 dark:hover:text-cyan-300 dark:hover:bg-cyan-950/40 font-semibold text-3xs transition"
                     :title="$t('devices.copyDevice') || 'Copy Device'"
@@ -334,6 +337,7 @@
                   </button>
 
                   <button
+                    v-if="!isReadOnlyRole"
                     @click="openEditModal(dev)"
                     class="px-2 py-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 font-semibold text-3xs transition"
                   >
@@ -341,6 +345,7 @@
                   </button>
 
                   <button
+                    v-if="!isReadOnlyRole"
                     @click="confirmDelete(dev)"
                     class="px-2 py-1 rounded-lg text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-950/40 font-semibold text-3xs transition"
                   >
@@ -455,7 +460,7 @@
               <span>{{ $t('devices.live') }}</span>
             </router-link>
           </div>
-          <div class="flex items-center space-x-2">
+          <div v-if="!isReadOnlyRole" class="flex items-center space-x-2">
             <button
               @click="toggleDeviceEnabled(dev)"
               :disabled="!!togglingDeviceIds[dev.id]"
@@ -518,6 +523,11 @@ export default {
     };
   },
   computed: {
+    isReadOnlyRole() {
+      if (this.$store && this.$store.getters && this.$store.getters.isReadOnlyRole) return true;
+      const role = String((this.$store && this.$store.state && this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(role);
+    },
     totalPages() {
       return Math.ceil(this.totalDevices / this.pageSize) || 1;
     },

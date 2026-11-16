@@ -54,20 +54,22 @@ func ResolveScope(c *gin.Context, claims *service.JWTClaims) tenantctx.Scope {
 		return tenantctx.Scope{}
 	}
 	isSuper := strings.EqualFold(claims.Role, "SUPERADMIN") || strings.EqualFold(claims.Role, "Administrator")
+	isCS := tenantctx.IsCustomerServiceRole(claims.Role)
 	reqTenantID := parseHeaderOrQueryUint(c, "X-Tenant-ID", "tenant_id")
 	reqSiteID := parseHeaderOrQueryUint(c, "X-Site-ID", "site_id")
 
 	scope := tenantctx.Scope{
-		Authenticated:  true,
-		IsSuperAdmin:   isSuper,
-		UserID:         claims.UserID,
-		Username:       claims.Username,
-		Role:           claims.Role,
-		UserTenantID:   claims.TenantID,
-		AllowedSiteIDs: tenantctx.ParseCSVUintIDs(claims.AllowedSiteIDs),
+		Authenticated:     true,
+		IsSuperAdmin:      isSuper,
+		IsCustomerService: isCS,
+		UserID:            claims.UserID,
+		Username:          claims.Username,
+		Role:              claims.Role,
+		UserTenantID:      claims.TenantID,
+		AllowedSiteIDs:    tenantctx.ParseCSVUintIDs(claims.AllowedSiteIDs),
 	}
 
-	if isSuper {
+	if isSuper || isCS {
 		scope.TenantID = reqTenantID
 		scope.SiteID = reqSiteID
 		return scope
@@ -122,6 +124,49 @@ func GetScope(c *gin.Context) tenantctx.Scope {
 	return tenantctx.Scope{}
 }
 
+func isCustomerServiceAllowedReadOnlyPost(method, rawPath string) bool {
+	if !strings.EqualFold(method, http.MethodPost) {
+		return false
+	}
+	p := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(rawPath), "/"))
+	switch p {
+	case "/api/auth/login",
+		"/api/auth/logout",
+		"/api/reports/preview",
+		"/api/reports/generate",
+		"/api/calibrations/calculate",
+		"/api/devices/parameters/validate-formula":
+		return true
+	}
+	if strings.HasSuffix(p, "/parameters/validate-formula") {
+		return true
+	}
+	if strings.HasPrefix(p, "/api/destinations/") && strings.HasSuffix(p, "/preview") {
+		return true
+	}
+	if strings.HasPrefix(p, "/api/retention/policies/") && strings.HasSuffix(p, "/dry-run") {
+		return true
+	}
+	return false
+}
+
+// enforceCustomerServiceReadOnly blocks any create, update, or delete HTTP request from CUSTOMER_SERVICE.
+func enforceCustomerServiceReadOnly(c *gin.Context, role string) bool {
+	if !tenantctx.IsCustomerServiceRole(role) {
+		return true
+	}
+	m := strings.ToUpper(c.Request.Method)
+	if m == http.MethodGet || m == http.MethodHead || m == http.MethodOptions {
+		return true
+	}
+	if isCustomerServiceAllowedReadOnlyPost(m, c.Request.URL.Path) {
+		return true
+	}
+	response.Forbidden(c, "Akses ditolak: Role Customer Service bersifat Read-Only (tidak dapat menambah, mengubah, atau menghapus data)")
+	c.Abort()
+	return false
+}
+
 // OptionalTenantContext Opportunistically parses Bearer/query JWT tokens on public/semi-public endpoints
 // (such as /api/system/branding, /api/system/location, /api/system/status) so tenant context is honored when logged in.
 func OptionalTenantContext(authService *service.AuthService) gin.HandlerFunc {
@@ -143,6 +188,9 @@ func OptionalTenantContext(authService *service.AuthService) gin.HandlerFunc {
 		if tokenString != "" && !strings.HasPrefix(tokenString, "dlg_") {
 			if claims, err := authService.ValidateToken(tokenString); err == nil && claims != nil {
 				applyClaimsAndScope(c, claims)
+				if !enforceCustomerServiceReadOnly(c, claims.Role) {
+					return
+				}
 			}
 		}
 		c.Next()
@@ -180,6 +228,9 @@ func JWTAuth(authService *service.AuthService) gin.HandlerFunc {
 		}
 
 		applyClaimsAndScope(c, claims)
+		if !enforceCustomerServiceReadOnly(c, claims.Role) {
+			return
+		}
 		c.Next()
 	}
 }
@@ -246,13 +297,47 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// Mode raw value / telemetry.raw restriction: only ADMIN and SUPERADMIN/Administrator
+		// Mode raw value / telemetry.raw restriction: only ADMIN, CUSTOMER_SERVICE (read-only), and SUPERADMIN/Administrator
 		if permissionCode == "telemetry.raw" {
-			if !strings.EqualFold(role, "ADMIN") {
-				response.Forbidden(c, "Access denied: missing required permission 'telemetry.raw' (Admin and Superadmin only)")
+			if !strings.EqualFold(role, "ADMIN") && !tenantctx.IsCustomerServiceRole(role) {
+				response.Forbidden(c, "Access denied: missing required permission 'telemetry.raw' (Admin, Customer Service, and Superadmin only)")
 				c.Abort()
 				return
 			}
+		}
+
+		// CUSTOMER_SERVICE strict read-only permission enforcement (same visibility as ADMIN, zero add/update/delete)
+		if tenantctx.IsCustomerServiceRole(role) {
+			csAllowed := map[string]bool{
+				"device.view":               true,
+				"device.communication.view": true,
+				"telemetry.view":            true,
+				"telemetry.raw":             true,
+				"category.view":             true,
+				"backup.view":               true,
+				"retention.view":            true,
+				"alarm.view":                true,
+				"notification.view":         true,
+				"report.view":               true,
+				"report.generate":           true,
+				"ispu.view":                 true,
+				"ispu.export":               true,
+				"wqms.view":                 true,
+				"wqms.export":               true,
+				"calibration.view":          true,
+				"site.view":                 true,
+				"config.view":               true,
+				"user.view":                 true,
+				"role.view":                 true,
+				"integration.view":          true,
+			}
+			if csAllowed[permissionCode] {
+				c.Next()
+				return
+			}
+			response.Forbidden(c, "Akses ditolak: Role Customer Service bersifat Read-Only (tidak memiliki izin '"+permissionCode+"')")
+			c.Abort()
+			return
 		}
 
 		// Check dynamic permission checker if registered
@@ -339,7 +424,9 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 
 		role, _ := roleVal.(string)
 		for _, allowed := range allowedRoles {
-			if strings.EqualFold(role, allowed) || (strings.EqualFold(allowed, "SUPERADMIN") && strings.EqualFold(role, "Administrator")) {
+			if strings.EqualFold(role, allowed) ||
+				(strings.EqualFold(allowed, "SUPERADMIN") && strings.EqualFold(role, "Administrator")) ||
+				(strings.EqualFold(allowed, "CUSTOMER_SERVICE") && tenantctx.IsCustomerServiceRole(role)) {
 				c.Next()
 				return
 			}

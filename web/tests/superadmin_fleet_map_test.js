@@ -21,14 +21,14 @@ const mainGoCode = fs.readFileSync(path.join(rootDir, 'cmd/main.go'), 'utf8');
 const tenantHandlerCode = fs.readFileSync(path.join(rootDir, 'internal/handler/tenant_handler.go'), 'utf8');
 const fleetServiceCode = fs.readFileSync(path.join(rootDir, 'internal/service/fleet_overview.go'), 'utf8');
 
-// 1. Backend Endpoint & Strict SUPERADMIN RBAC + Null-Island Guard
+// 1. Backend Endpoint & Strict Global Viewer RBAC (SUPERADMIN + CUSTOMER_SERVICE) + Null-Island Guard
 assert(
-  mainGoCode.includes('tenantsGroup.GET("/fleet-overview", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR"), tenantHandler.GetFleetOverview)'),
-  'cmd/main.go must register GET /api/tenants/fleet-overview restricted to SUPERADMIN'
+  mainGoCode.includes('tenantsGroup.GET("/fleet-overview", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "CUSTOMER_SERVICE"), tenantHandler.GetFleetOverview)'),
+  'cmd/main.go must register GET /api/tenants/fleet-overview restricted to SUPERADMIN and CUSTOMER_SERVICE'
 );
 assert(
-  tenantHandlerCode.includes('func (h *TenantHandler) GetFleetOverview') && tenantHandlerCode.includes('if !scope.IsSuperAdmin'),
-  'TenantHandler.GetFleetOverview must enforce strict scope.IsSuperAdmin guard'
+  tenantHandlerCode.includes('func (h *TenantHandler) GetFleetOverview') && tenantHandlerCode.includes('if !scope.CanViewAllTenants()'),
+  'TenantHandler.GetFleetOverview must enforce strict scope.CanViewAllTenants() guard'
 );
 assert(
   fleetServiceCode.includes('func isValidFleetCoordinate') && fleetServiceCode.includes('math.Abs(la) < 0.0001 && math.Abs(ln) < 0.0001'),
@@ -41,20 +41,24 @@ assert(
 
 // 2. Router, Sidebar, Header, Vuex & App Shell Integration
 assert(
-  /path:\s*'\/monitoring\/fleet-map'[\s\S]{0,180}roles:\s*\['SUPERADMIN'\]/.test(routerCode),
-  'Router must register /monitoring/fleet-map strictly restricted to SUPERADMIN'
+  /path:\s*'\/monitoring\/fleet-map'[\s\S]{0,180}roles:\s*\['SUPERADMIN',\s*'CUSTOMER_SERVICE'\]/.test(routerCode),
+  'Router must register /monitoring/fleet-map restricted to SUPERADMIN and CUSTOMER_SERVICE'
 );
 assert(
   routerCode.includes("path: '/fleet-map', redirect: '/monitoring/fleet-map'"),
   'Router must provide /fleet-map shortcut redirect'
 );
 assert(
-  sidebarCode.includes('v-if="isSuperAdmin"') && sidebarCode.includes('to="/monitoring/fleet-map"'),
-  'Sidebar must expose Fleet & Tenant Map strictly for SUPERADMIN'
+  sidebarCode.includes('v-if="isSuperAdmin || isCustomerService"') && sidebarCode.includes('to="/monitoring/fleet-map"'),
+  'Sidebar must expose Fleet & Tenant Map for SUPERADMIN and CUSTOMER_SERVICE'
 );
 assert(
   headerCode.includes('id="header-fleet-map-shortcut"') && headerCode.includes('to="/monitoring/fleet-map"'),
-  'Header must expose 1-click Fleet Map shortcut next to global Tenant Switcher for SUPERADMIN'
+  'Header must expose 1-click Fleet Map shortcut next to global Tenant Switcher for SUPERADMIN and CUSTOMER_SERVICE'
+);
+assert(
+  fleetViewCode.includes('canEditStationGps()') && fleetViewCode.includes('return this.isSuperAdmin && !this.isCustomerService;'),
+  'FleetMapView must strictly hide/disable GPS editing controls for read-only CUSTOMER_SERVICE'
 );
 assert(
   storeCode.includes('async setActiveTenantAndSite('),

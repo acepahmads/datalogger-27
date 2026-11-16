@@ -145,18 +145,18 @@ func (h *IngestHandler) IngestMQTT(c *gin.Context) {
 // AQMS, SPARING, and ONLIMO JSON payloads + Bearer Token cURL commands from manually registered parameters.
 func (h *IngestHandler) GetPayloadTemplate(c *gin.Context) {
 	scope := middleware.GetScope(c)
-	if !scope.IsSuperAdmin && !strings.EqualFold(scope.Role, "ADMIN") {
+	if !scope.CanViewAllTenants() && !strings.EqualFold(scope.Role, "ADMIN") {
 		if cfg := config.Get(); cfg == nil || !cfg.IsCloudMode() || !strings.EqualFold(scope.Role, "ENGINEER") {
 			response.Forbidden(c, "Forbidden: insufficient role privileges for payload template")
 			return
 		}
 	}
-	if !scope.IsSuperAdmin && scope.TenantID > 0 {
+	if !scope.CanViewAllTenants() && scope.TenantID > 0 {
 		if qTid, err := strconv.ParseUint(c.Query("tenant_id"), 10, 32); err == nil && qTid > 0 && uint(qTid) != scope.TenantID {
 			response.Forbidden(c, "Forbidden: cross-tenant payload template access denied")
 			return
 		}
-	} else if scope.IsSuperAdmin {
+	} else if scope.CanViewAllTenants() {
 		if qTid, err := strconv.ParseUint(c.Query("tenant_id"), 10, 32); err == nil && qTid > 0 {
 			scope.TenantID = uint(qTid)
 		}

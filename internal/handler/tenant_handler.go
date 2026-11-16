@@ -37,6 +37,8 @@ func (h *TenantHandler) GetContext(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"is_super_admin":      scope.IsSuperAdmin,
+		"is_customer_service": scope.IsCustomerService,
+		"can_switch_tenants":  scope.CanViewAllTenants(),
 		"effective_tenant_id": scope.TenantID,
 		"effective_site_id":   scope.SiteID,
 		"user_tenant_id":      scope.UserTenantID,
@@ -46,11 +48,11 @@ func (h *TenantHandler) GetContext(c *gin.Context) {
 	})
 }
 
-// GetFleetOverview returns the cross-tenant global station map overview (Strictly SUPERADMIN only).
+// GetFleetOverview returns the cross-tenant global station map overview (SUPERADMIN and read-only CUSTOMER_SERVICE).
 func (h *TenantHandler) GetFleetOverview(c *gin.Context) {
 	scope := middleware.GetScope(c)
-	if !scope.IsSuperAdmin {
-		response.Forbidden(c, "Hanya Superadmin platform yang memiliki akses ke Global Fleet & Tenant Map")
+	if !scope.CanViewAllTenants() {
+		response.Forbidden(c, "Hanya Superadmin dan Customer Service yang memiliki akses ke Global Fleet & Tenant Map")
 		return
 	}
 	overview, err := h.tenantService.GetFleetOverview()
@@ -71,10 +73,14 @@ func isTenantAdminOrSuper(scope tenantctx.Scope) bool {
 	return false
 }
 
+func canViewTenantManagement(scope tenantctx.Scope) bool {
+	return isTenantAdminOrSuper(scope) || scope.CanViewAllTenants()
+}
+
 func (h *TenantHandler) ListTenants(c *gin.Context) {
 	scope := middleware.GetScope(c)
-	if !isTenantAdminOrSuper(scope) {
-		response.Forbidden(c, "Hanya Admin dan Superadmin yang memiliki akses ke manajemen Tenant & Stasiun")
+	if !canViewTenantManagement(scope) {
+		response.Forbidden(c, "Hanya Admin, Customer Service, dan Superadmin yang memiliki akses ke daftar Tenant & Stasiun")
 		return
 	}
 	tenants, err := h.tenantService.ListTenants(scope)
@@ -87,8 +93,8 @@ func (h *TenantHandler) ListTenants(c *gin.Context) {
 
 func (h *TenantHandler) GetCurrentTenant(c *gin.Context) {
 	scope := middleware.GetScope(c)
-	if !isTenantAdminOrSuper(scope) {
-		response.Forbidden(c, "Hanya Admin dan Superadmin yang memiliki akses ke manajemen Tenant & Stasiun")
+	if !canViewTenantManagement(scope) {
+		response.Forbidden(c, "Hanya Admin, Customer Service, dan Superadmin yang memiliki akses ke profil Tenant")
 		return
 	}
 	tid := scope.TenantID
@@ -318,8 +324,8 @@ func (h *TenantHandler) DeleteSite(c *gin.Context) {
 
 func (h *TenantHandler) ListAPIKeys(c *gin.Context) {
 	scope := middleware.GetScope(c)
-	if !isTenantAdminOrSuper(scope) {
-		response.Forbidden(c, "Hanya Admin dan Superadmin yang memiliki akses ke Bearer Token API Receiver")
+	if !canViewTenantManagement(scope) {
+		response.Forbidden(c, "Hanya Admin, Customer Service, dan Superadmin yang memiliki akses ke Bearer Token API Receiver")
 		return
 	}
 	var explicitTid uint

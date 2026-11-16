@@ -42,7 +42,7 @@ const routes = [
     path: '/monitoring/fleet-map',
     name: 'FleetMap',
     component: () => import('../views/FleetMapView.vue'),
-    meta: { roles: ['SUPERADMIN'] },
+    meta: { roles: ['SUPERADMIN', 'CUSTOMER_SERVICE'] },
   },
   { path: '/fleet-map', redirect: '/monitoring/fleet-map' },
   {
@@ -96,7 +96,7 @@ const routes = [
     path: '/monitoring/telemetry',
     name: 'LiveTelemetry',
     component: TelemetryMonitorView,
-    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   { path: '/monitoring/analysis', name: 'TelemetryAnalysis', component: TelemetryAnalysisView },
   {
@@ -119,7 +119,7 @@ const routes = [
     path: '/monitoring/reports',
     name: 'Reports',
     component: ReportsView,
-    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
 
   // Alarms
@@ -134,7 +134,7 @@ const routes = [
     path: '/alarm/live-comm',
     name: 'LiveComm',
     component: () => import('../views/LiveCommView.vue'),
-    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   {
     path: '/alarm/activity-monitor',
@@ -149,19 +149,19 @@ const routes = [
     path: '/system/logs',
     name: 'SystemLogs',
     component: LogsView,
-    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   {
     path: '/system/audit',
     name: 'AuditTrails',
     component: LogsView,
-    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   {
     path: '/system/communication-logs',
     name: 'CommunicationLogs',
     component: LogsView,
-    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
 
   // Administration Modules
@@ -169,32 +169,32 @@ const routes = [
     path: '/administration/config',
     name: 'Configuration',
     component: ConfigView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   {
     path: '/administration/backup',
     name: 'BackupRestore',
     component: BackupRestoreView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   {
     path: '/administration/retention',
     name: 'RetentionStorage',
     component: RetentionStorageView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   {
     path: '/administration/tenants',
     name: 'TenantsManagement',
     component: TenantsManagementView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   { path: '/system/tenants', redirect: '/administration/tenants' },
   {
     path: '/administration/users',
     name: 'UserManagement',
     component: AccessControlView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN'] },
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'CUSTOMER_SERVICE'] },
   },
   {
     path: '/administration/roles',
@@ -209,13 +209,13 @@ const routes = [
     path: '/integration',
     name: 'Integration',
     component: IntegrationView,
-    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER'] },
   },
   {
     path: '/integration/queue',
     name: 'OutboundDeliveryQueue',
     component: IntegrationView,
-    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER', 'OPERATOR'] },
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'ENGINEER', 'OPERATOR'] },
   },
   { path: '/integration/destinations', redirect: '/integration' },
   { path: '/destinations', redirect: '/integration' },
@@ -298,25 +298,26 @@ router.beforeEach(async (to, from, next) => {
   const rawRole = (user.role || '').toUpperCase();
   const isSuper = rawRole === 'SUPERADMIN' || rawRole === 'ADMINISTRATOR';
   const isAdmin = rawRole === 'ADMIN';
+  const isCustomerService = ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(rawRole);
   const isEngineer = rawRole === 'ENGINEER';
   const isOperator = rawRole === 'OPERATOR';
-  const usesDashboardOperatorLanding = isOperator || ((isAdmin || isEngineer) && isCloudMode);
+  const usesDashboardOperatorLanding = isOperator || ((isAdmin || isCustomerService || isEngineer) && isCloudMode);
 
   // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to role default landing
   if (isAuth && isLoginPage && !to.query.switch) {
     return next({
-      path: isSuper ? '/monitoring/fleet-map' : (usesDashboardOperatorLanding ? '/monitoring/dashboard-operator' : '/monitoring/operator'),
+      path: (isSuper || isCustomerService) ? '/monitoring/fleet-map' : (usesDashboardOperatorLanding ? '/monitoring/dashboard-operator' : '/monitoring/operator'),
       replace: true,
     });
   }
 
-  // 2b. Role OPERATOR (and Role ADMIN / ENGINEER in Cloud mode) default landing & Operator Console hiding -> redirect straight to Dashboard Operator
+  // 2b. Role OPERATOR (and Role ADMIN / CUSTOMER_SERVICE / ENGINEER in Cloud mode) default landing & Operator Console hiding -> redirect straight to Dashboard Operator
   if (isAuth && usesDashboardOperatorLanding && (to.path === '/' || to.path === '/operator' || to.path === '/monitoring/operator')) {
     return next({ path: '/monitoring/dashboard-operator', replace: true });
   }
 
-  // 2b-cloud-admin. Role ADMIN and ENGINEER in Cloud mode cannot access Live Sensor Comm, Configuration, Backup & Restore, or Retention & Storage
-  if (isAuth && (isAdmin || isEngineer) && isCloudMode) {
+  // 2b-cloud-admin. Role ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode cannot access Live Sensor Comm, Configuration, Backup & Restore, or Retention & Storage
+  if (isAuth && (isAdmin || isCustomerService || isEngineer) && isCloudMode) {
     const cloudAdminRestrictedPrefixes = [
       '/alarm/live-comm',
       '/administration/config',
@@ -399,6 +400,9 @@ router.beforeEach(async (to, from, next) => {
     const allowed = to.meta.roles.some(r => {
       const targetRole = r.toUpperCase();
       if ((targetRole === 'SUPERADMIN' || targetRole === 'ADMINISTRATOR') && isSuper) {
+        return true;
+      }
+      if (targetRole === 'CUSTOMER_SERVICE' && isCustomerService) {
         return true;
       }
       return targetRole === rawRole;

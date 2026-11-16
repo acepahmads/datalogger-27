@@ -113,7 +113,7 @@
 
         <!-- Quick Acknowledge Button -->
         <button
-          v-if="highestAlarm.status === 'ACTIVE'"
+          v-if="highestAlarm.status === 'ACTIVE' && !isCustomerService"
           @click="openAckModal(highestAlarm)"
           class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-3xs font-bold tracking-wide transition-colors flex items-center space-x-1 shadow-sm"
           :title="$t('alarms.acknowledgeTooltip') || 'Acknowledge this alarm incident'"
@@ -205,7 +205,7 @@
             ✓ {{ item.acknowledged_by || 'Acked' }}
           </span>
           <button
-            v-else
+            v-else-if="!isCustomerService"
             @click="openAckModal(item)"
             class="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-3xs font-semibold transition-colors"
           >
@@ -328,6 +328,9 @@ export default {
     },
     isOperator() {
       return this.userRole === 'OPERATOR';
+    },
+    isCustomerService() {
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(this.userRole);
     },
     isCloudMode() {
       const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};

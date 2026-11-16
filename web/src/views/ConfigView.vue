@@ -1531,7 +1531,8 @@ export default {
     const role = String((this.$store && this.$store.state && this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
     const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
     const isCloud = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
-    if ((role === 'ADMIN' || role === 'ENGINEER') && isCloud) {
+    const isCS = ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(role);
+    if ((role === 'ADMIN' || role === 'ENGINEER' || isCS) && isCloud) {
       this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
       return;
     }

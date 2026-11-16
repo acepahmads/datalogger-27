@@ -98,7 +98,8 @@
         </div>
 
         <!-- Add User Button -->
-        <button id="btn-add-user"
+        <button v-if="canManageUsers"
+                id="btn-add-user"
                 @click="openCreateUserModal"
                 class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -107,6 +108,9 @@
           </svg>
           {{ $t('accessControl.createUser') || 'Create User' }}
         </button>
+        <span v-else class="px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-2xs font-mono font-bold self-start sm:self-auto">
+          👁️ Mode Read-Only (Customer Service)
+        </span>
       </div>
 
       <!-- Users Table -->
@@ -167,6 +171,9 @@
                 <td class="px-4 py-3">
                   <div v-if="isUserSuperRole(u)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                     🌐 Semua Tenant (Global)
+                  </div>
+                  <div v-else-if="isUserCustomerServiceRole(u)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+                    🌐 Semua Tenant (Read-Only)
                   </div>
                   <div v-else class="space-y-0.5">
                     <div class="font-semibold text-slate-800 dark:text-slate-200 text-2xs">
@@ -245,7 +252,7 @@
                     </button>
                   </div>
                   <div v-else class="text-3xs font-mono text-slate-400 italic">
-                    Protected
+                    {{ isCustomerService ? 'Read-Only' : 'Protected' }}
                   </div>
                 </td>
               </tr>
@@ -422,8 +429,8 @@
             </select>
           </div>
 
-          <!-- Tenant & Site Scope (Hidden when assigning Global SUPERADMIN) -->
-          <div v-if="!isRoleIdSuperAdmin(userForm.role_id)" class="space-y-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800">
+          <!-- Tenant & Site Scope (Hidden when assigning Global SUPERADMIN or CUSTOMER_SERVICE) -->
+          <div v-if="!isRoleIdGlobal(userForm.role_id)" class="space-y-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800">
             <div v-if="isSuperAdmin">
               <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Organisasi Tenant *</label>
               <select
@@ -455,6 +462,9 @@
               </div>
               <p class="text-3xs text-slate-400 mt-1">Kosongkan centang untuk mengizinkan akses ke seluruh stasiun pada tenant ini.</p>
             </div>
+          </div>
+          <div v-else-if="isRoleIdCustomerService(userForm.role_id)" class="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60 text-3xs text-teal-700 dark:text-teal-300 font-semibold">
+            🌐 Role CUSTOMER_SERVICE memiliki akses Read-Only ke Peta Tenant &amp; seluruh Tenant secara global (tanpa izin tambah/ubah/hapus).
           </div>
           <div v-else class="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-3xs text-purple-700 dark:text-purple-300 font-semibold">
             🌐 Role SUPERADMIN memiliki akses lintas seluruh Tenant &amp; Stasiun secara global.
@@ -503,7 +513,7 @@
           </div>
 
           <!-- Tenant & Site Scope on Edit -->
-          <div v-if="!isRoleIdSuperAdmin(editUserForm.role_id)" class="space-y-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800">
+          <div v-if="!isRoleIdGlobal(editUserForm.role_id)" class="space-y-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800">
             <div v-if="isSuperAdmin">
               <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Organisasi Tenant *</label>
               <select
@@ -535,6 +545,12 @@
               </div>
               <p class="text-3xs text-slate-400 mt-1">Kosongkan centang untuk mengizinkan akses ke seluruh stasiun pada tenant ini.</p>
             </div>
+          </div>
+          <div v-else-if="isRoleIdCustomerService(editUserForm.role_id)" class="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60 text-3xs text-teal-700 dark:text-teal-300 font-semibold">
+            🌐 Role CUSTOMER_SERVICE bersifat Global Read-Only lintas seluruh Tenant &amp; Peta Stasiun.
+          </div>
+          <div v-else class="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-3xs text-purple-700 dark:text-purple-300 font-semibold">
+            🌐 Role SUPERADMIN memiliki akses lintas seluruh Tenant &amp; Stasiun secara global.
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
@@ -675,13 +691,19 @@ export default {
     isAdmin() {
       return this.userRole === 'ADMIN';
     },
+    isCustomerService() {
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(this.userRole);
+    },
+    canManageUsers() {
+      return (this.isSuperAdmin || this.isAdmin) && !this.isCustomerService;
+    },
     assignableRoles() {
       if (this.isSuperAdmin) {
         return this.roles;
       }
       return this.roles.filter(r => {
         const name = (r.name || '').toUpperCase();
-        return name !== 'SUPERADMIN' && name !== 'ADMINISTRATOR';
+        return !['SUPERADMIN', 'ADMINISTRATOR', 'CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(name);
       });
     },
   },
@@ -710,9 +732,22 @@ export default {
       const upper = r.name.toUpperCase();
       return upper === 'SUPERADMIN' || upper === 'ADMINISTRATOR';
     },
+    isRoleIdCustomerService(roleId) {
+      const r = this.roles.find(item => Number(item.id) === Number(roleId));
+      if (!r || !r.name) return false;
+      const upper = r.name.toUpperCase();
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(upper);
+    },
+    isRoleIdGlobal(roleId) {
+      return this.isRoleIdSuperAdmin(roleId) || this.isRoleIdCustomerService(roleId);
+    },
     isUserSuperRole(u) {
       const name = ((u && u.role && u.role.name) || '').toUpperCase();
       return name === 'SUPERADMIN' || name === 'ADMINISTRATOR';
+    },
+    isUserCustomerServiceRole(u) {
+      const name = ((u && u.role && u.role.name) || '').toUpperCase();
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(name);
     },
     resolveUserTenantLabel(u) {
       if (u && u.tenant && u.tenant.name) return u.tenant.name;
@@ -751,14 +786,17 @@ export default {
     },
     isSystemRole(name) {
       if (!name) return false;
-      const lower = name.toLowerCase();
-      return lower === 'administrator' || lower === 'engineer' || lower === 'operator';
+      const upper = name.toUpperCase();
+      return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'ENGINEER', 'OPERATOR'].includes(upper);
     },
     getRoleBadgeClass(roleName) {
       if (!roleName) return 'bg-slate-100 text-slate-600';
       const lower = roleName.toLowerCase();
       if (lower.includes('admin')) {
         return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20';
+      }
+      if (lower.includes('customer') || lower.includes('costumer')) {
+        return 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20';
       }
       if (lower.includes('engineer')) {
         return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20';
@@ -806,10 +844,11 @@ export default {
       this.fetchUsers();
     },
     canManageUser(u) {
+      if (!this.canManageUsers) return false;
       if (this.isSuperAdmin) return true;
       if (!u) return false;
       const roleName = (u.role ? u.role.name : '').toUpperCase();
-      return roleName !== 'SUPERADMIN' && roleName !== 'ADMINISTRATOR';
+      return !['SUPERADMIN', 'ADMINISTRATOR', 'CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(roleName);
     },
     openCreateUserModal() {
       const defaultRole = this.assignableRoles.length > 0 ? this.assignableRoles[0].id : 1;
@@ -837,7 +876,7 @@ export default {
         }
       }
       try {
-        const isSuperTarget = this.isRoleIdSuperAdmin(this.userForm.role_id);
+        const isGlobalTarget = this.isRoleIdGlobal(this.userForm.role_id);
         const payload = {
           username: this.userForm.username,
           full_name: this.userForm.full_name,
@@ -845,8 +884,8 @@ export default {
           password: this.userForm.password,
           role_id: this.userForm.role_id,
           is_active: this.userForm.is_active,
-          tenant_id: isSuperTarget ? null : (Number(this.userForm.tenant_id) || 1),
-          allowed_site_ids: isSuperTarget ? '' : (this.userForm.selectedSiteIds || []).join(','),
+          tenant_id: isGlobalTarget ? null : (Number(this.userForm.tenant_id) || 1),
+          allowed_site_ids: isGlobalTarget ? '' : (this.userForm.selectedSiteIds || []).join(','),
         };
         const res = await axios.post('/api/users', payload);
         if (res.data && res.data.success) {
@@ -882,13 +921,13 @@ export default {
         }
       }
       try {
-        const isSuperTarget = this.isRoleIdSuperAdmin(this.editUserForm.role_id);
-        const allowedCsv = isSuperTarget ? '' : (this.editUserForm.selectedSiteIds || []).join(',');
+        const isGlobalTarget = this.isRoleIdGlobal(this.editUserForm.role_id);
+        const allowedCsv = isGlobalTarget ? '' : (this.editUserForm.selectedSiteIds || []).join(',');
         const payload = {
           full_name: this.editUserForm.full_name,
           email: this.editUserForm.email,
           role_id: this.editUserForm.role_id,
-          tenant_id: isSuperTarget ? null : (Number(this.editUserForm.tenant_id) || 1),
+          tenant_id: isGlobalTarget ? null : (Number(this.editUserForm.tenant_id) || 1),
           allowed_site_ids: allowedCsv,
         };
         const res = await axios.put(`/api/users/${this.editingUser.id}`, payload);

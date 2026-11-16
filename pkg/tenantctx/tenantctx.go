@@ -11,17 +11,29 @@ const DefaultSiteID uint = 1
 
 type scopeKey struct{}
 
+// IsCustomerServiceRole checks whether a role string matches the canonical CUSTOMER_SERVICE role (or common spelling variants).
+func IsCustomerServiceRole(role string) bool {
+	r := strings.ToUpper(strings.TrimSpace(role))
+	return r == "CUSTOMER_SERVICE" || r == "CUSTOMER SERVICE" || r == "COSTUMER_SERVICE" || r == "COSTUMER SERVICE"
+}
+
 // Scope represents the resolved Multi-Tenant & Multi-Site execution context for an HTTP/WS request.
 type Scope struct {
-	Authenticated  bool   `json:"authenticated"`
-	IsSuperAdmin   bool   `json:"is_super_admin"`
-	UserID         uint   `json:"user_id"`
-	Username       string `json:"username"`
-	Role           string `json:"role"`
-	UserTenantID   *uint  `json:"user_tenant_id,omitempty"`
-	TenantID       uint   `json:"tenant_id"` // 0 = Global (all tenants, SUPERADMIN only), >0 = specific tenant
-	SiteID         uint   `json:"site_id"`   // 0 = All allowed sites within tenant, >0 = specific site
-	AllowedSiteIDs []uint `json:"allowed_site_ids,omitempty"`
+	Authenticated     bool   `json:"authenticated"`
+	IsSuperAdmin      bool   `json:"is_super_admin"`
+	IsCustomerService bool   `json:"is_customer_service"`
+	UserID            uint   `json:"user_id"`
+	Username          string `json:"username"`
+	Role              string `json:"role"`
+	UserTenantID      *uint  `json:"user_tenant_id,omitempty"`
+	TenantID          uint   `json:"tenant_id"` // 0 = Global (all tenants, SUPERADMIN / CUSTOMER_SERVICE), >0 = specific tenant
+	SiteID            uint   `json:"site_id"`   // 0 = All allowed sites within tenant, >0 = specific site
+	AllowedSiteIDs    []uint `json:"allowed_site_ids,omitempty"`
+}
+
+// CanViewAllTenants returns true for global cross-tenant roles (SUPERADMIN and read-only CUSTOMER_SERVICE).
+func (s Scope) CanViewAllTenants() bool {
+	return s.IsSuperAdmin || s.IsCustomerService || IsCustomerServiceRole(s.Role)
 }
 
 // WithScope attaches a resolved tenant Scope to a standard context.Context.
@@ -89,7 +101,7 @@ func (s Scope) IsTenantEnforced() bool {
 
 // CanAccessTenant checks whether this scope is permitted to read/modify a record owned by recordTenantID.
 func (s Scope) CanAccessTenant(recordTenantID uint) bool {
-	if s.IsSuperAdmin {
+	if s.CanViewAllTenants() {
 		if s.TenantID > 0 && recordTenantID > 0 {
 			return s.TenantID == recordTenantID
 		}
@@ -106,7 +118,7 @@ func (s Scope) CanAccessTenant(recordTenantID uint) bool {
 
 // IsSiteAllowed checks whether a specific siteID is permitted under AllowedSiteIDs (empty AllowedSiteIDs means all sites in tenant).
 func (s Scope) IsSiteAllowed(siteID uint) bool {
-	if siteID == 0 || len(s.AllowedSiteIDs) == 0 || s.IsSuperAdmin {
+	if siteID == 0 || len(s.AllowedSiteIDs) == 0 || s.CanViewAllTenants() {
 		return true
 	}
 	for _, id := range s.AllowedSiteIDs {

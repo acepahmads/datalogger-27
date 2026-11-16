@@ -404,14 +404,15 @@ func main() {
 		api.POST("/ticks/create_multi", ingestHandler.IngestTelemetry)
 		api.POST("/sparing_logs/create_multi", ingestHandler.IngestTelemetry)
 
-		// Multi-Tenant & Multi-Site Organization Management (SUPERADMIN global + ADMIN/Cloud ENGINEER scoped to own tenant)
+		// Multi-Tenant & Multi-Site Organization Management (SUPERADMIN global + CUSTOMER_SERVICE read-only global + ADMIN/Cloud ENGINEER scoped to own tenant)
 		tenantsGroup := api.Group("/tenants")
 		tenantsGroup.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGroup.GET("/context", tenantHandler.GetContext)
-			tenantsGroup.GET("/fleet-overview", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR"), tenantHandler.GetFleetOverview)
-			tenantsGroup.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.GetCurrentTenant)
-			tenantsGroup.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ListTenants)
+			tenantsGroup.GET("/fleet-overview", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "CUSTOMER_SERVICE"), tenantHandler.GetFleetOverview)
+			tenantsGroup.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), tenantHandler.GetCurrentTenant)
+			tenantsGroup.PUT("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.UpdateCurrentTenant)
+			tenantsGroup.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), tenantHandler.ListTenants)
 			tenantsGroup.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
 			tenantsGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.UpdateTenant)
 			tenantsGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
@@ -427,14 +428,14 @@ func main() {
 		}
 
 		ingestKeysGroup := api.Group("/ingest-keys")
-		ingestKeysGroup.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"))
+		ingestKeysGroup.Use(middleware.JWTAuth(authService))
 		{
-			ingestKeysGroup.GET("/payload-template", ingestHandler.GetPayloadTemplate)
-			ingestKeysGroup.GET("", tenantHandler.ListAPIKeys)
-			ingestKeysGroup.POST("", tenantHandler.CreateAPIKey)
-			ingestKeysGroup.PUT("/:id", tenantHandler.ToggleAPIKey)
-			ingestKeysGroup.PUT("/:id/enable", tenantHandler.ToggleAPIKey)
-			ingestKeysGroup.DELETE("/:id", tenantHandler.DeleteAPIKey)
+			ingestKeysGroup.GET("/payload-template", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), ingestHandler.GetPayloadTemplate)
+			ingestKeysGroup.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), tenantHandler.ListAPIKeys)
+			ingestKeysGroup.POST("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.CreateAPIKey)
+			ingestKeysGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ToggleAPIKey)
+			ingestKeysGroup.PUT("/:id/enable", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ToggleAPIKey)
+			ingestKeysGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.DeleteAPIKey)
 		}
 
 		// Development Phases & Tasks (Protected & Authorized — SUPERADMIN only)
@@ -672,9 +673,9 @@ func main() {
 		}
 
 		// Logs (Restricted — role OPERATOR cannot access System Logs)
-		api.GET("/logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetLogs)
-		api.GET("/audit-trails", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetAuditTrails)
-		api.GET("/communication-logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetCommunicationLogs)
+		api.GET("/logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), systemHandler.GetLogs)
+		api.GET("/audit-trails", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), systemHandler.GetAuditTrails)
+		api.GET("/communication-logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), systemHandler.GetCommunicationLogs)
 
 		// Database Management & Monitoring
 		api.GET("/system/database/status", systemHandler.GetDatabaseStatus)

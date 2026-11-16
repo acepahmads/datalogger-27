@@ -104,7 +104,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 			response.Forbidden(c, "Access denied")
 			return
 		}
-		if scope.TenantID > 0 && (user.TenantID == nil || *user.TenantID != scope.TenantID) {
+		if !scope.CanViewAllTenants() && scope.TenantID > 0 && (user.TenantID == nil || *user.TenantID != scope.TenantID) {
 			response.Forbidden(c, "Access denied: user belongs to another tenant")
 			return
 		}

@@ -47,19 +47,19 @@ assert(headerCode.includes('Semua Stasiun'), 'Header.vue must allow selecting Se
 assert(routerCode.includes("path: '/administration/tenants'"), 'Router must register /administration/tenants');
 assert(routerCode.includes('TenantsManagementView'), 'Router must wire TenantsManagementView');
 assert(
-  /path:\s*'\/administration\/tenants'[\s\S]{0,160}roles:\s*\['SUPERADMIN',\s*'ADMIN',\s*'ENGINEER'\]/.test(routerCode),
-  'Router must allow SUPERADMIN, ADMIN, and Cloud ENGINEER on /administration/tenants'
+  /path:\s*'\/administration\/tenants'[\s\S]{0,180}roles:\s*\['SUPERADMIN',\s*'ADMIN',\s*'CUSTOMER_SERVICE',\s*'ENGINEER'\]/.test(routerCode),
+  'Router must allow SUPERADMIN, ADMIN, Cloud ENGINEER, and read-only CUSTOMER_SERVICE on /administration/tenants'
 );
 assert(
   routerCode.includes("isAuth && isEngineer && !isCloudMode && (to.path === '/administration/tenants'"),
   'Router must block ENGINEER from /administration/tenants in Edge mode'
 );
 assert(routerCode.includes("'/monitoring/devices'") && routerCode.includes('cloudRestrictedPrefixes'), 'Router must block Cloud-restricted paths for non-SUPERADMIN');
-assert(sidebarCode.includes('v-if="isSuperAdmin || isAdmin || (isEngineer && isCloudMode)" to="/administration/tenants"'), 'Sidebar must allow Tenant & Stasiun for SUPERADMIN, ADMIN, and Cloud ENGINEER');
-assert(sidebarCode.includes('v-if="isSuperAdmin || isAdmin" to="/administration/users"'), 'Sidebar must keep Users & RBAC strictly restricted to SUPERADMIN and ADMIN');
+assert(sidebarCode.includes('v-if="isSuperAdmin || isAdmin || isCustomerService || (isEngineer && isCloudMode)" to="/administration/tenants"'), 'Sidebar must allow Tenant & Stasiun for SUPERADMIN, ADMIN, CUSTOMER_SERVICE, and Cloud ENGINEER');
+assert(sidebarCode.includes('v-if="isSuperAdmin || isAdmin || isCustomerService" to="/administration/users"'), 'Sidebar must allow Users & RBAC for SUPERADMIN, ADMIN, and read-only CUSTOMER_SERVICE');
 assert(sidebarCode.includes('isSuperAdmin || !isCloudMode'), 'Sidebar must hide Devices & Sensors in Cloud mode for non-Superadmin');
 assert(sidebarCode.includes('isSuperAdmin || (!isOperator && !isCloudMode)'), 'Sidebar must hide Sensor Calibration in Cloud mode for non-Superadmin');
-assert(/v-if="isSuperAdmin \|\| isAdmin \|\| \(isEngineer && isCloudMode\)"\s+to="\/administration\/tenants"/.test(headerCode), 'Header must allow Tenants shortcut for SUPERADMIN, ADMIN, and Cloud ENGINEER');
+assert(/v-if="isSuperAdmin \|\| isAdmin \|\| isCustomerService \|\| \(isEngineer && isCloudMode\)"\s+to="\/administration\/tenants"/.test(headerCode), 'Header must allow Tenants shortcut for SUPERADMIN, ADMIN, CUSTOMER_SERVICE, and Cloud ENGINEER');
 assert(configViewCode.includes("initiateDomainSwitch('CLOUD')"), 'ConfigView must offer CLOUD configuration mode');
 assert(configViewCode.includes('<!-- Configurable Telemetry Acquisition Modules (SUPERADMIN Only) -->'), 'ConfigView must restrict sensor polling & MQTT module toggles to SUPERADMIN');
 assert(deviceModalCode.includes('input-edge-push-timeout-seconds'), 'DeviceModal must expose EDGE_PUSH / MQTT offline timeout input in seconds');
@@ -165,26 +165,26 @@ const backupRestoreViewCode = fs.readFileSync(path.join(srcDir, 'views', 'Backup
 const retentionStorageViewCode = fs.readFileSync(path.join(srcDir, 'views', 'RetentionStorageView.vue'), 'utf8');
 const accessDeniedViewCode = fs.readFileSync(path.join(srcDir, 'views', 'AccessDeniedView.vue'), 'utf8');
 
-assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for ADMIN and ENGINEER in Cloud mode');
-assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for ADMIN and ENGINEER in Cloud mode');
-assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/administration/config"'), 'Sidebar must hide Configuration for ADMIN and ENGINEER in Cloud mode');
-assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/administration/backup"'), 'Sidebar must hide Backup & Restore for ADMIN and ENGINEER in Cloud mode');
-assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/administration/retention"'), 'Sidebar must hide Retention & Storage for ADMIN and ENGINEER in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/administration/config"'), 'Sidebar must hide Configuration for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/administration/backup"'), 'Sidebar must hide Backup & Restore for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)" to="/administration/retention"'), 'Sidebar must hide Retention & Storage for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 
-assert(headerCode.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)"'), 'Header must hide Operator Console quick icon for ADMIN and ENGINEER in Cloud mode');
-assert(routerCode.includes('const usesDashboardOperatorLanding = isOperator || ((isAdmin || isEngineer) && isCloudMode)'), 'Router must land Cloud ADMIN and ENGINEER on /monitoring/dashboard-operator instead of /monitoring/operator');
-assert(routerCode.includes('if (isAuth && (isAdmin || isEngineer) && isCloudMode)'), 'Router must apply cloudAdminRestrictedPrefixes to both ADMIN and ENGINEER in Cloud mode');
+assert(headerCode.includes('v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)"'), 'Header must hide Operator Console quick icon for ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
+assert(routerCode.includes('const usesDashboardOperatorLanding = isOperator || ((isAdmin || isCustomerService || isEngineer) && isCloudMode)'), 'Router must include Cloud ADMIN, CUSTOMER_SERVICE, and ENGINEER in usesDashboardOperatorLanding');
+assert(routerCode.includes('if (isAuth && (isAdmin || isCustomerService || isEngineer) && isCloudMode)'), 'Router must apply cloudAdminRestrictedPrefixes to ADMIN, CUSTOMER_SERVICE, and ENGINEER in Cloud mode');
 for (const blockedPath of ['/alarm/live-comm', '/administration/config', '/administration/backup', '/administration/retention']) {
-  assert(routerCode.includes(`'${blockedPath}'`) && routerCode.includes('cloudAdminRestrictedPrefixes'), `Router must block Cloud ADMIN & ENGINEER from ${blockedPath}`);
+  assert(routerCode.includes(`'${blockedPath}'`) && routerCode.includes('cloudAdminRestrictedPrefixes'), `Router must block Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE from ${blockedPath}`);
 }
-assert(loginViewCode.includes('if ((isAdmin || isEngineer) && isCloudAdminRestrictedRoute)'), 'LoginView must redirect Cloud ADMIN & ENGINEER away from restricted routes after login');
-assert(loginViewCode.includes('if (isTenantsRoute && !isSuper && !isAdmin && !(isEngineer && isCloudMode))'), 'LoginView must allow Cloud ENGINEER onto /administration/tenants while blocking Edge ENGINEER');
-assert(accessDeniedViewCode.includes('return this.isOperator || ((this.isAdmin || this.isEngineer) && this.isCloudMode);'), 'AccessDeniedView must send Cloud ADMIN & ENGINEER home to /monitoring/dashboard-operator');
+assert(loginViewCode.includes('if ((isAdmin || isCustomerService || isEngineer) && isCloudAdminRestrictedRoute)'), 'LoginView must redirect Cloud ADMIN, CUSTOMER_SERVICE & ENGINEER away from restricted routes after login');
+assert(loginViewCode.includes('if (isTenantsRoute && !isSuper && !isAdmin && !isCustomerService && !(isEngineer && isCloudMode))'), 'LoginView must allow CUSTOMER_SERVICE and Cloud ENGINEER onto /administration/tenants');
+assert(accessDeniedViewCode.includes('return this.isOperator || ((this.isAdmin || this.isCustomerService || this.isEngineer) && this.isCloudMode);') && accessDeniedViewCode.includes('to="/monitoring/fleet-map"'), 'AccessDeniedView must support Cloud CUSTOMER_SERVICE and Fleet Map shortcut');
 assert(tenantsViewCode.includes('if (this.isEngineer && !this.isCloudMode)'), 'TenantsManagementView must guard against Edge ENGINEER mount while allowing Cloud ENGINEER');
-assert(liveCommViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER') && isCloud)"), 'LiveCommView must guard against Cloud ADMIN & ENGINEER mount');
-assert(configViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER') && isCloud)"), 'ConfigView must guard against Cloud ADMIN & ENGINEER mount');
-assert(backupRestoreViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER') && isCloud)"), 'BackupRestoreView must guard against Cloud ADMIN & ENGINEER mount');
-assert(retentionStorageViewCode.includes("if ((this.userRole === 'ADMIN' || this.userRole === 'ENGINEER') && isCloud)"), 'RetentionStorageView must guard against Cloud ADMIN & ENGINEER mount');
+assert(liveCommViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER' || isCS) && isCloud)"), 'LiveCommView must guard against Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE mount');
+assert(configViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER' || isCS) && isCloud)"), 'ConfigView must guard against Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE mount');
+assert(backupRestoreViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER' || isCS) && isCloud)"), 'BackupRestoreView must guard against Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE mount');
+assert(retentionStorageViewCode.includes("if ((this.userRole === 'ADMIN' || this.userRole === 'ENGINEER' || isCS) && isCloud)"), 'RetentionStorageView must guard against Cloud ADMIN, ENGINEER & CUSTOMER_SERVICE mount');
 
 // 15. Cloud Mode Operator Alarms & Events Restriction
 const alarmsViewCode = fs.readFileSync(path.join(srcDir, 'views', 'AlarmsView.vue'), 'utf8');
@@ -246,5 +246,12 @@ assert(tenantsViewCode.includes("openCreateKeyModal('LEGACY_CUSTOM')"), 'Tenants
 assert(tenantsViewCode.includes("keyForm.token_mode === 'LEGACY_CUSTOM'"), 'TenantsManagementView create key modal must provide explicit LEGACY_CUSTOM token mode switch');
 assert(tenantsViewCode.includes('is_global'), 'TenantsManagementView must support Superadmin Global Cross-Tenant legacy token (is_global)');
 assert(tenantsViewCode.includes('showReplaceTokenModal') && tenantsViewCode.includes('submitReplaceLegacyToken'), 'TenantsManagementView must allow replacing an existing key hash with an old datalogger token');
+
+// 21. CUSTOMER_SERVICE Global Cross-Tenant Read-Only Role (All Tenants + Fleet Map + Zero Write)
+assert(storeCode.includes('isCustomerService') && storeCode.includes('canSwitchTenants'), 'Vuex store must define isCustomerService and canSwitchTenants getters');
+assert(headerCode.includes('canSwitchTenants') && headerCode.includes('READ-ONLY'), 'Header must expose global Tenant Switcher and READ-ONLY badge for CUSTOMER_SERVICE');
+assert(tenantsViewCode.includes('canViewAllTenants') && tenantsViewCode.includes('isReadOnly'), 'TenantsManagementView must support global read-only mode for CUSTOMER_SERVICE');
+assert(accessControlCode.includes('isRoleIdCustomerService') && accessControlCode.includes('canManageUsers'), 'AccessControlView must treat CUSTOMER_SERVICE as global role for SUPERADMIN and enforce read-only UI for CUSTOMER_SERVICE');
+assert(integrationViewCode.includes('!this.isAdmin && !this.isEngineer && !this.isCustomerService'), 'IntegrationView must not misclassify CUSTOMER_SERVICE as OPERATOR');
 
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

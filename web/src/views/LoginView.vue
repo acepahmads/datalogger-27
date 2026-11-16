@@ -317,11 +317,12 @@ export default {
 
         const isSuper = role === 'SUPERADMIN' || role === 'ADMINISTRATOR';
         const isAdmin = role === 'ADMIN';
+        const isCustomerService = ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(role);
         const isEngineer = role === 'ENGINEER';
         const isOperator = role === 'OPERATOR';
         const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
         const isCloudMode = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
-        const defaultLanding = isSuper
+        const defaultLanding = (isSuper || isCustomerService)
           ? '/monitoring/fleet-map'
           : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator');
 
@@ -331,13 +332,12 @@ export default {
           const isUsersRoute = redirect.startsWith('/administration/users');
           const isRolesRoute = redirect.startsWith('/administration/roles');
           const isTenantsRoute = redirect.startsWith('/administration/tenants');
+          const isFleetMapRoute = redirect === '/fleet-map' || redirect.startsWith('/monitoring/fleet-map');
           const isQualityRoute =
             redirect === '/dashboard' ||
             redirect.startsWith('/dashboard') ||
             redirect === '/quality' ||
-            redirect.startsWith('/monitoring/quality') ||
-            redirect === '/fleet-map' ||
-            redirect.startsWith('/monitoring/fleet-map');
+            redirect.startsWith('/monitoring/quality');
           const isCloudAdminRestrictedRoute =
             isCloudMode && (
               redirect === '/' ||
@@ -377,11 +377,15 @@ export default {
             this.$router.push('/monitoring/dashboard-operator');
             return;
           }
-          if ((isAdmin || isEngineer) && isCloudAdminRestrictedRoute) {
-            this.$router.push('/monitoring/dashboard-operator');
+          if ((isAdmin || isCustomerService || isEngineer) && isCloudAdminRestrictedRoute) {
+            this.$router.push(isCustomerService ? '/monitoring/fleet-map' : '/monitoring/dashboard-operator');
             return;
           }
-          if (isTenantsRoute && !isSuper && !isAdmin && !(isEngineer && isCloudMode)) {
+          if (isTenantsRoute && !isSuper && !isAdmin && !isCustomerService && !(isEngineer && isCloudMode)) {
+            this.$router.push(defaultLanding);
+            return;
+          }
+          if (isFleetMapRoute && !isSuper && !isCustomerService) {
             this.$router.push(defaultLanding);
             return;
           }
@@ -393,7 +397,7 @@ export default {
             this.$router.push(defaultLanding);
             return;
           }
-          if (isUsersRoute && !isSuper && role !== 'ADMIN') {
+          if (isUsersRoute && !isSuper && role !== 'ADMIN' && !isCustomerService) {
             this.$router.push(defaultLanding);
             return;
           }

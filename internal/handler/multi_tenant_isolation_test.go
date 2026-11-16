@@ -153,9 +153,9 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		api.GET("/system/branding", systemHandler.GetBranding)
 		api.POST("/system/branding", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.SaveBranding)
 		api.PUT("/system/branding", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.SaveBranding)
-		api.GET("/logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetLogs)
-		api.GET("/audit-trails", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetAuditTrails)
-		api.GET("/communication-logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetCommunicationLogs)
+		api.GET("/logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), systemHandler.GetLogs)
+		api.GET("/audit-trails", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), systemHandler.GetAuditTrails)
+		api.GET("/communication-logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), systemHandler.GetCommunicationLogs)
 		api.GET("/system/location", systemHandler.GetStationLocation)
 		api.PUT("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 		api.GET("/system/config", middleware.JWTAuth(authService), middleware.RequirePermission("config.view"), systemHandler.GetConfig)
@@ -168,9 +168,10 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		tenantsGrp.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGrp.GET("/context", tenantHandler.GetContext)
-			tenantsGrp.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.GetCurrentTenant)
+			tenantsGrp.GET("/fleet-overview", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "CUSTOMER_SERVICE"), tenantHandler.GetFleetOverview)
+			tenantsGrp.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), tenantHandler.GetCurrentTenant)
 			tenantsGrp.PUT("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.UpdateCurrentTenant)
-			tenantsGrp.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ListTenants)
+			tenantsGrp.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), tenantHandler.ListTenants)
 			tenantsGrp.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
 			tenantsGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.UpdateTenant)
 			tenantsGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
@@ -186,14 +187,14 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		}
 
 		keysGrp := api.Group("/ingest-keys")
-		keysGrp.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"))
+		keysGrp.Use(middleware.JWTAuth(authService))
 		{
-			keysGrp.GET("/payload-template", ingestHandler.GetPayloadTemplate)
-			keysGrp.GET("", tenantHandler.ListAPIKeys)
-			keysGrp.POST("", tenantHandler.CreateAPIKey)
-			keysGrp.PUT("/:id", tenantHandler.ToggleAPIKey)
-			keysGrp.PUT("/:id/enable", tenantHandler.ToggleAPIKey)
-			keysGrp.DELETE("/:id", tenantHandler.DeleteAPIKey)
+			keysGrp.GET("/payload-template", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), ingestHandler.GetPayloadTemplate)
+			keysGrp.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER", "CUSTOMER_SERVICE"), tenantHandler.ListAPIKeys)
+			keysGrp.POST("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.CreateAPIKey)
+			keysGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ToggleAPIKey)
+			keysGrp.PUT("/:id/enable", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ToggleAPIKey)
+			keysGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.DeleteAPIKey)
 		}
 
 		usersGrp := api.Group("/users")
@@ -203,6 +204,7 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 			usersGrp.GET("/:id", middleware.RequirePermission("user.view"), userHandler.GetUser)
 			usersGrp.POST("", middleware.RequirePermission("user.manage"), userHandler.CreateUser)
 			usersGrp.PUT("/:id", middleware.RequirePermission("user.manage"), userHandler.UpdateUser)
+			usersGrp.DELETE("/:id", middleware.RequirePermission("user.manage"), userHandler.DeleteUser)
 		}
 
 		devGrp := api.Group("/devices")
@@ -1163,5 +1165,196 @@ func TestCloudMode_EngineerTenantParityExceptUsersRBAC(t *testing.T) {
 	})
 	if wUsersPost.Code != http.StatusForbidden {
 		t.Fatalf("Cloud mode: expected 403 Forbidden for ENGINEER on POST /api/users, got %d: %s", wUsersPost.Code, wUsersPost.Body.String())
+	}
+}
+
+func TestCustomerServiceRole_GlobalReadOnly_FleetMap_AllTenants_ZeroWrite(t *testing.T) {
+	env := setupMultiTenantTestEnv(t)
+
+	// 1. Provision a second tenant + station + device so we can verify cross-tenant visibility
+	wT2 := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
+		"code": "tenant-cs-two",
+		"name": "PT Pelanggan Kedua",
+	})
+	if wT2.Code != http.StatusCreated && wT2.Code != http.StatusOK {
+		t.Fatalf("create tenant 2 failed (%d): %s", wT2.Code, wT2.Body.String())
+	}
+	var t2Resp struct {
+		Data model.Tenant `json:"data"`
+	}
+	_ = json.Unmarshal(wT2.Body.Bytes(), &t2Resp)
+	t2ID := t2Resp.Data.ID
+	if t2ID == 0 {
+		t.Fatalf("expected non-zero tenant 2 ID")
+	}
+
+	wDev2 := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": fmt.Sprintf("%d", t2ID),
+	}, map[string]interface{}{
+		"device_code": "DEV-CS-T2-01",
+		"device_name": "AQMS Tenant Dua",
+		"device_type": "EDGE_PUSH",
+		"enabled":     true,
+	})
+	if wDev2.Code != http.StatusCreated && wDev2.Code != http.StatusOK {
+		t.Fatalf("create device in tenant 2 failed (%d): %s", wDev2.Code, wDev2.Body.String())
+	}
+
+	// Verify CUSTOMER_SERVICE canonical role was auto-provisioned by RunMigrations
+	var csRole model.Role
+	if err := env.DB.Where("name = ?", "CUSTOMER_SERVICE").First(&csRole).Error; err != nil || csRole.ID == 0 {
+		t.Fatalf("expected CUSTOMER_SERVICE canonical role in DB, err=%v", err)
+	}
+
+	// 2. Privilege Escalation Guard: Scoped Tenant ADMIN cannot create a global CUSTOMER_SERVICE account
+	wEscal := doJSONReq(t, env.Router, "POST", "/api/users", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"username":  "illegal_cs",
+		"full_name": "Illegal CS",
+		"email":     "illegal_cs@example.com",
+		"password":  "Password123!",
+		"role_id":   csRole.ID,
+	})
+	if wEscal.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden when scoped ADMIN creates CUSTOMER_SERVICE, got %d: %s", wEscal.Code, wEscal.Body.String())
+	}
+
+	// 3. SUPERADMIN creates a Customer Service user
+	wCreateCS := doJSONReq(t, env.Router, "POST", "/api/users", env.SuperAdminToken, nil, map[string]interface{}{
+		"username":  "cs_support",
+		"full_name": "Tim Customer Service",
+		"email":     "cs@cbinstrument.com",
+		"password":  "Password123!",
+		"role_id":   csRole.ID,
+	})
+	if wCreateCS.Code != http.StatusCreated && wCreateCS.Code != http.StatusOK {
+		t.Fatalf("SUPERADMIN create CUSTOMER_SERVICE failed (%d): %s", wCreateCS.Code, wCreateCS.Body.String())
+	}
+	var csUserResp struct {
+		Data model.User `json:"data"`
+	}
+	_ = json.Unmarshal(wCreateCS.Body.Bytes(), &csUserResp)
+	csUserID := csUserResp.Data.ID
+	if csUserID == 0 {
+		t.Fatalf("expected valid created CS user ID")
+	}
+	if csUserResp.Data.TenantID != nil {
+		t.Fatalf("expected CUSTOMER_SERVICE user to have global TenantID=nil, got %v", *csUserResp.Data.TenantID)
+	}
+
+	// Re-run startup migrations to prove global CUSTOMER_SERVICE TenantID stays NULL (never backfilled to 1)
+	if err := database.RunMigrations(env.DB); err != nil {
+		t.Fatalf("re-run migrations failed: %v", err)
+	}
+	var reloadedCS model.User
+	if err := env.DB.Preload("Role").First(&reloadedCS, csUserID).Error; err != nil {
+		t.Fatalf("reload CS user failed: %v", err)
+	}
+	if reloadedCS.TenantID != nil {
+		t.Fatalf("RunMigrations must preserve TenantID=nil for CUSTOMER_SERVICE, got %v", *reloadedCS.TenantID)
+	}
+	if reloadedCS.Role == nil || reloadedCS.Role.Name != "CUSTOMER_SERVICE" {
+		t.Fatalf("expected canonical role name CUSTOMER_SERVICE, got %+v", reloadedCS.Role)
+	}
+
+	// Scoped ADMIN also cannot modify or delete the global CUSTOMER_SERVICE user
+	wModCS := doJSONReq(t, env.Router, "PUT", fmt.Sprintf("/api/users/%d", csUserID), env.Tenant1AdmToken, nil, map[string]interface{}{
+		"full_name": "Tampered CS",
+	})
+	if wModCS.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 when scoped ADMIN updates CUSTOMER_SERVICE user, got %d", wModCS.Code)
+	}
+	wDelCS := doJSONReq(t, env.Router, "DELETE", fmt.Sprintf("/api/users/%d", csUserID), env.Tenant1AdmToken, nil, nil)
+	if wDelCS.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 when scoped ADMIN deletes CUSTOMER_SERVICE user, got %d", wDelCS.Code)
+	}
+
+	// 4. Login as CUSTOMER_SERVICE and verify Fleet Map + Cross-Tenant Read Access
+	csTok, loggedInCS, err := env.AuthService.Login("cs_support", "Password123!", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatalf("cs_support login failed: %v", err)
+	}
+	if loggedInCS.Role == nil || loggedInCS.Role.Name != "CUSTOMER_SERVICE" {
+		t.Fatalf("expected Role.Name CUSTOMER_SERVICE on login, got %+v", loggedInCS.Role)
+	}
+
+	readEndpoints := []string{
+		"/api/tenants/fleet-overview",
+		"/api/tenants/context",
+		"/api/tenants",
+		"/api/sites",
+		"/api/ingest-keys",
+		"/api/ingest-keys/payload-template?logger_type=AQMS",
+		"/api/users",
+		"/api/logs",
+		"/api/audit-trails",
+		"/api/communication-logs",
+		"/api/devices",
+		"/api/data",
+		"/api/alarms",
+		"/api/destinations",
+		"/api/integration/queue",
+		"/api/system/config",
+	}
+	for _, ep := range readEndpoints {
+		w := doJSONReq(t, env.Router, "GET", ep, csTok, nil, nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK for CUSTOMER_SERVICE on GET %s, got %d: %s", ep, w.Code, w.Body.String())
+		}
+	}
+
+	// Verify Fleet Map & Tenants list actually include Tenant 2 ("PT Pelanggan Kedua" / "tenant-cs-two")
+	wFleet := doJSONReq(t, env.Router, "GET", "/api/tenants/fleet-overview", csTok, nil, nil)
+	if !bytes.Contains(wFleet.Body.Bytes(), []byte("PT Pelanggan Kedua")) {
+		t.Fatalf("expected CUSTOMER_SERVICE fleet-overview to include Tenant 2, got: %s", wFleet.Body.String())
+	}
+	wTenants := doJSONReq(t, env.Router, "GET", "/api/tenants", csTok, nil, nil)
+	if !bytes.Contains(wTenants.Body.Bytes(), []byte("tenant-cs-two")) {
+		t.Fatalf("expected CUSTOMER_SERVICE GET /api/tenants to include Tenant 2, got: %s", wTenants.Body.String())
+	}
+
+	// Verify switching into Tenant 2 via X-Tenant-ID returns Tenant 2's device (DEV-CS-T2-01)
+	wSwitchT2 := doJSONReq(t, env.Router, "GET", "/api/devices", csTok, map[string]string{
+		"X-Tenant-ID": fmt.Sprintf("%d", t2ID),
+	}, nil)
+	if wSwitchT2.Code != http.StatusOK || !bytes.Contains(wSwitchT2.Body.Bytes(), []byte("DEV-CS-T2-01")) {
+		t.Fatalf("expected CUSTOMER_SERVICE to view Tenant 2 devices via X-Tenant-ID, got %d: %s", wSwitchT2.Code, wSwitchT2.Body.String())
+	}
+
+	// 5. Strict Zero-Write Enforcement: EVERY add / edit / delete attempt MUST return 403 Forbidden
+	type writeAttempt struct {
+		method string
+		path   string
+		body   map[string]interface{}
+	}
+	forbiddenWrites := []writeAttempt{
+		{"POST", "/api/tenants", map[string]interface{}{"code": "cs-new", "name": "CS Tenant"}},
+		{"PUT", "/api/tenants/1", map[string]interface{}{"contact_name": "CS Edit"}},
+		{"PUT", "/api/tenants/current", map[string]interface{}{"contact_name": "CS Edit Self"}},
+		{"DELETE", fmt.Sprintf("/api/tenants/%d", t2ID), nil},
+		{"POST", "/api/sites", map[string]interface{}{"code": "cs-site", "name": "CS Site"}},
+		{"PUT", "/api/sites/1", map[string]interface{}{"name": "CS Edited Site"}},
+		{"DELETE", "/api/sites/1", nil},
+		{"POST", "/api/ingest-keys", map[string]interface{}{"name": "CS Key"}},
+		{"PUT", "/api/ingest-keys/1", map[string]interface{}{"ingest_format": "CBI_LEGACY"}},
+		{"PUT", "/api/ingest-keys/1/enable", map[string]interface{}{"enabled": false}},
+		{"DELETE", "/api/ingest-keys/1", nil},
+		{"POST", "/api/devices", map[string]interface{}{"code": "CS-DEV", "name": "CS Dev", "protocol": "EDGE_PUSH"}},
+		{"POST", "/api/devices/1/parameters", map[string]interface{}{"code": "ph", "name": "pH"}},
+		{"POST", "/api/users", map[string]interface{}{"username": "cs_created", "password": "Password123!", "role": "OPERATOR"}},
+		{"PUT", fmt.Sprintf("/api/users/%d", csUserID), map[string]interface{}{"full_name": "Self Edit"}},
+		{"DELETE", "/api/users/1", nil},
+		{"POST", "/api/categories", map[string]interface{}{"name": "CS Cat", "code": "CS_CAT"}},
+		{"DELETE", "/api/categories/1", nil},
+		{"POST", "/api/destinations", map[string]interface{}{"name": "CS Dest", "type": "REST_API", "endpoint": "https://example.com"}},
+		{"POST", "/api/alarms", map[string]interface{}{"severity": "WARNING", "message": "CS Alarm"}},
+		{"PUT", "/api/system/config", map[string]interface{}{"mqtt_ingest_enabled": false}},
+		{"PUT", "/api/system/location", map[string]interface{}{"latitude": -6.2, "longitude": 106.8}},
+		{"PUT", "/api/system/branding", map[string]interface{}{"customer_name": "CS Brand"}},
+	}
+	for _, att := range forbiddenWrites {
+		w := doJSONReq(t, env.Router, att.method, att.path, csTok, nil, att.body)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("Zero-Write Violation: expected 403 Forbidden for CUSTOMER_SERVICE on %s %s, got %d: %s", att.method, att.path, w.Code, w.Body.String())
+		}
 	}
 }

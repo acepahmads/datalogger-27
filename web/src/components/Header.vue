@@ -32,14 +32,14 @@
 
       <!-- Multi-Tenant & Multi-Site Workspace Switcher -->
       <div class="flex items-center gap-1 sm:gap-1.5 pl-1 sm:pl-2 ml-0 sm:ml-1 border-l border-slate-200 dark:border-slate-800 min-w-0 flex-1 sm:flex-initial">
-        <!-- SUPERADMIN Global / Tenant Switcher -->
-        <div v-if="isSuperAdmin" class="flex items-center gap-1 min-w-0" :class="availableSites.length > 0 && activeTenantId > 0 ? 'max-w-[46%] sm:max-w-none' : 'flex-1 sm:flex-initial'">
+        <!-- Global / Tenant Switcher (SUPERADMIN & Read-Only CUSTOMER_SERVICE) -->
+        <div v-if="canSwitchTenants" class="flex items-center gap-1 min-w-0" :class="availableSites.length > 0 && activeTenantId > 0 ? 'max-w-[46%] sm:max-w-none' : 'flex-1 sm:flex-initial'">
           <select
             id="header-tenant-switcher"
             :value="activeTenantId"
             @change="onHeaderTenantChange($event.target.value)"
             class="h-7 w-full sm:w-auto max-w-[135px] sm:max-w-[230px] px-1.5 sm:px-2 rounded-lg text-2xs font-semibold bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/60 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer truncate"
-            title="Pilih Workspace Tenant (SUPERADMIN Global Switcher)"
+            :title="isCustomerService ? 'Pilih Workspace Tenant (Customer Service Read-Only)' : 'Pilih Workspace Tenant (SUPERADMIN Global Switcher)'"
           >
             <option :value="0">🌐 Semua Tenant (Global)</option>
             <option v-for="t in availableTenants" :key="'hdr-t-' + t.id" :value="t.id">
@@ -61,7 +61,7 @@
 
         <!-- Site / Station Switcher -->
         <select
-          v-if="availableSites.length > 0 && (!isSuperAdmin || activeTenantId > 0)"
+          v-if="availableSites.length > 0 && (!canSwitchTenants || activeTenantId > 0)"
           id="header-site-switcher"
           :value="activeSiteId"
           @change="onHeaderSiteChange($event.target.value)"
@@ -74,24 +74,24 @@
           </option>
         </select>
 
-        <!-- Quick Manage Tenants/Sites Shortcut (SUPERADMIN, Scoped ADMIN, & Cloud ENGINEER) -->
+        <!-- Quick Manage / View Tenants & Sites Shortcut -->
         <router-link
-          v-if="isSuperAdmin || isAdmin || (isEngineer && isCloudMode)"
+          v-if="isSuperAdmin || isAdmin || isCustomerService || (isEngineer && isCloudMode)"
           to="/administration/tenants"
           class="hidden sm:flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs flex-shrink-0"
           :class="$route.path.startsWith('/administration/tenants')
             ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/50'
             : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60'"
-          title="Kelola Tenant, Stasiun & Edge Ingest API Keys"
+          :title="isCustomerService ? 'Lihat Daftar Tenant & Stasiun (Read-Only)' : 'Kelola Tenant, Stasiun & Edge Ingest API Keys'"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
           </svg>
         </router-link>
 
-        <!-- Superadmin Global Fleet & Tenant Map Shortcut (SUPERADMIN Only) -->
+        <!-- Global Fleet & Tenant Map Shortcut (SUPERADMIN & CUSTOMER_SERVICE) -->
         <router-link
-          v-if="isSuperAdmin"
+          v-if="isSuperAdmin || isCustomerService"
           id="header-fleet-map-shortcut"
           to="/monitoring/fleet-map"
           class="flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs flex-shrink-0"
@@ -105,6 +105,15 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 000 18M12 3a14.5 14.5 0 010 18" />
           </svg>
         </router-link>
+
+        <!-- Read-Only Mode Indicator Pill for Customer Service -->
+        <span
+          v-if="isCustomerService"
+          class="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/30 text-4xs font-mono font-bold flex-shrink-0"
+          title="Akun Customer Service bersifat Read-Only (tidak dapat menambah, mengubah, atau menghapus data)"
+        >
+          👁️ READ-ONLY
+        </span>
       </div>
     </div>
 
@@ -132,7 +141,7 @@
 
       <!-- 1. Operator Console / Dashboard Operator Quick Icon Button (Tablet/Desktop >= 640px; mobile uses Drawer) -->
       <router-link
-        v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)"
+        v-if="!isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)"
         to="/monitoring/operator"
         class="hidden sm:flex relative w-7 h-7 rounded-lg border transition-colors items-center justify-center shadow-xs"
         :class="$route.path === '/monitoring/operator' || $route.path === '/operator'
@@ -459,7 +468,7 @@
           <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
             <span class="text-slate-500">Workspace / Tenant</span>
             <span class="font-semibold text-slate-900 dark:text-white">
-              {{ isSuperAdmin ? (activeTenant ? activeTenant.name + ' (Scoped)' : 'Global Platform (All Tenants)') : (currentTenantLabel || 'Default Organization') }}
+              {{ canSwitchTenants ? (activeTenant ? activeTenant.name + ' (Scoped)' : 'Global Platform (All Tenants)') : (currentTenantLabel || 'Default Organization') }}
             </span>
           </div>
         </div>
@@ -625,6 +634,12 @@ export default {
     isAdmin() {
       return this.userRole === 'ADMIN';
     },
+    isCustomerService() {
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(this.userRole);
+    },
+    canSwitchTenants() {
+      return this.isSuperAdmin || this.isCustomerService;
+    },
     isEngineer() {
       return this.userRole === 'ENGINEER';
     },
@@ -662,6 +677,9 @@ export default {
       if (this.userRole === 'ADMIN') {
         return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30';
       }
+      if (this.isCustomerService) {
+        return 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/30';
+      }
       if (this.userRole === 'ENGINEER') {
         return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30';
       }
@@ -670,6 +688,7 @@ export default {
     roleDotClass() {
       if (this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR') return 'bg-purple-500';
       if (this.userRole === 'ADMIN') return 'bg-blue-500';
+      if (this.isCustomerService) return 'bg-teal-500';
       if (this.userRole === 'ENGINEER') return 'bg-amber-500';
       return 'bg-emerald-500';
     },
@@ -679,6 +698,9 @@ export default {
       }
       if (this.userRole === 'ADMIN') {
         return 'bg-blue-600/20 text-blue-600 dark:text-blue-400 ring-blue-500/40';
+      }
+      if (this.isCustomerService) {
+        return 'bg-teal-600/20 text-teal-600 dark:text-teal-400 ring-teal-500/40';
       }
       if (this.userRole === 'ENGINEER') {
         return 'bg-amber-600/20 text-amber-600 dark:text-amber-400 ring-amber-500/40';
@@ -833,12 +855,14 @@ export default {
       const roles = meta.roles || [];
       const currentRole = (this.$store.state.user?.role || '').toUpperCase();
       const isSuper = currentRole === 'SUPERADMIN' || currentRole === 'ADMINISTRATOR';
+      const isCS = ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(currentRole);
 
       let allowed = true;
       if (roles.length > 0) {
         allowed = roles.some(r => {
           const target = r.toUpperCase();
           if ((target === 'SUPERADMIN' || target === 'ADMINISTRATOR') && isSuper) return true;
+          if (target === 'CUSTOMER_SERVICE' && isCS) return true;
           return target === currentRole;
         });
       }
@@ -870,7 +894,7 @@ export default {
       if (isEng && !isCloud && (this.$route.path === '/administration/tenants' || this.$route.path.startsWith('/administration/tenants/'))) {
         allowed = false;
       }
-      if ((isAdm || isEng) && isCloud) {
+      if ((isAdm || isCS || isEng) && isCloud) {
         const cloudAdmBlocked = ['/alarm/live-comm', '/administration/config', '/administration/backup', '/administration/retention'];
         if (cloudAdmBlocked.some(p => this.$route.path === p || this.$route.path.startsWith(p + '/'))) {
           allowed = false;
@@ -878,9 +902,9 @@ export default {
       }
       const onOperatorConsole = this.$route.path === '/monitoring/operator' || this.$route.path === '/operator';
 
-      if (!allowed || ((isOp || ((isAdm || isEng) && isCloud)) && onOperatorConsole)) {
-        if (isSuper) {
-          this.$router.push('/dashboard');
+      if (!allowed || ((isOp || ((isAdm || isCS || isEng) && isCloud)) && onOperatorConsole)) {
+        if (isSuper || isCS) {
+          this.$router.push('/monitoring/fleet-map');
         } else if (isOp || ((isAdm || isEng) && isCloud)) {
           this.$router.push('/monitoring/dashboard-operator');
         } else {

@@ -149,11 +149,14 @@ export default new Vuex.Store({
     userRole: state => ((state.user && state.user.role) || '').toUpperCase(),
     isSuperAdmin: (state, getters) => getters.userRole === 'SUPERADMIN' || getters.userRole === 'ADMINISTRATOR',
     isAdmin: (state, getters) => getters.userRole === 'ADMIN',
+    isCustomerService: (state, getters) => ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(getters.userRole),
+    isReadOnlyRole: (state, getters) => getters.isCustomerService,
+    canSwitchTenants: (state, getters) => getters.isSuperAdmin || getters.isCustomerService,
     isEngineer: (state, getters) => getters.userRole === 'ENGINEER',
     isOperator: (state, getters) => getters.userRole === 'OPERATOR',
     canAccessDev: (state, getters) => getters.isSuperAdmin,
-    canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
-    canAccessRawTrendMode: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
+    canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin || getters.isAdmin || getters.isCustomerService,
+    canAccessRawTrendMode: (state, getters) => getters.isSuperAdmin || getters.isAdmin || getters.isCustomerService,
     availableTenants: state => (Array.isArray(state.tenants) ? state.tenants : []),
     availableSites: state => (Array.isArray(state.sites) ? state.sites : []),
     activeTenant: state => (state.tenants || []).find(t => Number(t.id) === Number(state.activeTenantId)) || null,
@@ -485,7 +488,7 @@ export default new Vuex.Store({
           commit('SET_TENANTS', tenants);
           commit('SET_SITES', sites);
 
-          if (!getters.isSuperAdmin) {
+          if (!getters.canSwitchTenants) {
             const fixedTenantId = Number(ctx.active_tenant_id || (state.user && state.user.tenant_id) || 0);
             commit('SET_ACTIVE_TENANT_ID', fixedTenantId);
           } else if (state.activeTenantId > 0 && !tenants.some(t => Number(t.id) === Number(state.activeTenantId))) {

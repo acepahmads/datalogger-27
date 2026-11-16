@@ -4,9 +4,9 @@
     <div class="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#0B0F19]/95 backdrop-blur-md pt-2 pb-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
       <div class="flex items-center space-x-3">
         <router-link
-          :to="isSuperAdmin ? '/dashboard' : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator')"
+          :to="isSuperAdmin ? '/dashboard' : (isCustomerService ? '/monitoring/fleet-map' : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator'))"
           class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition"
-          :title="isSuperAdmin ? 'Back to Dashboard' : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? 'Back to Dashboard Operator' : 'Back to Operator Console')"
+          :title="isSuperAdmin ? 'Back to Dashboard' : (isCustomerService ? 'Back to Fleet Map' : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? 'Back to Dashboard Operator' : 'Back to Operator Console'))"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -678,6 +678,7 @@
         <div class="flex items-center space-x-2">
           <!-- Test Payload Action -->
           <button
+            v-if="!isCustomerService"
             @click="testPayloadTransmission"
             :disabled="testingPayload"
             class="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs"
@@ -2475,8 +2476,12 @@ export default {
       if (this.$store.getters && this.$store.getters.isEngineer) return true;
       return this.currentUserRole === 'ENGINEER' || this.isAdmin;
     },
+    isCustomerService() {
+      if (this.$store.getters && this.$store.getters.isCustomerService) return true;
+      return ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(this.currentUserRole);
+    },
     isOperator() {
-      return !this.isAdmin && !this.isEngineer;
+      return !this.isAdmin && !this.isEngineer && !this.isCustomerService;
     },
     isCloudMode() {
       const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
