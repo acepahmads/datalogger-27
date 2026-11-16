@@ -401,9 +401,12 @@
     </div>
 
     <!-- ===================================================================== -->
-    <!-- 3. MAIN SPLIT WORKSPACE (MAP CANVAS + DOCKED PRIORITY LIST)           -->
+    <!-- 3. MAIN SPLIT WORKSPACE (MAP CANVAS + RESIZABLE DOCKED PRIORITY LIST) -->
     <!-- ===================================================================== -->
-    <div class="flex-1 min-h-0 flex gap-2.5 relative overflow-hidden">
+    <div
+      class="flex-1 min-h-0 flex gap-2.5 md:gap-0 relative overflow-hidden"
+      :class="{ 'select-none cursor-col-resize': isResizingDock }"
+    >
       <!-- 3A. INTERACTIVE LEAFLET MAP PANE -->
       <div
         v-show="isDesktopViewport || mobileViewMode === 'map' || isMapFullscreen"
@@ -989,42 +992,77 @@
         </transition>
       </div>
 
+      <!-- Interactive Vertical Splitter Handle (Drag Left/Right to Resize Right Sidebar) -->
+      <div
+        v-if="!isRightDockCollapsed && !isMapFullscreen"
+        id="fleet-dock-resize-handle"
+        @mousedown.prevent="startDockResize"
+        @touchstart.prevent="startDockResize"
+        @dblclick="resetRightDockWidth"
+        class="hidden md:flex items-center justify-center w-3 flex-shrink-0 cursor-col-resize group select-none"
+        title="Geser kiri / kanan untuk mengatur lebar panel Prioritas Stasiun (Klik 2x untuk ukuran awal)"
+      >
+        <div
+          class="w-1 rounded-full transition-all duration-150"
+          :class="isResizingDock
+            ? 'h-16 bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.65)]'
+            : 'h-10 bg-slate-300/90 dark:bg-slate-700/90 group-hover:h-14 group-hover:bg-sky-500'"
+        ></div>
+      </div>
+
       <!-- ================================================================= -->
-      <!-- 3B. DESKTOP RIGHT PRIORITY STATION DOCK (>= 768px)                -->
+      <!-- 3B. DESKTOP RIGHT PRIORITY STATION DOCK (>= 768px, Resizable)     -->
       <!-- ================================================================= -->
       <aside
         v-if="!isRightDockCollapsed"
         id="fleet-priority-dock"
-        class="hidden md:flex flex-col w-[305px] xl:w-[335px] flex-shrink-0 h-full rounded-2xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs overflow-hidden"
+        :style="{ width: effectiveRightDockWidth + 'px' }"
+        class="hidden md:flex flex-col flex-shrink-0 h-full rounded-2xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs overflow-hidden"
       >
-        <!-- Dock Header + Sub-Tabs -->
+        <!-- Dock Header + Sub-Tabs (Semua | Normal | Masalah | No-GPS) -->
         <div class="px-3 pt-2.5 pb-2 border-b border-slate-100 dark:border-slate-800/80 space-y-2 flex-shrink-0">
           <div class="flex items-center justify-between">
             <span class="text-xs font-extrabold text-slate-900 dark:text-white tracking-tight">Prioritas Stasiun</span>
             <span class="text-3xs font-mono text-slate-400">{{ dockDisplayedSites.length }} ditampilkan</span>
           </div>
-          <div class="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200/70 dark:border-slate-800">
+          <div class="grid grid-cols-4 gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200/70 dark:border-slate-800">
             <button
               type="button"
+              id="btn-fleet-dock-tab-all"
               @click="dockTab = 'ALL'"
-              class="py-1 rounded-md text-3xs font-bold transition cursor-pointer"
+              class="py-1 px-1 rounded-md text-4xs font-bold transition cursor-pointer truncate"
               :class="dockTab === 'ALL' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-500 dark:text-slate-400'"
+              :title="'Semua Stasiun (' + filteredSites.length + ')'"
             >
               Semua ({{ filteredSites.length }})
             </button>
             <button
               type="button"
+              id="btn-fleet-dock-tab-normal"
+              @click="dockTab = 'NORMAL'"
+              class="py-1 px-1 rounded-md text-4xs font-bold transition cursor-pointer truncate"
+              :class="dockTab === 'NORMAL' ? 'bg-emerald-600 text-white btn-text shadow-2xs' : 'text-slate-500 dark:text-slate-400'"
+              :title="'Stasiun Normal / Online Tanpa Alarm (' + normalFilteredSites.length + ')'"
+            >
+              Normal ({{ normalFilteredSites.length }})
+            </button>
+            <button
+              type="button"
+              id="btn-fleet-dock-tab-issues"
               @click="dockTab = 'ISSUES'"
-              class="py-1 rounded-md text-3xs font-bold transition cursor-pointer"
+              class="py-1 px-1 rounded-md text-4xs font-bold transition cursor-pointer truncate"
               :class="dockTab === 'ISSUES' ? 'bg-rose-600 text-white btn-text shadow-2xs' : 'text-slate-500 dark:text-slate-400'"
+              :title="'Stasiun Bermasalah / Alarm / Offline (' + issueFilteredSites.length + ')'"
             >
               Masalah ({{ issueFilteredSites.length }})
             </button>
             <button
               type="button"
+              id="btn-fleet-dock-tab-nogps"
               @click="dockTab = 'NOGPS'"
-              class="py-1 rounded-md text-3xs font-bold transition cursor-pointer"
+              class="py-1 px-1 rounded-md text-4xs font-bold transition cursor-pointer truncate"
               :class="dockTab === 'NOGPS' ? 'bg-amber-600 text-white btn-text shadow-2xs' : 'text-slate-500 dark:text-slate-400'"
+              :title="'Stasiun Belum Ada Koordinat GPS (' + noGpsFilteredSites.length + ')'"
             >
               No-GPS ({{ noGpsFilteredSites.length }})
             </button>
@@ -1539,6 +1577,17 @@ export default {
       mobileViewMode: 'map', // 'map' | 'list'
       showMobileFilterSheet: false,
       isRightDockCollapsed: false,
+      rightDockWidth: (() => {
+        try {
+          const saved = Number(localStorage.getItem('datalogger_fleet_dock_width'));
+          if (Number.isFinite(saved) && saved >= 240 && saved <= 720) return saved;
+        } catch (_) {}
+        return 335;
+      })(),
+      isResizingDock: false,
+      dockResizeStartX: 0,
+      dockResizeStartWidth: 335,
+      dockResizeRaf: null,
       isMapFullscreen: false,
 
       // Map & Selection State
@@ -1591,6 +1640,13 @@ export default {
     isDesktopViewport() {
       return this.viewportWidth >= 768;
     },
+    effectiveRightDockWidth() {
+      const maxAllowed = Math.max(260, Math.min(720, Math.floor(this.viewportWidth * 0.58)));
+      return Math.min(Math.max(240, Number(this.rightDockWidth) || 335), maxAllowed);
+    },
+    normalSitesTotalCount() {
+      return (this.sites || []).filter(s => s.severity_state === 'NORMAL').length;
+    },
     effectiveAppDark() {
       const pref = this.$store && this.$store.state && this.$store.state.uiPreferences;
       if (pref && pref.effectiveTheme) return pref.effectiveTheme === 'dark';
@@ -1624,6 +1680,14 @@ export default {
           dotClass: '',
           activeClass: 'bg-sky-600 text-white btn-text border-sky-600 shadow-2xs',
           idleClass: 'bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
+        },
+        {
+          key: 'NORMAL',
+          label: 'Normal',
+          count: this.normalSitesTotalCount,
+          dotClass: 'bg-teal-500',
+          activeClass: 'bg-teal-600 text-white btn-text border-teal-600 shadow-2xs',
+          idleClass: 'bg-teal-500/5 hover:bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/25',
         },
         {
           key: 'ONLINE',
@@ -1749,6 +1813,7 @@ export default {
         if (this.alarmFilter === 'WARNING' && !(s.warning_alarm_count > 0)) return false;
         if (this.alarmFilter === 'CLEAN' && s.total_active_alarms > 0) return false;
 
+        if (this.quickFilter === 'NORMAL' && s.severity_state !== 'NORMAL') return false;
         if (this.quickFilter === 'ONLINE' && s.delivery_status !== 'ONLINE') return false;
         if (this.quickFilter === 'DELAYED' && s.delivery_status !== 'DELAYED') return false;
         if (this.quickFilter === 'OFFLINE' && s.delivery_status !== 'OFFLINE') return false;
@@ -1780,6 +1845,9 @@ export default {
         s => s.has_coordinates && isValidStationCoordinate(s.latitude, s.longitude)
       );
     },
+    normalFilteredSites() {
+      return this.filteredSites.filter(s => s.severity_state === 'NORMAL');
+    },
     issueFilteredSites() {
       return this.filteredSites.filter(
         s => s.severity_state === 'CRITICAL' || s.severity_state === 'WARNING'
@@ -1790,7 +1858,8 @@ export default {
     },
     dockDisplayedSites() {
       let base = this.filteredSites;
-      if (this.dockTab === 'ISSUES') base = this.issueFilteredSites;
+      if (this.dockTab === 'NORMAL') base = this.normalFilteredSites;
+      else if (this.dockTab === 'ISSUES') base = this.issueFilteredSites;
       else if (this.dockTab === 'NOGPS') return this.noGpsFilteredSites;
 
       if (this.pinDisplayMode === 'env') {
@@ -1899,6 +1968,7 @@ export default {
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.clockTimer) clearInterval(this.clockTimer);
     if (this.wsRefreshDebounce) clearTimeout(this.wsRefreshDebounce);
+    this.stopDockResize();
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.onResize);
       window.removeEventListener('alarm-event', this.scheduleRealtimeRefresh);
@@ -1919,6 +1989,69 @@ export default {
       this.viewportWidth = window.innerWidth;
       this.$nextTick(() => {
         if (this.map) this.map.invalidateSize();
+      });
+    },
+    extractClientX(ev) {
+      if (!ev) return null;
+      if (typeof ev.clientX === 'number') return ev.clientX;
+      if (ev.touches && ev.touches.length > 0) return ev.touches[0].clientX;
+      if (ev.changedTouches && ev.changedTouches.length > 0) return ev.changedTouches[0].clientX;
+      return null;
+    },
+    startDockResize(ev) {
+      const x = this.extractClientX(ev);
+      if (x === null || typeof window === 'undefined') return;
+      this.isResizingDock = true;
+      this.dockResizeStartX = x;
+      this.dockResizeStartWidth = this.effectiveRightDockWidth;
+      window.addEventListener('mousemove', this.onDockResizeMove);
+      window.addEventListener('mouseup', this.stopDockResize);
+      window.addEventListener('touchmove', this.onDockResizeMove, { passive: false });
+      window.addEventListener('touchend', this.stopDockResize);
+    },
+    onDockResizeMove(ev) {
+      if (!this.isResizingDock) return;
+      const x = this.extractClientX(ev);
+      if (x === null) return;
+      if (ev.cancelable) ev.preventDefault();
+      const deltaX = x - this.dockResizeStartX;
+      const maxAllowed = Math.max(260, Math.min(720, Math.floor(this.viewportWidth * 0.58)));
+      const nextWidth = Math.min(Math.max(240, Math.round(this.dockResizeStartWidth - deltaX)), maxAllowed);
+      this.rightDockWidth = nextWidth;
+      if (!this.dockResizeRaf && typeof window !== 'undefined' && window.requestAnimationFrame) {
+        this.dockResizeRaf = window.requestAnimationFrame(() => {
+          this.dockResizeRaf = null;
+          if (this.map) this.map.invalidateSize({ pan: false });
+        });
+      }
+    },
+    stopDockResize() {
+      if (this.dockResizeRaf && typeof window !== 'undefined' && window.cancelAnimationFrame) {
+        window.cancelAnimationFrame(this.dockResizeRaf);
+        this.dockResizeRaf = null;
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mousemove', this.onDockResizeMove);
+        window.removeEventListener('mouseup', this.stopDockResize);
+        window.removeEventListener('touchmove', this.onDockResizeMove);
+        window.removeEventListener('touchend', this.stopDockResize);
+      }
+      if (!this.isResizingDock) return;
+      this.isResizingDock = false;
+      try {
+        localStorage.setItem('datalogger_fleet_dock_width', String(Math.round(this.rightDockWidth)));
+      } catch (_) {}
+      this.$nextTick(() => {
+        if (this.map) this.map.invalidateSize({ pan: false });
+      });
+    },
+    resetRightDockWidth() {
+      this.rightDockWidth = 335;
+      try {
+        localStorage.setItem('datalogger_fleet_dock_width', '335');
+      } catch (_) {}
+      this.$nextTick(() => {
+        if (this.map) this.map.invalidateSize({ pan: false });
       });
     },
     scheduleRealtimeRefresh() {
@@ -2919,7 +3052,9 @@ export default {
       this.quickFilter = this.quickFilter === key && key !== 'ALL' ? 'ALL' : key;
       if (this.quickFilter === 'NOGPS' && this.isDesktopViewport) {
         this.dockTab = 'NOGPS';
-      } else if (this.dockTab === 'NOGPS' && this.quickFilter !== 'NOGPS') {
+      } else if (this.quickFilter === 'NORMAL' && this.isDesktopViewport) {
+        this.dockTab = 'NORMAL';
+      } else if ((this.dockTab === 'NOGPS' && this.quickFilter !== 'NOGPS') || (this.dockTab === 'NORMAL' && this.quickFilter !== 'NORMAL')) {
         this.dockTab = 'ALL';
       }
       this.$nextTick(() => {

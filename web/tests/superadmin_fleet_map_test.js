@@ -110,6 +110,13 @@ assert(
   fleetViewCode.includes('fleet-pin-score'),
   'FleetMapView must support compact colored circular score pins for ISPU (AQMS) and IP/IKA (WQMS/ONLIMO)'
 );
+assert(
+  fleetViewCode.includes('id="fleet-dock-resize-handle"') &&
+  fleetViewCode.includes('startDockResize') &&
+  fleetViewCode.includes('id="btn-fleet-dock-tab-normal"') &&
+  fleetViewCode.includes("key: 'NORMAL'"),
+  'FleetMapView must support draggable right sidebar resizing and Normal sites filtering'
+);
 assert(fleetViewCode.includes('id="input-fleet-search"'), 'FleetMapView must include compact station/tenant search input');
 assert(fleetViewCode.includes('id="select-fleet-project-year"'), 'FleetMapView must include Tahun Project dropdown filter');
 assert(fleetViewCode.includes('id="select-fleet-mobile-project-year"'), 'FleetMapView mobile filter sheet must include Tahun Project dropdown filter');
