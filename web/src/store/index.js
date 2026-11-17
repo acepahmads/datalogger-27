@@ -140,6 +140,9 @@ export default new Vuex.Store({
     activities: [],
     tenants: [],
     sites: [],
+    globalSitesCatalog: [],
+    showPostLoginTenantPicker: false,
+    showWorkspaceSelectorModal: false,
     activeTenantId: Number(localStorage.getItem('datalogger_active_tenant_id') || 0) || 0,
     activeSiteId: Number(localStorage.getItem('datalogger_active_site_id') || 0) || 0,
     contextRevision: 0,
@@ -154,6 +157,13 @@ export default new Vuex.Store({
     isCustomerService: (state, getters) => ['CUSTOMER_SERVICE', 'CUSTOMER SERVICE', 'COSTUMER_SERVICE', 'COSTUMER SERVICE'].includes(getters.userRole),
     isReadOnlyRole: (state, getters) => getters.isCustomerService,
     canSwitchTenants: (state, getters) => getters.isSuperAdmin || getters.isCustomerService,
+    isCloudMode: state => Boolean(
+      (state.systemStatus && state.systemStatus.cloud_mode) ||
+      String((state.systemStatus && state.systemStatus.monitoring_domain) || '').toUpperCase() === 'CLOUD'
+    ),
+    isCloudGlobalUnscoped: (state, getters) => Boolean(
+      getters.isCloudMode && getters.canSwitchTenants && !(Number(state.activeTenantId) > 0)
+    ),
     isEngineer: (state, getters) => getters.userRole === 'ENGINEER',
     isOperator: (state, getters) => getters.userRole === 'OPERATOR',
     showOperatorConsole: state => Boolean(state.systemStatus && state.systemStatus.show_operator_console === true),
@@ -214,6 +224,9 @@ export default new Vuex.Store({
       state.user = null;
       state.tenants = [];
       state.sites = [];
+      state.globalSitesCatalog = [];
+      state.showPostLoginTenantPicker = false;
+      state.showWorkspaceSelectorModal = false;
       state.activeTenantId = 0;
       state.activeSiteId = 0;
       try {
@@ -229,6 +242,29 @@ export default new Vuex.Store({
     },
     SET_SITES(state, sites) {
       state.sites = Array.isArray(sites) ? sites : [];
+    },
+    SET_GLOBAL_SITES_CATALOG(state, payload) {
+      const isObj = payload && typeof payload === 'object' && !Array.isArray(payload);
+      const incoming = Array.isArray(isObj ? payload.sites : payload) ? (isObj ? payload.sites : payload) : [];
+      const replaceAll = Boolean(isObj && payload.replaceAll);
+      if (replaceAll || !Array.isArray(state.globalSitesCatalog) || state.globalSitesCatalog.length === 0) {
+        state.globalSitesCatalog = incoming;
+        return;
+      }
+      const byId = new Map();
+      for (const s of state.globalSitesCatalog) {
+        if (s && s.id) byId.set(Number(s.id), s);
+      }
+      for (const s of incoming) {
+        if (s && s.id) byId.set(Number(s.id), s);
+      }
+      state.globalSitesCatalog = Array.from(byId.values());
+    },
+    SET_SHOW_POST_LOGIN_TENANT_PICKER(state, visible) {
+      state.showPostLoginTenantPicker = Boolean(visible);
+    },
+    SET_SHOW_WORKSPACE_SELECTOR_MODAL(state, visible) {
+      state.showWorkspaceSelectorModal = Boolean(visible);
     },
     SET_ACTIVE_TENANT_ID(state, tenantId) {
       const val = Number(tenantId) || 0;
@@ -489,8 +525,12 @@ export default new Vuex.Store({
           const ctx = res.data.data;
           const tenants = Array.isArray(ctx.tenants) ? ctx.tenants : [];
           const sites = Array.isArray(ctx.sites) ? ctx.sites : [];
+          const isGlobalQuery = !(Number(state.activeTenantId) > 0) && getters.canSwitchTenants;
           commit('SET_TENANTS', tenants);
           commit('SET_SITES', sites);
+          if (sites.length > 0 || isGlobalQuery) {
+            commit('SET_GLOBAL_SITES_CATALOG', { sites, replaceAll: isGlobalQuery });
+          }
 
           if (!getters.canSwitchTenants) {
             const fixedTenantId = Number(ctx.active_tenant_id || (state.user && state.user.tenant_id) || 0);
@@ -509,10 +549,33 @@ export default new Vuex.Store({
       }
       return null;
     },
+    async fetchGlobalSitesCatalog({ commit, state, getters }) {
+      if (!state.token || !getters.canSwitchTenants) return [];
+      try {
+        const res = await axios.get(`${API_BASE}/tenants/context`, {
+          headers: { 'X-Tenant-ID': '0', 'X-Site-ID': '0' },
+        });
+        if (res.data && res.data.data) {
+          const ctx = res.data.data;
+          const tenants = Array.isArray(ctx.tenants) ? ctx.tenants : [];
+          const sites = Array.isArray(ctx.sites) ? ctx.sites : [];
+          if (tenants.length > 0) commit('SET_TENANTS', tenants);
+          commit('SET_GLOBAL_SITES_CATALOG', { sites, replaceAll: true });
+          return sites;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch global sites catalog:', err);
+      }
+      return [];
+    },
     async setActiveTenant({ commit, dispatch, state }, tenantId) {
       const nextTenantId = Number(tenantId) || 0;
       commit('SET_ACTIVE_TENANT_ID', nextTenantId);
       commit('SET_ACTIVE_SITE_ID', 0);
+      if (nextTenantId > 0) {
+        commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', false);
+        commit('SET_SHOW_WORKSPACE_SELECTOR_MODAL', false);
+      }
       commit('CLEAR_SENSITIVE_DATA');
       if (state.ws && state.ws.readyState === 1) {
         try {
@@ -563,6 +626,10 @@ export default new Vuex.Store({
       const nextSiteId = Number(siteId) || 0;
       commit('SET_ACTIVE_TENANT_ID', nextTenantId);
       commit('SET_ACTIVE_SITE_ID', nextSiteId);
+      if (nextTenantId > 0) {
+        commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', false);
+        commit('SET_SHOW_WORKSPACE_SELECTOR_MODAL', false);
+      }
       commit('CLEAR_SENSITIVE_DATA');
       if (state.ws && state.ws.readyState === 1) {
         try {
@@ -590,12 +657,14 @@ export default new Vuex.Store({
         }));
       }
     },
-    async login({ commit, dispatch }, { username, password }) {
+    async login({ commit, dispatch, state, getters }, { username, password }) {
       const res = await axios.post(`${API_BASE}/auth/login`, { username, password });
       if (res.data && res.data.data) {
         const data = res.data.data;
         dispatch('closeWebSocket');
         commit('CLEAR_SENSITIVE_DATA');
+        commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', false);
+        commit('SET_SHOW_WORKSPACE_SELECTOR_MODAL', false);
         commit('SET_ACTIVE_TENANT_ID', 0);
         commit('SET_ACTIVE_SITE_ID', 0);
         commit('SET_TOKEN', data.token);
@@ -622,11 +691,18 @@ export default new Vuex.Store({
           tenant_name: u.tenant_name || (u.tenant && u.tenant.name) || '',
           allowed_site_ids: u.allowed_site_ids || '',
         });
-        await dispatch('fetchTenantContext');
-        dispatch('fetchSystemStatus');
-        dispatch('fetchDevices');
-        dispatch('fetchAlarms');
-        dispatch('fetchActiveAlarms');
+        await Promise.all([
+          dispatch('fetchSystemStatus'),
+          dispatch('fetchTenantContext'),
+        ]);
+        if (getters.isCloudGlobalUnscoped && state.tenants.length > 0) {
+          commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', true);
+        }
+        if (!getters.isCloudGlobalUnscoped) {
+          dispatch('fetchDevices');
+          dispatch('fetchAlarms');
+          dispatch('fetchActiveAlarms');
+        }
         dispatch('initWebSocket');
         commit('INCREMENT_CONTEXT_REVISION');
         return data;
@@ -719,7 +795,7 @@ export default new Vuex.Store({
         return fallbackData;
       }
     },
-    async switchAccount({ commit, dispatch }, { target_username, username, password }) {
+    async switchAccount({ commit, dispatch, state, getters }, { target_username, username, password }) {
       if (password) {
         return dispatch('login', { username: username || target_username, password });
       }
@@ -728,6 +804,8 @@ export default new Vuex.Store({
         const data = res.data.data;
         dispatch('closeWebSocket');
         commit('CLEAR_SENSITIVE_DATA');
+        commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', false);
+        commit('SET_SHOW_WORKSPACE_SELECTOR_MODAL', false);
         commit('SET_ACTIVE_TENANT_ID', 0);
         commit('SET_ACTIVE_SITE_ID', 0);
         commit('SET_TOKEN', data.token);
@@ -752,11 +830,18 @@ export default new Vuex.Store({
           tenant_name: u.tenant_name || (u.tenant && u.tenant.name) || '',
           allowed_site_ids: u.allowed_site_ids || '',
         });
-        await dispatch('fetchTenantContext');
-        dispatch('fetchSystemStatus');
-        dispatch('fetchDevices');
-        dispatch('fetchAlarms');
-        dispatch('fetchActiveAlarms');
+        await Promise.all([
+          dispatch('fetchSystemStatus'),
+          dispatch('fetchTenantContext'),
+        ]);
+        if (getters.isCloudGlobalUnscoped && state.tenants.length > 0) {
+          commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', true);
+        }
+        if (!getters.isCloudGlobalUnscoped) {
+          dispatch('fetchDevices');
+          dispatch('fetchAlarms');
+          dispatch('fetchActiveAlarms');
+        }
         dispatch('initWebSocket');
         commit('INCREMENT_CONTEXT_REVISION');
         return data;
@@ -786,7 +871,11 @@ export default new Vuex.Store({
       }
       commit('SET_WS_CONNECTED', false);
     },
-    async fetchDevices({ commit }, filterParams = {}) {
+    async fetchDevices({ commit, getters }, filterParams = {}) {
+      if (getters.isCloudGlobalUnscoped && !filterParams.pageSize && !filterParams.allowGlobal) {
+        commit('SET_DEVICES', []);
+        return [];
+      }
       try {
         let url = `${API_BASE}/devices`;
         const params = [];
@@ -1038,7 +1127,11 @@ export default new Vuex.Store({
         throw err;
       }
     },
-    async fetchAlarms({ commit }) {
+    async fetchAlarms({ commit, getters }) {
+      if (getters.isCloudGlobalUnscoped) {
+        commit('SET_ALARMS', []);
+        return;
+      }
       try {
         const res = await axios.get(`${API_BASE}/alarms`);
         if (res.data && res.data.data) {
@@ -1097,7 +1190,11 @@ export default new Vuex.Store({
         throw err;
       }
     },
-    async fetchActiveAlarms({ commit }) {
+    async fetchActiveAlarms({ commit, getters }) {
+      if (getters.isCloudGlobalUnscoped) {
+        commit('SET_ACTIVE_ALARMS', []);
+        return [];
+      }
       try {
         const res = await axios.get(`${API_BASE}/alarms/active`);
         if (res.data && res.data.data) {
@@ -1132,7 +1229,7 @@ export default new Vuex.Store({
         throw err;
       }
     },
-    initWebSocket({ commit, dispatch, state }) {
+    initWebSocket({ commit, dispatch, state, getters }) {
       if (!state.token) return;
       state.wsExplicitClose = false;
       if (state.ws) {
@@ -1165,7 +1262,9 @@ export default new Vuex.Store({
           } catch (e) {}
         }
         // Reconcile active alarms and system status after connection or reconnection
-        dispatch('fetchActiveAlarms');
+        if (!getters.isCloudGlobalUnscoped) {
+          dispatch('fetchActiveAlarms');
+        }
         dispatch('fetchSystemStatus');
       };
 
@@ -1215,6 +1314,11 @@ export default new Vuex.Store({
             } else if (msg.type === 'SYSTEM_ACTIVITY_EVENT' && msg.data) {
               window.dispatchEvent(new CustomEvent('system-activity-event', { detail: msg.data }));
               window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
+            } else if (getters.isCloudGlobalUnscoped) {
+              // In Cloud Global unscoped mode, skip cross-tenant per-device telemetry & alarm storms
+              if (msg.type === 'alarm.created' || msg.type === 'alarm.cleared' || msg.type === 'alarm.acknowledged') {
+                window.dispatchEvent(new CustomEvent('alarm-event', { detail: msg }));
+              }
             } else if (msg.type === 'device.connection.changed' || msg.type === 'device.communication.success' || msg.type === 'device.communication.error') {
               window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
             } else if (msg.type === 'device.telemetry.received' && msg.data) {

@@ -3,20 +3,20 @@
     <!-- Top System Header (Hidden in Full-Width SCADA Mode or on Login) -->
     <Header
       v-if="!isLoginRoute && isShellReady"
-      v-show="!isTopPanelHidden"
+      v-show="!effectiveTopPanelHidden"
       @toggle-sidebar="toggleSidebar"
       @toggle-autohide="onSidebarAutoHideToggle"
     />
 
     <!-- Global Alarm Banner (Directly beneath header) -->
-    <GlobalAlarmBanner v-if="!isLoginRoute && isShellReady" v-show="!isTopPanelHidden" />
+    <GlobalAlarmBanner v-if="!isLoginRoute && isShellReady" v-show="!effectiveTopPanelHidden" />
 
     <!-- Main Content Area with Sidebar -->
     <div class="flex flex-1 overflow-hidden relative" v-if="!isLoginRoute && isShellReady">
       <!-- 1. Normal Pinned Sidebar (rendered when auto-hide is FALSE — Desktop >= 768px only) -->
       <div v-if="!sidebarAutoHide" class="hidden md:flex h-full flex-shrink-0">
         <Sidebar
-          :is-collapsed="isSidebarCollapsed"
+          :is-collapsed="requiresCloudTenantGate ? false : isSidebarCollapsed"
           :is-auto-hide="false"
           @toggle-autohide="onSidebarAutoHideToggle"
           @request-logout="openLogoutConfirmModal"
@@ -91,9 +91,17 @@
       <!-- Viewport / Route Views -->
       <main
         class="flex-1 min-w-0 transition-colors duration-150"
-        :class="(isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isFleetMapRoute ? 'p-2 sm:p-2.5 overflow-hidden flex flex-col min-h-0 bg-slate-50 dark:bg-slate-950' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-2.5 sm:p-4 overflow-y-auto bg-transparent dark:bg-slate-950'))"
+        :class="requiresCloudTenantGate ? 'p-0 overflow-y-auto bg-slate-50 dark:bg-slate-950' : ((isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isFleetMapRoute ? 'p-2 sm:p-2.5 overflow-hidden flex flex-col min-h-0 bg-slate-50 dark:bg-slate-950' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-2.5 sm:p-4 overflow-y-auto bg-transparent dark:bg-slate-950')))"
       >
+        <CloudTenantWorkspaceModal
+          v-if="requiresCloudTenantGate"
+          :visible="true"
+          mode="route-gate"
+          :target-route-label="gatedOperationalRouteLabel"
+          :is-current-route-gated="true"
+        />
         <router-view
+          v-else
           :key="'ctx-' + ($store.state.contextRevision || 0)"
           :is-sidebar-collapsed="isMobileViewport ? !isMobileDrawerOpen : (isSidebarCollapsed || sidebarAutoHide)"
           :is-top-panel-hidden="isTopPanelHidden"
@@ -112,6 +120,16 @@
 
     <!-- Initial Auth Check Placeholder (prevents dashboard flash before Cloud /login redirect) -->
     <div v-else class="flex-1 bg-slate-50 dark:bg-slate-950"></div>
+
+    <!-- Cloud Post-Login & Quick Switcher Workspace Modal -->
+    <CloudTenantWorkspaceModal
+      v-if="!isLoginRoute && isShellReady && !requiresCloudTenantGate && (showPostLoginTenantPicker || showWorkspaceSelectorModal)"
+      :visible="true"
+      :mode="showPostLoginTenantPicker ? 'post-login' : 'switcher'"
+      :target-route-label="gatedOperationalRouteLabel"
+      :is-current-route-gated="Boolean(gatedOperationalRouteLabel)"
+      @close="closeOverlayWorkspaceModal"
+    />
 
     <!-- Global Logout Confirmation Modal (Accessible from Sidebar even when Top Header is hidden) -->
     <div
@@ -158,6 +176,7 @@
 import Header from './components/Header.vue';
 import Sidebar from './components/Sidebar.vue';
 import GlobalAlarmBanner from './components/GlobalAlarmBanner.vue';
+import CloudTenantWorkspaceModal from './components/CloudTenantWorkspaceModal.vue';
 
 export default {
   name: 'App',
@@ -165,6 +184,7 @@ export default {
     Header,
     Sidebar,
     GlobalAlarmBanner,
+    CloudTenantWorkspaceModal,
   },
   data() {
     return {
@@ -187,6 +207,69 @@ export default {
     isShellReady() {
       return Boolean(this.$store && this.$store.getters && this.$store.getters.isAuthenticated);
     },
+    isCloudMode() {
+      return Boolean(this.$store && this.$store.getters && this.$store.getters.isCloudMode);
+    },
+    canSwitchTenants() {
+      return Boolean(this.$store && this.$store.getters && this.$store.getters.canSwitchTenants);
+    },
+    activeTenantId() {
+      return Number((this.$store && this.$store.state && this.$store.state.activeTenantId) || 0);
+    },
+    showPostLoginTenantPicker() {
+      return Boolean(this.$store && this.$store.state && this.$store.state.showPostLoginTenantPicker);
+    },
+    showWorkspaceSelectorModal() {
+      return Boolean(this.$store && this.$store.state && this.$store.state.showWorkspaceSelectorModal);
+    },
+    gatedOperationalRouteLabel() {
+      const p = String((this.$route && this.$route.path) || '').trim();
+      if (!p) return '';
+      if (p === '/' || p === '/operator' || p === '/monitoring/operator' || p === '/monitoring/dashboard-operator') {
+        return 'Dashboard Operator';
+      }
+      if (p === '/monitoring/telemetry') {
+        return 'Live Telemetry';
+      }
+      if (p === '/monitoring/analysis') {
+        return 'Telemetry Analysis';
+      }
+      if (p === '/monitoring/ispu' || p === '/ispu') {
+        return 'ISPU Analysis';
+      }
+      if (p === '/monitoring/wqms' || p === '/wqms') {
+        return 'WQMS Analysis (IP & IKA)';
+      }
+      if (p === '/monitoring/reports') {
+        return 'Reports';
+      }
+      if (p === '/monitoring/calibration' || p === '/calibration') {
+        return 'Sensor Calibration';
+      }
+      if (
+        p === '/alarm' ||
+        p === '/alarms' ||
+        p === '/alarm/active' ||
+        p === '/alarm/history' ||
+        p === '/alarm/queue' ||
+        p === '/alarm/delivery' ||
+        p === '/monitoring/delivery'
+      ) {
+        return 'Alarms & Events';
+      }
+      return '';
+    },
+    requiresCloudTenantGate() {
+      return Boolean(
+        this.isCloudMode &&
+        this.canSwitchTenants &&
+        !(this.activeTenantId > 0) &&
+        this.gatedOperationalRouteLabel
+      );
+    },
+    effectiveTopPanelHidden() {
+      return Boolean(this.isTopPanelHidden && !this.requiresCloudTenantGate);
+    },
     isOperatorRoute() {
       return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');
     },
@@ -204,6 +287,14 @@ export default {
     },
   },
   watch: {
+    requiresCloudTenantGate: {
+      immediate: true,
+      handler(val) {
+        if (val && this.$store && this.$store.state && this.$store.state.showPostLoginTenantPicker) {
+          this.$store.commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', false);
+        }
+      },
+    },
     $route: {
       immediate: true,
       handler(to) {
@@ -246,6 +337,12 @@ export default {
     },
     closeMobileDrawer() {
       this.isMobileDrawerOpen = false;
+    },
+    closeOverlayWorkspaceModal() {
+      if (this.$store) {
+        this.$store.commit('SET_SHOW_POST_LOGIN_TENANT_PICKER', false);
+        this.$store.commit('SET_SHOW_WORKSPACE_SELECTOR_MODAL', false);
+      }
     },
     toggleSidebar() {
       if (this.isMobileViewport) {

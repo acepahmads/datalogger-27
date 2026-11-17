@@ -143,6 +143,21 @@
             </svg>
           </button>
 
+          <!-- 2b. Cloud Quick Switch Tenant / Station Button (Icon Only — accessible even when Top Header is hidden) -->
+          <button
+            v-if="isCloudMode && $store && $store.getters && $store.getters.canSwitchTenants"
+            type="button"
+            id="btn-bento-switch-tenant"
+            @click="$store.commit('SET_SHOW_WORKSPACE_SELECTOR_MODAL', true)"
+            class="op-icon-btn text-purple-600 dark:text-purple-400"
+            title="Pindah Cepat Tenant / Stasiun Pantau"
+            aria-label="Switch Tenant Workspace"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
+            </svg>
+          </button>
+
           <div class="op-v-div"></div>
 
           <!-- 3. View & Filter Options Popover (Icon Only + Corner Badge) -->

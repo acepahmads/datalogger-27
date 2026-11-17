@@ -46,6 +46,20 @@
               🏢 {{ t.name }} ({{ t.code }})
             </option>
           </select>
+          <button
+            v-if="isCloudMode"
+            type="button"
+            id="btn-open-workspace-picker"
+            @click="$store.commit('SET_SHOW_WORKSPACE_SELECTOR_MODAL', true)"
+            class="flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs flex-shrink-0 cursor-pointer bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700/60"
+            title="Cari & Pindah Cepat Tenant / Stasiun Pantau"
+            aria-label="Cari Workspace Tenant"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+              <circle cx="11" cy="11" r="7" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="m20 20-3.5-3.5" />
+            </svg>
+          </button>
         </div>
 
         <!-- Scoped Tenant Badge for Non-Superadmin (Hidden on mobile when Site Switcher already represents active station) -->

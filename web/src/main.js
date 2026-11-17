@@ -97,15 +97,18 @@ new Vue({
           this.$store.commit('CLEAR_AUTH');
         }
         if (this.$store.state.token && this.$store.state.user) {
-          this.$store.dispatch('fetchTenantContext');
-          this.$store.dispatch('fetchDevices');
-          this.$store.dispatch('fetchAlarms');
-          if (this.$store.getters.isSuperAdmin) {
-            this.$store.dispatch('fetchProgress');
-            this.$store.dispatch('fetchTasks');
-            this.$store.dispatch('fetchActivity');
-          }
-          this.$store.dispatch('initWebSocket');
+          this.$store.dispatch('fetchTenantContext').finally(() => {
+            if (!this.$store.getters.isCloudGlobalUnscoped) {
+              this.$store.dispatch('fetchDevices');
+              this.$store.dispatch('fetchAlarms');
+            }
+            if (this.$store.getters.isSuperAdmin) {
+              this.$store.dispatch('fetchProgress');
+              this.$store.dispatch('fetchTasks');
+              this.$store.dispatch('fetchActivity');
+            }
+            this.$store.dispatch('initWebSocket');
+          });
         } else if (!isLoginEntry && (!this.$route || this.$route.path !== '/login')) {
           this.$router.replace({
             path: '/login',
