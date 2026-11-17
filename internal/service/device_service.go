@@ -93,6 +93,8 @@ type CreateParameterRequest struct {
 	Icon                     string                      `json:"icon"`
 	StatusOnLabel            string                      `json:"status_on_label"`
 	StatusOffLabel           string                      `json:"status_off_label"`
+	StatusOnValue            *float64                    `json:"status_on_value"`
+	StatusOffValue           *float64                    `json:"status_off_value"`
 	CategoryID               *uint                       `json:"category_id"`
 	Description              string                      `json:"description"`
 	MinValue                 *float64                    `json:"min_value"`
@@ -127,14 +129,16 @@ type CreateParameterRequest struct {
 func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
 	type Alias CreateParameterRequest
 	aux := struct {
-		RawMin         interface{} `json:"min_value"`
-		RawMax         interface{} `json:"max_value"`
-		RawWarnLow     interface{} `json:"warning_low"`
-		RawWarnHigh    interface{} `json:"warning_high"`
-		RawScale       interface{} `json:"scale"`
-		RawOffset      interface{} `json:"offset"`
-		RawSpikeThresh interface{} `json:"spike_threshold"`
-		RawCategoryID  interface{} `json:"category_id"`
+		RawMin          interface{} `json:"min_value"`
+		RawMax          interface{} `json:"max_value"`
+		RawWarnLow      interface{} `json:"warning_low"`
+		RawWarnHigh     interface{} `json:"warning_high"`
+		RawScale        interface{} `json:"scale"`
+		RawOffset       interface{} `json:"offset"`
+		RawSpikeThresh  interface{} `json:"spike_threshold"`
+		RawCategoryID   interface{} `json:"category_id"`
+		RawStatusOnVal  interface{} `json:"status_on_value"`
+		RawStatusOffVal interface{} `json:"status_off_value"`
 		*Alias
 	}{
 		Alias: (*Alias)(r),
@@ -182,6 +186,12 @@ func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
 	if val, ok := rawMap["stuck_count_threshold"]; ok {
 		r.StuckCountThreshold = parseNullableInt(val, nil)
 	}
+	if val, ok := rawMap["status_on_value"]; ok {
+		r.StatusOnValue = parseNullableFloat(val, nil)
+	}
+	if val, ok := rawMap["status_off_value"]; ok {
+		r.StatusOffValue = parseNullableFloat(val, nil)
+	}
 	return nil
 }
 
@@ -193,6 +203,10 @@ type UpdateParameterRequest struct {
 	Icon                     *string                     `json:"icon"`
 	StatusOnLabel            *string                     `json:"status_on_label"`
 	StatusOffLabel           *string                     `json:"status_off_label"`
+	StatusOnValue            *float64                    `json:"status_on_value"`
+	StatusOffValue           *float64                    `json:"status_off_value"`
+	ClearStatusOnValue       bool                        `json:"clear_status_on_value"`
+	ClearStatusOffValue      bool                        `json:"clear_status_off_value"`
 	CategoryID               *uint                       `json:"category_id"`
 	ClearCategoryID          bool                        `json:"clear_category_id"`
 	Description              *string                     `json:"description"`
@@ -232,14 +246,16 @@ type UpdateParameterRequest struct {
 func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
 	type Alias UpdateParameterRequest
 	aux := struct {
-		RawMin         interface{} `json:"min_value"`
-		RawMax         interface{} `json:"max_value"`
-		RawWarnLow     interface{} `json:"warning_low"`
-		RawWarnHigh    interface{} `json:"warning_high"`
-		RawScale       interface{} `json:"scale"`
-		RawOffset      interface{} `json:"offset"`
-		RawSpikeThresh interface{} `json:"spike_threshold"`
-		RawCategoryID  interface{} `json:"category_id"`
+		RawMin          interface{} `json:"min_value"`
+		RawMax          interface{} `json:"max_value"`
+		RawWarnLow      interface{} `json:"warning_low"`
+		RawWarnHigh     interface{} `json:"warning_high"`
+		RawScale        interface{} `json:"scale"`
+		RawOffset       interface{} `json:"offset"`
+		RawSpikeThresh  interface{} `json:"spike_threshold"`
+		RawCategoryID   interface{} `json:"category_id"`
+		RawStatusOnVal  interface{} `json:"status_on_value"`
+		RawStatusOffVal interface{} `json:"status_off_value"`
 		*Alias
 	}{
 		Alias: (*Alias)(r),
@@ -286,6 +302,12 @@ func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
 	}
 	if val, ok := rawMap["stuck_count_threshold"]; ok {
 		r.StuckCountThreshold = parseNullableInt(val, nil)
+	}
+	if val, ok := rawMap["status_on_value"]; ok {
+		r.StatusOnValue = parseNullableFloat(val, &r.ClearStatusOnValue)
+	}
+	if val, ok := rawMap["status_off_value"]; ok {
+		r.StatusOffValue = parseNullableFloat(val, &r.ClearStatusOffValue)
 	}
 	return nil
 }
@@ -1312,6 +1334,9 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 	if req.MinValue != nil && req.MaxValue != nil && *req.MinValue > *req.MaxValue {
 		return nil, errors.New("min_value cannot be greater than max_value")
 	}
+	if req.StatusOnValue != nil && req.StatusOffValue != nil && *req.StatusOnValue == *req.StatusOffValue {
+		return nil, errors.New("status_on_value and status_off_value cannot be identical")
+	}
 
 	scale := req.Scale
 	if scale == 0 {
@@ -1443,6 +1468,8 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		Icon:                     strings.TrimSpace(req.Icon),
 		StatusOnLabel:            strings.TrimSpace(req.StatusOnLabel),
 		StatusOffLabel:           strings.TrimSpace(req.StatusOffLabel),
+		StatusOnValue:            req.StatusOnValue,
+		StatusOffValue:           req.StatusOffValue,
 		CategoryID:               req.CategoryID,
 		Description:              strings.TrimSpace(req.Description),
 		MinValue:                 req.MinValue,
@@ -1547,6 +1574,16 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	if req.StatusOffLabel != nil {
 		param.StatusOffLabel = strings.TrimSpace(*req.StatusOffLabel)
 	}
+	if req.ClearStatusOnValue {
+		param.StatusOnValue = nil
+	} else if req.StatusOnValue != nil {
+		param.StatusOnValue = req.StatusOnValue
+	}
+	if req.ClearStatusOffValue {
+		param.StatusOffValue = nil
+	} else if req.StatusOffValue != nil {
+		param.StatusOffValue = req.StatusOffValue
+	}
 	if req.ClearCategoryID {
 		param.CategoryID = nil
 		param.Category = nil
@@ -1573,6 +1610,9 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if param.MinValue != nil && param.MaxValue != nil && *param.MinValue > *param.MaxValue {
 		return nil, errors.New("min_value cannot be greater than max_value")
+	}
+	if param.StatusOnValue != nil && param.StatusOffValue != nil && *param.StatusOnValue == *param.StatusOffValue {
+		return nil, errors.New("status_on_value and status_off_value cannot be identical")
 	}
 	if req.Precision != nil {
 		param.Precision = *req.Precision
@@ -1865,6 +1905,9 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 	}
 	if param.MinValue != nil && param.MaxValue != nil && *param.MinValue > *param.MaxValue {
 		return nil, errors.New("min_value cannot be greater than max_value")
+	}
+	if param.StatusOnValue != nil && param.StatusOffValue != nil && *param.StatusOnValue == *param.StatusOffValue {
+		return nil, errors.New("status_on_value and status_off_value cannot be identical")
 	}
 	if req.ClearWarningLow {
 		param.WarningLow = nil

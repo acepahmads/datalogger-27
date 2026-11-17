@@ -1181,3 +1181,79 @@ func TestUpdateParameterCategoryAssignment(t *testing.T) {
 	}
 }
 
+func TestCustomDiscreteStatusOnOffValues(t *testing.T) {
+	_, devService, _ := setupDeviceTestDB(t)
+
+	dev, err := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "DEV-STATUS-CUSTOM-01",
+		DeviceName: "Custom Status Device",
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	// 1. Create parameter with Active-Low custom status values (0 = RUNNING, 1 = STOPPED)
+	onZero := 0.0
+	offOne := 1.0
+	param, err := devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode:  "sampling",
+		ParameterName:  "Sampling",
+		DataType:       model.DataTypeFloat32,
+		StatusOnLabel:  "RUNNING",
+		StatusOffLabel: "STOPPED",
+		StatusOnValue:  &onZero,
+		StatusOffValue: &offOne,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("CreateParameter with custom StatusOnValue/StatusOffValue failed: %v", err)
+	}
+	if param.StatusOnValue == nil || *param.StatusOnValue != 0.0 {
+		t.Fatalf("Expected StatusOnValue 0.0, got %v", param.StatusOnValue)
+	}
+	if param.StatusOffValue == nil || *param.StatusOffValue != 1.0 {
+		t.Fatalf("Expected StatusOffValue 1.0, got %v", param.StatusOffValue)
+	}
+	if !param.EvaluateDiscreteActive(0.0) {
+		t.Errorf("Expected 0.0 to evaluate as Active when StatusOnValue=0, StatusOffValue=1")
+	}
+	if param.EvaluateDiscreteActive(1.0) {
+		t.Errorf("Expected 1.0 to evaluate as Inactive when StatusOnValue=0, StatusOffValue=1")
+	}
+
+	// 2. Reject identical active & inactive values
+	var invalidReq service.UpdateParameterRequest
+	_ = json.Unmarshal([]byte(`{"status_on_value": 5, "status_off_value": 5}`), &invalidReq)
+	if _, err := devService.UpdateParameter(dev.ID, param.ID, &invalidReq, "admin", "127.0.0.1", ""); err == nil {
+		t.Fatalf("Expected error when status_on_value and status_off_value are identical")
+	}
+
+	// 3. Update via JSON to custom Modbus register codes (255 = RUNNING, 0 = STOPPED)
+	var modbusReq service.UpdateParameterRequest
+	if err := json.Unmarshal([]byte(`{"status_on_value": 255, "status_off_value": 0}`), &modbusReq); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	updated, err := devService.UpdateParameter(dev.ID, param.ID, &modbusReq, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("UpdateParameter to 255/0 failed: %v", err)
+	}
+	if !updated.EvaluateDiscreteActive(255) || updated.EvaluateDiscreteActive(0) {
+		t.Errorf("Expected 255 -> Active and 0 -> Inactive")
+	}
+
+	// 4. Clear back to default (nil/nil -> >= 0.5)
+	var clearReq service.UpdateParameterRequest
+	if err := json.Unmarshal([]byte(`{"status_on_value": null, "status_off_value": null, "clear_status_on_value": true, "clear_status_off_value": true}`), &clearReq); err != nil {
+		t.Fatalf("Unmarshal clearReq failed: %v", err)
+	}
+	cleared, err := devService.UpdateParameter(dev.ID, param.ID, &clearReq, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("UpdateParameter clearing status values failed: %v", err)
+	}
+	if cleared.StatusOnValue != nil || cleared.StatusOffValue != nil {
+		t.Errorf("Expected nil StatusOnValue/StatusOffValue after clear, got %v / %v", cleared.StatusOnValue, cleared.StatusOffValue)
+	}
+	if !cleared.EvaluateDiscreteActive(1.0) || cleared.EvaluateDiscreteActive(0.0) {
+		t.Errorf("Expected default >= 0.5 evaluation after clear")
+	}
+}
+

@@ -324,15 +324,15 @@ func (r *DeviceRepository) GetCachedSingleActiveDeviceForSite(tenantID, siteID u
 }
 
 // RecordEdgePushOnline atomically updates last_seen_at, last_communication, last_data_at, connection_status=ONLINE,
-// latency_ms, and success_count in ONE SQL UPDATE (replacing 5 separate device UPDATE queries on every HTTP push).
+// latency_ms, and success_count in ONE SQL UPDATE (without regressing timestamps when historical backlog is replayed).
 func (r *DeviceRepository) RecordEdgePushOnline(deviceID uint, seenAt, lastDataAt time.Time, latencyMs int) error {
 	if deviceID == 0 {
 		return nil
 	}
 	err := r.db.Model(&model.Device{}).Where("id = ?", deviceID).Updates(map[string]interface{}{
-		"last_seen_at":       &seenAt,
-		"last_communication": &seenAt,
-		"last_data_at":       &lastDataAt,
+		"last_seen_at":       gorm.Expr("CASE WHEN last_seen_at IS NULL OR last_seen_at < ? THEN ? ELSE last_seen_at END", seenAt, seenAt),
+		"last_communication": gorm.Expr("CASE WHEN last_communication IS NULL OR last_communication < ? THEN ? ELSE last_communication END", seenAt, seenAt),
+		"last_data_at":       gorm.Expr("CASE WHEN last_data_at IS NULL OR last_data_at < ? THEN ? ELSE last_data_at END", lastDataAt, lastDataAt),
 		"connection_status":  model.DeviceConnOnline,
 		"latency_ms":         latencyMs,
 		"success_count":      gorm.Expr("success_count + ?", 1),
@@ -340,11 +340,18 @@ func (r *DeviceRepository) RecordEdgePushOnline(deviceID uint, seenAt, lastDataA
 	if err == nil {
 		r.metaMu.Lock()
 		if entry, ok := r.deviceMetaCache[deviceID]; ok && entry.dev != nil {
-			seenCp := seenAt
-			dataCp := lastDataAt
-			entry.dev.LastSeenAt = &seenCp
-			entry.dev.LastCommunication = &seenCp
-			entry.dev.LastDataAt = &dataCp
+			if entry.dev.LastSeenAt == nil || seenAt.After(*entry.dev.LastSeenAt) {
+				seenCp := seenAt
+				entry.dev.LastSeenAt = &seenCp
+			}
+			if entry.dev.LastCommunication == nil || seenAt.After(*entry.dev.LastCommunication) {
+				commCp := seenAt
+				entry.dev.LastCommunication = &commCp
+			}
+			if entry.dev.LastDataAt == nil || lastDataAt.After(*entry.dev.LastDataAt) {
+				dataCp := lastDataAt
+				entry.dev.LastDataAt = &dataCp
+			}
 			entry.dev.ConnectionStatus = model.DeviceConnOnline
 			r.deviceMetaCache[deviceID] = entry
 		}
@@ -822,6 +829,8 @@ func (r *DeviceRepository) CloneDeviceChildren(srcDevice, targetDevice *model.De
 				Icon:                     sp.Icon,
 				StatusOnLabel:            sp.StatusOnLabel,
 				StatusOffLabel:           sp.StatusOffLabel,
+				StatusOnValue:            cloneFloat64Ptr(sp.StatusOnValue),
+				StatusOffValue:           cloneFloat64Ptr(sp.StatusOffValue),
 				ZeroValueAlarmPolicy:     sp.ZeroValueAlarmPolicy,
 				CategoryID:               resolvedCatID,
 				Description:              sp.Description,
@@ -1361,10 +1370,12 @@ func (r *DeviceRepository) BulkUpdateParameterCurrentReadings(items []ParameterL
 			"current_quality_reason":     model.ReasonNone,
 			"current_quality_flags":      "",
 			"last_updated":               &ts,
-			"current_received_at":        &ts,
 			"current_device_timestamp":   &ts,
+			"current_received_at":        &ts,
 		}
-		return r.db.Model(&model.Parameter{}).Where("id = ?", it.ParamID).Updates(updates).Error
+		return r.db.Model(&model.Parameter{}).
+			Where("id = ? AND (current_received_at IS NULL OR current_received_at <= ?)", it.ParamID, ts).
+			Updates(updates).Error
 	}
 
 	sorted := make([]ParameterLiveReadingUpdate, len(items))
@@ -1374,31 +1385,38 @@ func (r *DeviceRepository) BulkUpdateParameterCurrentReadings(items []ParameterL
 	})
 
 	n := len(sorted)
-	buildFloatCase := func(getter func(ParameterLiveReadingUpdate) interface{}) (string, []interface{}) {
+	buildGuardedCase := func(col string, getter func(ParameterLiveReadingUpdate) interface{}) (string, []interface{}) {
 		var sb strings.Builder
-		args := make([]interface{}, 0, n*2)
+		args := make([]interface{}, 0, n*3)
 		sb.WriteString("CASE id")
 		for _, it := range sorted {
-			sb.WriteString(" WHEN ? THEN ?")
-			args = append(args, it.ParamID, getter(it))
+			sb.WriteString(" WHEN ? THEN CASE WHEN current_received_at IS NULL OR current_received_at <= ? THEN ? ELSE ")
+			sb.WriteString(col)
+			sb.WriteString(" END")
+			args = append(args, it.ParamID, it.Timestamp, getter(it))
 		}
 		sb.WriteString(" END")
 		return sb.String(), args
 	}
 
-	valCase, valArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
-	numCase, numArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
-	procCase, procArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
-	uncalCase, uncalArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.UncalibratedValue })
-	formCase, formArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} {
+	valCase, valArgs := buildGuardedCase("current_value", func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
+	numCase, numArgs := buildGuardedCase("current_value_numeric", func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
+	procCase, procArgs := buildGuardedCase("current_processed_value", func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
+	uncalCase, uncalArgs := buildGuardedCase("current_uncalibrated_value", func(it ParameterLiveReadingUpdate) interface{} { return it.UncalibratedValue })
+	formCase, formArgs := buildGuardedCase("current_formula_value", func(it ParameterLiveReadingUpdate) interface{} {
 		if it.FormulaValue != nil {
 			return *it.FormulaValue
 		}
 		return nil
 	})
-	luCase, luArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
-	recCase, recArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
-	devTSCase, devTSArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
+	heldCase, heldArgs := buildGuardedCase("is_current_held", func(_ ParameterLiveReadingUpdate) interface{} { return false })
+	qualCase, qualArgs := buildGuardedCase("current_quality", func(_ ParameterLiveReadingUpdate) interface{} { return string(model.QualityGood) })
+	reasonCase, reasonArgs := buildGuardedCase("current_quality_reason", func(_ ParameterLiveReadingUpdate) interface{} { return string(model.ReasonNone) })
+	flagsCase, flagsArgs := buildGuardedCase("current_quality_flags", func(_ ParameterLiveReadingUpdate) interface{} { return "" })
+	luCase, luArgs := buildGuardedCase("last_updated", func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
+	devTSCase, devTSArgs := buildGuardedCase("current_device_timestamp", func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
+	// Keep current_received_at LAST in SET list so MySQL/MariaDB left-to-right assignment evaluates original current_received_at above
+	recCase, recArgs := buildGuardedCase("current_received_at", func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
 
 	inPlaceholders := make([]string, n)
 	idArgs := make([]interface{}, n)
@@ -1407,16 +1425,19 @@ func (r *DeviceRepository) BulkUpdateParameterCurrentReadings(items []ParameterL
 		idArgs[i] = it.ParamID
 	}
 
-	allArgs := make([]interface{}, 0, n*17+4)
+	allArgs := make([]interface{}, 0, n*37)
 	allArgs = append(allArgs, valArgs...)
 	allArgs = append(allArgs, numArgs...)
 	allArgs = append(allArgs, procArgs...)
 	allArgs = append(allArgs, uncalArgs...)
 	allArgs = append(allArgs, formArgs...)
-	allArgs = append(allArgs, false, string(model.QualityGood), string(model.ReasonNone), "")
+	allArgs = append(allArgs, heldArgs...)
+	allArgs = append(allArgs, qualArgs...)
+	allArgs = append(allArgs, reasonArgs...)
+	allArgs = append(allArgs, flagsArgs...)
 	allArgs = append(allArgs, luArgs...)
-	allArgs = append(allArgs, recArgs...)
 	allArgs = append(allArgs, devTSArgs...)
+	allArgs = append(allArgs, recArgs...)
 	allArgs = append(allArgs, idArgs...)
 
 	sqlQuery := fmt.Sprintf(`UPDATE parameters SET
@@ -1425,16 +1446,17 @@ func (r *DeviceRepository) BulkUpdateParameterCurrentReadings(items []ParameterL
 		current_processed_value = %s,
 		current_uncalibrated_value = %s,
 		current_formula_value = %s,
-		is_current_held = ?,
-		current_quality = ?,
-		current_quality_reason = ?,
-		current_quality_flags = ?,
+		is_current_held = %s,
+		current_quality = %s,
+		current_quality_reason = %s,
+		current_quality_flags = %s,
 		last_updated = %s,
-		current_received_at = %s,
-		current_device_timestamp = %s
+		current_device_timestamp = %s,
+		current_received_at = %s
 		WHERE id IN (%s)`,
 		valCase, numCase, procCase, uncalCase, formCase,
-		luCase, recCase, devTSCase,
+		heldCase, qualCase, reasonCase, flagsCase,
+		luCase, devTSCase, recCase,
 		strings.Join(inPlaceholders, ","),
 	)
 

@@ -125,14 +125,16 @@ func (r *WQMSRepository) UpsertCalculationResult(ctx context.Context, res *model
 			copy(paramsCopy, res.ParameterResults)
 			res.ParameterResults = nil
 
-			if err := tx.Save(res).Error; err != nil {
+			if err := tx.Omit("ParameterResults", "Device").Save(res).Error; err != nil {
 				return err
 			}
 
-			for i := range paramsCopy {
-				paramsCopy[i].ID = 0
-				paramsCopy[i].CalculationResultID = res.ID
-				if err := tx.Create(&paramsCopy[i]).Error; err != nil {
+			if len(paramsCopy) > 0 {
+				for i := range paramsCopy {
+					paramsCopy[i].ID = 0
+					paramsCopy[i].CalculationResultID = res.ID
+				}
+				if err := tx.Create(&paramsCopy).Error; err != nil {
 					return err
 				}
 			}

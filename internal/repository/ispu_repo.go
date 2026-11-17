@@ -68,24 +68,31 @@ func (r *ISPURepository) UpsertCalculationResult(ctx context.Context, res *model
 			res.ID = existing.ID
 			res.CreatedAt = existing.CreatedAt
 
+			paramsCopy := make([]model.ISPUParameterResult, len(res.ParameterResults))
+			copy(paramsCopy, res.ParameterResults)
+			res.ParameterResults = nil
+
 			// Delete old parameter results
 			if err := tx.Where("calculation_result_id = ?", existing.ID).Delete(&model.ISPUParameterResult{}).Error; err != nil {
 				return err
 			}
 
-			// Update parent calculation record
-			if err := tx.Save(res).Error; err != nil {
+			// Update parent calculation record without double-cascading associations
+			if err := tx.Omit("ParameterResults", "Device").Save(res).Error; err != nil {
 				return err
 			}
 
-			// Insert new parameter results
-			for i := range res.ParameterResults {
-				res.ParameterResults[i].ID = 0
-				res.ParameterResults[i].CalculationResultID = res.ID
-				if err := tx.Create(&res.ParameterResults[i]).Error; err != nil {
+			// Batch-insert new parameter results in a single multi-row INSERT
+			if len(paramsCopy) > 0 {
+				for i := range paramsCopy {
+					paramsCopy[i].ID = 0
+					paramsCopy[i].CalculationResultID = res.ID
+				}
+				if err := tx.Create(&paramsCopy).Error; err != nil {
 					return err
 				}
 			}
+			res.ParameterResults = paramsCopy
 			return nil
 		} else if err == gorm.ErrRecordNotFound {
 			// Create brand new calculation record with cascade
@@ -101,7 +108,7 @@ func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint,
 	var res model.ISPUCalculationResult
 	orderClause := "CASE WHEN overall_category = 'TIDAK_TERSEDIA' THEN 1 ELSE 0 END ASC, period_end DESC, calculated_at DESC"
 	if deviceID == 0 {
-		orderClause = "CASE WHEN device_id = 0 THEN 0 ELSE 1 END ASC, " + orderClause
+		orderClause = "CASE WHEN overall_category = 'TIDAK_TERSEDIA' THEN 1 ELSE 0 END ASC, period_end DESC, CASE WHEN device_id = 0 THEN 0 ELSE 1 END ASC, calculated_at DESC"
 	}
 	query := applyISPUScope(ctx, r.db.WithContext(ctx)).
 		Preload("Device").
@@ -215,15 +222,20 @@ func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime,
 	}
 
 	if deviceID == 0 && len(results) > 0 {
-		var unifiedResults []model.ISPUCalculationResult
+		byPeriod := make(map[int64]int, len(results))
+		deduped := make([]model.ISPUCalculationResult, 0, len(results))
 		for _, res := range results {
-			if res.DeviceID == 0 {
-				unifiedResults = append(unifiedResults, res)
+			tsKey := res.PeriodEnd.UTC().Unix()
+			if idx, exists := byPeriod[tsKey]; exists {
+				if res.DeviceID == 0 && deduped[idx].DeviceID != 0 {
+					deduped[idx] = res
+				}
+			} else {
+				byPeriod[tsKey] = len(deduped)
+				deduped = append(deduped, res)
 			}
 		}
-		if len(unifiedResults) > 0 {
-			results = unifiedResults
-		}
+		results = deduped
 	}
 
 	if mode == string(model.CalculationModeRegulatory) {

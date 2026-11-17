@@ -787,14 +787,18 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 	delete(e.disabledClearedSynced, device.ID)
 
 	// 2. Startup Grace Period Protection
+	// Check LastDataAt, LastSeenAt, and LastCommunication so passive EDGE_PUSH/MQTT stations actively flushing
+	// historical offline backlog (where LastSeenAt is now while LastDataAt is older) never flap DEVICE_OFFLINE.
 	now := time.Now().UTC()
 	var lastComm *time.Time
 	if health != nil && health.LastCommSuccess != nil && !health.LastCommSuccess.IsZero() {
 		lastComm = health.LastCommSuccess
 	}
-	if device.LastDataAt != nil && !device.LastDataAt.IsZero() {
-		if lastComm == nil || device.LastDataAt.After(*lastComm) {
-			lastComm = device.LastDataAt
+	for _, candidate := range []*time.Time{device.LastDataAt, device.LastSeenAt, device.LastCommunication} {
+		if candidate != nil && !candidate.IsZero() {
+			if lastComm == nil || candidate.After(*lastComm) {
+				lastComm = candidate
+			}
 		}
 	}
 

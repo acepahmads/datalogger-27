@@ -330,6 +330,8 @@ type Parameter struct {
 	Icon                 string               `gorm:"size:64;default:''" json:"icon,omitempty"`
 	StatusOnLabel        string               `gorm:"size:64;default:''" json:"status_on_label,omitempty"`
 	StatusOffLabel       string               `gorm:"size:64;default:''" json:"status_off_label,omitempty"`
+	StatusOnValue        *float64             `gorm:"column:status_on_value;type:double" json:"status_on_value"`
+	StatusOffValue       *float64             `gorm:"column:status_off_value;type:double" json:"status_off_value"`
 	ZeroValueAlarmPolicy ZeroValueAlarmPolicy `gorm:"column:zero_value_alarm_policy;size:32;default:'NORMAL'" json:"zero_value_alarm_policy"`
 	CategoryID    *uint              `gorm:"index" json:"category_id,omitempty"`
 	Category      *ParameterCategory `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
@@ -439,7 +441,53 @@ func (p *Parameter) IsDiscreteStatus() bool {
 	if strings.TrimSpace(p.StatusOnLabel) != "" || strings.TrimSpace(p.StatusOffLabel) != "" {
 		return true
 	}
+	if p.StatusOnValue != nil || p.StatusOffValue != nil {
+		return true
+	}
 	return false
+}
+
+// EvaluateDiscreteActive evaluates whether a numeric reading represents the Active (ON) state
+// according to optional custom StatusOnValue / StatusOffValue (defaulting to Active >= 1, Inactive = 0).
+func (p *Parameter) EvaluateDiscreteActive(val float64) bool {
+	if p == nil || (p.StatusOnValue == nil && p.StatusOffValue == nil) {
+		return val >= 0.5
+	}
+	if p.StatusOnValue != nil && p.StatusOffValue != nil {
+		onV := *p.StatusOnValue
+		offV := *p.StatusOffValue
+		if onV == 1 && offV == 0 {
+			return val >= 0.5
+		}
+		if onV == offV {
+			diff := val - onV
+			if diff < 0 {
+				diff = -diff
+			}
+			return diff <= 1e-6
+		}
+		dOn := val - onV
+		if dOn < 0 {
+			dOn = -dOn
+		}
+		dOff := val - offV
+		if dOff < 0 {
+			dOff = -dOff
+		}
+		return dOn <= dOff
+	}
+	if p.StatusOnValue != nil {
+		diff := val - *p.StatusOnValue
+		if diff < 0 {
+			diff = -diff
+		}
+		return diff <= 1e-6
+	}
+	diff := val - *p.StatusOffValue
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff > 1e-6
 }
 
 // IsStuckDetectionEnabled returns true unless StuckDetectionEnabled is explicitly set to false.

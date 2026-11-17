@@ -759,6 +759,10 @@ func humanFieldLabel(key string) string {
 		return "Label Status Aktif"
 	case "status_off_label":
 		return "Label Status Nonaktif"
+	case "status_on_value":
+		return "Nilai Status Aktif"
+	case "status_off_value":
+		return "Nilai Status Nonaktif"
 	default:
 		clean := strings.ReplaceAll(key, "_", " ")
 		if len(clean) > 0 {

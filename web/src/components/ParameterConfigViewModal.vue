@@ -247,6 +247,26 @@
                 · Stuck: <strong :class="isStuckDetectionActive ? 'text-amber-400' : 'text-slate-500'">{{ isStuckDetectionActive ? ('≥ ' + stuckCountThreshold + 'x') : 'Disabled' }}</strong>.
               </p>
             </div>
+
+            <!-- Discrete SCADA Status Mapping (when applicable) -->
+            <div v-if="isDiscreteStatus" class="p-3 bg-emerald-950/20 rounded-lg border border-emerald-500/30 space-y-1.5 sm:col-span-2">
+              <div class="flex items-center justify-between">
+                <span class="text-emerald-400 font-sans uppercase font-semibold">SCADA Discrete Status Mapping</span>
+                <span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold uppercase text-4xs">
+                  DISCRETE CHANNEL
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 pt-0.5 text-2xs">
+                <span class="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span>Aktif ({{ configuredStatusOnValueLabel }}) = {{ configuredStatusOnLabel }}</span>
+                </span>
+                <span class="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 font-bold">
+                  <span class="w-1.5 h-1.5 rounded-full border border-slate-400"></span>
+                  <span>Nonaktif ({{ configuredStatusOffValueLabel }}) = {{ configuredStatusOffLabel }}</span>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -442,6 +462,39 @@ export default {
     stuckCountThreshold() {
       const c = Number(this.rawParam.stuck_count_threshold || (this.targetParam && this.targetParam.stuck_count_threshold) || 0);
       return c >= 2 ? c : 10;
+    },
+    isDiscreteStatus() {
+      const cat = String(this.categoryName || '').toLowerCase();
+      if (cat === 'status') return true;
+      const dt = String(this.dataType || '').toUpperCase();
+      if (dt === 'BOOL' || dt === 'BOOLEAN') return true;
+      const rt = String(this.registerType || '').toUpperCase();
+      if (rt === 'COIL' || rt === 'DISCRETE_INPUT') return true;
+      if (this.rawParam.status_on_label || this.rawParam.status_off_label) return true;
+      return (this.rawParam.status_on_value !== undefined && this.rawParam.status_on_value !== null) ||
+        (this.rawParam.status_off_value !== undefined && this.rawParam.status_off_value !== null);
+    },
+    configuredStatusOnValueLabel() {
+      const onV = this.rawParam.status_on_value !== undefined && this.rawParam.status_on_value !== null
+        ? Number(this.rawParam.status_on_value)
+        : (this.targetParam && this.targetParam.status_on_value !== undefined && this.targetParam.status_on_value !== null ? Number(this.targetParam.status_on_value) : 1);
+      const offV = this.rawParam.status_off_value !== undefined && this.rawParam.status_off_value !== null
+        ? Number(this.rawParam.status_off_value)
+        : (this.targetParam && this.targetParam.status_off_value !== undefined && this.targetParam.status_off_value !== null ? Number(this.targetParam.status_off_value) : 0);
+      if (onV === 1 && offV === 0) return '≥ 1';
+      return String(onV);
+    },
+    configuredStatusOffValueLabel() {
+      const offV = this.rawParam.status_off_value !== undefined && this.rawParam.status_off_value !== null
+        ? Number(this.rawParam.status_off_value)
+        : (this.targetParam && this.targetParam.status_off_value !== undefined && this.targetParam.status_off_value !== null ? Number(this.targetParam.status_off_value) : 0);
+      return String(offV);
+    },
+    configuredStatusOnLabel() {
+      return (this.rawParam.status_on_label || (this.targetParam && this.targetParam.status_on_label) || 'NYALA / ON').trim();
+    },
+    configuredStatusOffLabel() {
+      return (this.rawParam.status_off_label || (this.targetParam && this.targetParam.status_off_label) || 'MATI / OFF').trim();
     },
   },
   methods: {

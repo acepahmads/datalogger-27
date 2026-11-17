@@ -231,17 +231,18 @@ func (s *IngestService) drainAndExecutePostIngest() {
 		}
 
 		if s.onDeviceIngested != nil {
-			if len(job.bucketTimes) > 1 && len(job.bucketTimes) <= 48 {
+			if len(job.bucketTimes) > 1 {
 				tsList := make([]time.Time, 0, len(job.bucketTimes))
 				for _, bt := range job.bucketTimes {
 					tsList = append(tsList, bt)
 				}
 				sort.Slice(tsList, func(i, j int) bool { return tsList[i].Before(tsList[j]) })
-				// Evaluate newest bucket (plus any hourly boundary buckets in a multi-record batch)
 				for idx, bt := range tsList {
 					isLast := idx == len(tsList)-1
 					isHourly := bt.Minute() == 0 && bt.Second() == 0
-					if isLast || isHourly {
+					isHistoricalBacklog := nowUTC.Sub(bt) > 6*time.Hour
+					// For >6h historical backlog replay, only evaluate hourly Regulatory checkpoints; for recent live windows, evaluate newest + hourly
+					if isHourly || (isLast && !isHistoricalBacklog) {
 						s.onDeviceIngested(devID, bt)
 					}
 				}
@@ -250,7 +251,11 @@ func (s *IngestService) drainAndExecutePostIngest() {
 				if targetTS.IsZero() {
 					targetTS = nowUTC
 				}
-				s.onDeviceIngested(devID, targetTS)
+				isHistoricalBacklog := nowUTC.Sub(targetTS) > 6*time.Hour
+				isHourly := targetTS.Minute() == 0 && targetTS.Second() == 0
+				if !isHistoricalBacklog || isHourly {
+					s.onDeviceIngested(devID, targetTS)
+				}
 			}
 		}
 	}

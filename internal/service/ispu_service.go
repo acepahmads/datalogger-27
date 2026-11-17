@@ -24,12 +24,33 @@ import (
 	"gorm.io/gorm"
 )
 
+const ispuWorkerShards = 4
+
 type ispuTriggerJob struct {
 	TenantID  uint
 	SiteID    uint
 	DeviceID  uint
 	BucketEnd time.Time
 	Reason    string
+}
+
+type ispuScheduledEntry struct {
+	job      ispuTriggerJob
+	deadline time.Time
+}
+
+type ispuDeviceEnqueueMeta struct {
+	tenantID          uint
+	siteID            uint
+	domain            string
+	hasMappings       bool
+	siteActiveDevices int
+	expiresAt         time.Time
+}
+
+type ispuCachedMappingsEntry struct {
+	mappings  []model.ISPUParameterMapping
+	expiresAt time.Time
 }
 
 // ISPUService coordinates regulatory ISPU calculations, data window validation, MariaDB persistence, and exports.
@@ -39,28 +60,39 @@ type ISPUService struct {
 	systemRepo      *repository.SystemRepository
 	calculator      *ISPUCalculator
 	hub             *websocket.Hub
-	jobChan         chan ispuTriggerJob
+	shardMu         [ispuWorkerShards]sync.Mutex
+	shardPending    [ispuWorkerShards]map[string]ispuScheduledEntry
+	shardWake       [ispuWorkerShards]chan struct{}
 	jobMu           sync.Mutex
-	pendingJobs     map[string]ispuTriggerJob
 	stopWorker      chan struct{}
 	workerWg        sync.WaitGroup
 	isWorkerRunning bool
 	onDemandMu      sync.Mutex
 	onDemandLastRun map[string]time.Time
+	cacheMu         sync.RWMutex
+	enqueueMetaMap  map[uint]ispuDeviceEnqueueMeta
+	mappingsCache   map[string]ispuCachedMappingsEntry
+	regSeedCache    map[string]bool
 }
 
 // NewISPUService instantiates an ISPUService.
 func NewISPUService(db *gorm.DB, ispuRepo *repository.ISPURepository, systemRepo *repository.SystemRepository) *ISPUService {
-	return &ISPUService{
+	svc := &ISPUService{
 		db:              db,
 		ispuRepo:        ispuRepo,
 		systemRepo:      systemRepo,
 		calculator:      NewISPUCalculator(),
-		jobChan:         make(chan ispuTriggerJob, 256),
-		pendingJobs:     make(map[string]ispuTriggerJob),
 		stopWorker:      make(chan struct{}),
 		onDemandLastRun: make(map[string]time.Time),
+		enqueueMetaMap:  make(map[uint]ispuDeviceEnqueueMeta),
+		mappingsCache:   make(map[string]ispuCachedMappingsEntry),
+		regSeedCache:    make(map[string]bool),
 	}
+	for i := 0; i < ispuWorkerShards; i++ {
+		svc.shardPending[i] = make(map[string]ispuScheduledEntry)
+		svc.shardWake[i] = make(chan struct{}, 1)
+	}
+	return svc
 }
 
 // SetHub updates or sets the WebSocket hub for real-time calculation broadcasting.
@@ -92,7 +124,7 @@ func (s *ISPUService) AlignToAggregationInterval(t time.Time, intervalSec int, l
 	return time.Unix(bucketIndex*int64(intervalSec), 0).In(loc)
 }
 
-// StartWorker starts the bounded background calculation worker.
+// StartWorker starts the bounded site-striped background calculation workers.
 func (s *ISPUService) StartWorker(ctx context.Context) {
 	s.jobMu.Lock()
 	defer s.jobMu.Unlock()
@@ -100,12 +132,14 @@ func (s *ISPUService) StartWorker(ctx context.Context) {
 		return
 	}
 	s.isWorkerRunning = true
-	s.workerWg.Add(1)
-	go s.workerLoop(ctx)
-	logger.Info("ISPU calculation worker initialized with bounded queue")
+	for shardIdx := 0; shardIdx < ispuWorkerShards; shardIdx++ {
+		s.workerWg.Add(1)
+		go s.workerLoop(ctx, shardIdx)
+	}
+	logger.Info("ISPU calculation workers initialized (%d site-striped coalescing shards)", ispuWorkerShards)
 }
 
-// StopWorker gracefully stops the calculation worker.
+// StopWorker gracefully stops the calculation workers.
 func (s *ISPUService) StopWorker() {
 	s.jobMu.Lock()
 	if !s.isWorkerRunning {
@@ -116,42 +150,95 @@ func (s *ISPUService) StopWorker() {
 	close(s.stopWorker)
 	s.jobMu.Unlock()
 	s.workerWg.Wait()
-	logger.Info("ISPU calculation worker stopped cleanly")
+	logger.Info("ISPU calculation workers stopped cleanly")
 }
 
-// EnqueueCalculation enqueues an asynchronous calculation job with debouncing and coalescing.
+func (s *ISPUService) invalidateISPUCaches() {
+	s.cacheMu.Lock()
+	s.enqueueMetaMap = make(map[uint]ispuDeviceEnqueueMeta)
+	s.mappingsCache = make(map[string]ispuCachedMappingsEntry)
+	s.cacheMu.Unlock()
+}
+
+func (s *ISPUService) resolveDeviceEnqueueMeta(deviceID uint) (ispuDeviceEnqueueMeta, bool) {
+	now := time.Now()
+	s.cacheMu.RLock()
+	if cached, ok := s.enqueueMetaMap[deviceID]; ok && now.Before(cached.expiresAt) {
+		s.cacheMu.RUnlock()
+		return cached, true
+	}
+	s.cacheMu.RUnlock()
+
+	var dev model.Device
+	if err := s.db.Select("id, tenant_id, site_id").First(&dev, deviceID).Error; err != nil || dev.ID == 0 {
+		return ispuDeviceEnqueueMeta{}, false
+	}
+
+	dom := "AQMS"
+	if cfg := config.Get(); cfg != nil && cfg.MonitoringDomain != "" {
+		dom = strings.ToUpper(strings.TrimSpace(cfg.MonitoringDomain))
+	}
+	if dev.SiteID > 0 {
+		var site model.Site
+		if err := s.db.Select("id, monitoring_domain").First(&site, dev.SiteID).Error; err == nil && site.MonitoringDomain != "" {
+			dom = strings.ToUpper(strings.TrimSpace(site.MonitoringDomain))
+		}
+	}
+
+	var mapCnt int64
+	s.db.Model(&model.ISPUParameterMapping{}).
+		Where("tenant_id = ? AND (site_id = ? OR site_id = 0) AND enabled = ?", dev.TenantID, dev.SiteID, true).
+		Count(&mapCnt)
+
+	var activeDevCnt int64
+	devCountQ := s.db.Model(&model.Device{}).
+		Where("tenant_id = ? AND deleted_at IS NULL AND enabled = ? AND (status != ? AND status != ?)", dev.TenantID, true, "DISABLED", "INACTIVE")
+	if dev.SiteID > 0 {
+		devCountQ = devCountQ.Where("site_id = ?", dev.SiteID)
+	}
+	devCountQ.Count(&activeDevCnt)
+	if activeDevCnt < 1 {
+		activeDevCnt = 1
+	}
+
+	meta := ispuDeviceEnqueueMeta{
+		tenantID:          dev.TenantID,
+		siteID:            dev.SiteID,
+		domain:            dom,
+		hasMappings:       mapCnt > 0,
+		siteActiveDevices: int(activeDevCnt),
+		expiresAt:         now.Add(60 * time.Second),
+	}
+	s.cacheMu.Lock()
+	s.enqueueMetaMap[deviceID] = meta
+	s.cacheMu.Unlock()
+	return meta, true
+}
+
+func (s *ISPUService) getShardIndex(tenantID, siteID, deviceID uint) int {
+	h := tenantID*31 + siteID
+	if h == 0 {
+		h = deviceID
+	}
+	return int(h % ispuWorkerShards)
+}
+
+// EnqueueCalculation enqueues an asynchronous calculation job with O(1) in-memory coalescing and zero goroutine overflow.
 func (s *ISPUService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, reason string) {
 	if deviceID == 0 || bucketEnd.IsZero() || database.IsRestoreMode() {
 		return
 	}
-	var dev model.Device
-	var tenantID, siteID uint
-	if err := s.db.Select("id, tenant_id, site_id").First(&dev, deviceID).Error; err == nil {
-		tenantID = dev.TenantID
-		siteID = dev.SiteID
+	meta, ok := s.resolveDeviceEnqueueMeta(deviceID)
+	if !ok {
+		return
 	}
-	if reason == "EDGE_PUSH" {
-		dom := "AQMS"
-		if cfg := config.Get(); cfg != nil && cfg.MonitoringDomain != "" {
-			dom = strings.ToUpper(strings.TrimSpace(cfg.MonitoringDomain))
-		}
-		if siteID > 0 {
-			var site model.Site
-			if err := s.db.Select("id, monitoring_domain").First(&site, siteID).Error; err == nil && site.MonitoringDomain != "" {
-				dom = strings.ToUpper(strings.TrimSpace(site.MonitoringDomain))
-			}
-		}
-		if dom != "AQMS" && dom != "CUSTOM" {
-			var cnt int64
-			s.db.Model(&model.ISPUParameterMapping{}).Where("tenant_id = ? AND (site_id = ? OR site_id = 0) AND enabled = ?", tenantID, siteID, true).Count(&cnt)
-			if cnt == 0 {
-				return
-			}
-		}
+	if reason == "EDGE_PUSH" && meta.domain != "AQMS" && meta.domain != "CUSTOM" && !meta.hasMappings {
+		return
 	}
-	s.enqueueScopedJob(tenantID, siteID, deviceID, bucketEnd, reason)
-	if reason == "EDGE_PUSH" && tenantID > 0 {
-		s.enqueueScopedJob(tenantID, siteID, 0, bucketEnd, reason)
+	s.enqueueScopedJob(meta.tenantID, meta.siteID, deviceID, bucketEnd, reason)
+	// Only enqueue unified cross-device station (deviceID=0) when the site genuinely has >1 active device
+	if reason == "EDGE_PUSH" && meta.tenantID > 0 && meta.siteActiveDevices > 1 {
+		s.enqueueScopedJob(meta.tenantID, meta.siteID, 0, bucketEnd, reason)
 	}
 }
 
@@ -177,18 +264,27 @@ func (s *ISPUService) enqueueScopedJob(tenantID, siteID, deviceID uint, bucketEn
 		Reason:    reason,
 	}
 
+	const coalesceDelay = 250 * time.Millisecond
+	shardIdx := s.getShardIndex(tenantID, siteID, deviceID)
+	key := fmt.Sprintf("%d_%d_%d_%d", tenantID, siteID, deviceID, bucketEnd.Unix())
+
+	s.shardMu[shardIdx].Lock()
+	if existing, exists := s.shardPending[shardIdx][key]; exists {
+		if reason == "MANUAL_RECALCULATE" || reason == "LATE_DATA" {
+			existing.job.Reason = reason
+			s.shardPending[shardIdx][key] = existing
+		}
+	} else {
+		s.shardPending[shardIdx][key] = ispuScheduledEntry{
+			job:      job,
+			deadline: time.Now().Add(coalesceDelay),
+		}
+	}
+	s.shardMu[shardIdx].Unlock()
+
 	select {
-	case s.jobChan <- job:
+	case s.shardWake[shardIdx] <- struct{}{}:
 	default:
-		logger.Warn("ISPU calculation job queue is full, processing immediately in background for station %d bucket %v", deviceID, bucketEnd)
-		go func(j ispuTriggerJob) {
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-			if j.TenantID > 0 {
-				ctx = tenantctx.WithScope(ctx, tenantctx.Scope{IsSuperAdmin: true, TenantID: j.TenantID, SiteID: j.SiteID})
-			}
-			_, _ = s.CalculateStationWindowWithReason(ctx, j.DeviceID, j.BucketEnd, j.Reason)
-		}(job)
 	}
 }
 
@@ -202,7 +298,7 @@ func (s *ISPUService) HandleAggregationCompleted(ctx context.Context, event Aggr
 		ctx = tenantctx.WithScope(ctx, tenantctx.Scope{IsSuperAdmin: true, TenantID: event.TenantID, SiteID: event.SiteID})
 	}
 
-	mappings, err := s.ispuRepo.GetMappingsByDeviceID(ctx, event.DeviceID)
+	mappings, err := s.getCachedActiveMappings(ctx, event.TenantID, event.SiteID, event.DeviceID, false)
 	if err != nil {
 		logger.Warn("Failed to lookup ISPU mappings for station %d: %v", event.DeviceID, err)
 		return
@@ -221,24 +317,70 @@ func (s *ISPUService) HandleAggregationCompleted(ctx context.Context, event Aggr
 	}
 
 	s.enqueueScopedJob(event.TenantID, event.SiteID, event.DeviceID, event.PeriodEnd, "AGGREGATION_COMPLETED")
-	if event.TenantID > 0 {
+	if meta, ok := s.resolveDeviceEnqueueMeta(event.DeviceID); ok && event.TenantID > 0 && meta.siteActiveDevices > 1 {
 		s.enqueueScopedJob(event.TenantID, event.SiteID, 0, event.PeriodEnd, "AGGREGATION_COMPLETED")
 	}
 }
 
-// workerLoop coordinates job debouncing/coalescing and invokes calculation.
-func (s *ISPUService) workerLoop(ctx context.Context) {
+// workerLoop processes coalesced ISPU jobs for a single site-striped shard, prioritizing live buckets ahead of historical backlog.
+func (s *ISPUService) workerLoop(ctx context.Context, shardIdx int) {
 	defer s.workerWg.Done()
-	logger.Info("ISPU background calculation loop started")
 
-	coalesceDelay := 300 * time.Millisecond
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(150 * time.Millisecond)
 	defer ticker.Stop()
 
-	scheduledJobs := make(map[string]struct {
-		job      ispuTriggerJob
-		deadline time.Time
-	})
+	drainDue := func() {
+		if database.IsRestoreMode() {
+			return
+		}
+		for {
+			now := time.Now()
+			var dueJobs []ispuTriggerJob
+
+			s.shardMu[shardIdx].Lock()
+			for k, v := range s.shardPending[shardIdx] {
+				if !now.Before(v.deadline) {
+					dueJobs = append(dueJobs, v.job)
+					delete(s.shardPending[shardIdx], k)
+				}
+			}
+			s.shardMu[shardIdx].Unlock()
+
+			if len(dueJobs) == 0 {
+				return
+			}
+
+			// Prioritize live/recent buckets (<= 6h old) ahead of historical offline backlog replays
+			nowUTC := now.UTC()
+			sort.Slice(dueJobs, func(i, j int) bool {
+				iLive := nowUTC.Sub(dueJobs[i].BucketEnd) <= 6*time.Hour
+				jLive := nowUTC.Sub(dueJobs[j].BucketEnd) <= 6*time.Hour
+				if iLive != jLive {
+					return iLive
+				}
+				return dueJobs[i].BucketEnd.After(dueJobs[j].BucketEnd)
+			})
+
+			for _, job := range dueJobs {
+				select {
+				case <-s.stopWorker:
+					return
+				case <-ctx.Done():
+					return
+				default:
+				}
+				calcCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				if job.TenantID > 0 {
+					calcCtx = tenantctx.WithScope(calcCtx, tenantctx.Scope{IsSuperAdmin: true, TenantID: job.TenantID, SiteID: job.SiteID})
+				}
+				_, err := s.CalculateStationWindowWithReason(calcCtx, job.DeviceID, job.BucketEnd, job.Reason)
+				if err != nil && !strings.Contains(err.Error(), "no active ISPU parameter mappings") {
+					logger.Warn("Failed to execute ISPU calculation for station %d bucket %v: %v", job.DeviceID, job.BucketEnd, err)
+				}
+				cancel()
+			}
+		}
+	}
 
 	for {
 		select {
@@ -246,56 +388,10 @@ func (s *ISPUService) workerLoop(ctx context.Context) {
 			return
 		case <-ctx.Done():
 			return
-		case job, ok := <-s.jobChan:
-			if !ok {
-				return
-			}
-			key := fmt.Sprintf("%d_%d_%d_%d", job.TenantID, job.SiteID, job.DeviceID, job.BucketEnd.Unix())
-			s.jobMu.Lock()
-			existing, exists := scheduledJobs[key]
-			if exists {
-				if job.Reason == "MANUAL_RECALCULATE" || job.Reason == "LATE_DATA" {
-					existing.job.Reason = job.Reason
-				}
-				scheduledJobs[key] = existing
-			} else {
-				scheduledJobs[key] = struct {
-					job      ispuTriggerJob
-					deadline time.Time
-				}{
-					job:      job,
-					deadline: time.Now().Add(coalesceDelay),
-				}
-			}
-			s.jobMu.Unlock()
-
+		case <-s.shardWake[shardIdx]:
+			drainDue()
 		case <-ticker.C:
-			if database.IsRestoreMode() {
-				continue
-			}
-			now := time.Now()
-			var dueJobs []ispuTriggerJob
-
-			s.jobMu.Lock()
-			for k, v := range scheduledJobs {
-				if now.After(v.deadline) {
-					dueJobs = append(dueJobs, v.job)
-					delete(scheduledJobs, k)
-				}
-			}
-			s.jobMu.Unlock()
-
-			for _, job := range dueJobs {
-				calcCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-				if job.TenantID > 0 {
-					calcCtx = tenantctx.WithScope(calcCtx, tenantctx.Scope{IsSuperAdmin: true, TenantID: job.TenantID, SiteID: job.SiteID})
-				}
-				_, err := s.CalculateStationWindowWithReason(calcCtx, job.DeviceID, job.BucketEnd, job.Reason)
-				if err != nil {
-					logger.Warn("Failed to execute ISPU calculation for station %d bucket %v: %v", job.DeviceID, job.BucketEnd, err)
-				}
-				cancel()
-			}
+			drainDue()
 		}
 	}
 }
@@ -538,8 +634,9 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		reason = "AGGREGATION_COMPLETED"
 	}
 
-	// Fetch active parameter mappings for station (cross-device if deviceID == 0)
-	mappings, err := s.GetMappings(calcCtx, deviceID)
+	// Fetch active parameter mappings for station (cached in RAM for automated ticks; fresh on manual/mapping updates)
+	forceMappingRefresh := reason == "MAPPING_UPDATED" || reason == "ON_DEMAND_INITIAL" || reason == "MANUAL_RECALCULATE"
+	mappings, err := s.getCachedActiveMappings(calcCtx, tenantID, siteID, deviceID, forceMappingRefresh)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch parameter mappings: %w", err)
 	}
@@ -553,6 +650,155 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 
 	if len(activeMappings) == 0 {
 		return nil, fmt.Errorf("no active ISPU parameter mappings configured for station %s", dev.DeviceCode)
+	}
+
+	// Decide upfront whether 24-hour Regulatory ISPU needs to be evaluated & persisted for this bucket.
+	// Skipping the 24h Regulatory scan & upsert on routine sub-hourly ticks (:02..:58) eliminates ~95% of heavy DB load!
+	shouldPersistRegulatory := true
+	regSeedKey := fmt.Sprintf("%d_%d_%d", tenantID, siteID, deviceID)
+	if reason == "BACKFILL_OPERATIONAL" {
+		shouldPersistRegulatory = false
+	} else if reason == "AGGREGATION_COMPLETED" || reason == "STARTUP_RECOVERY" || reason == "EDGE_PUSH" || reason == "EDGE_BATCH_RECALC" {
+		isHourly := periodEnd.In(loc).Minute() == 0 && periodEnd.In(loc).Second() == 0
+		if !isHourly {
+			if reason == "STARTUP_RECOVERY" {
+				shouldPersistRegulatory = false
+			} else if reason == "EDGE_PUSH" || reason == "EDGE_BATCH_RECALC" {
+				s.cacheMu.RLock()
+				seeded := s.regSeedCache[regSeedKey]
+				s.cacheMu.RUnlock()
+				if seeded {
+					shouldPersistRegulatory = false
+				} else {
+					var existingRegCount int64
+					_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+						Where("tenant_id = ? AND site_id = ? AND device_id = ? AND calculation_mode = ?", tenantID, siteID, deviceID, model.CalculationModeRegulatory).
+						Limit(1).Count(&existingRegCount)
+					if existingRegCount > 0 {
+						s.cacheMu.Lock()
+						s.regSeedCache[regSeedKey] = true
+						s.cacheMu.Unlock()
+						shouldPersistRegulatory = false
+					}
+				}
+			} else {
+				// AGGREGATION_COMPLETED: allow idempotent update if exact periodEnd already exists, or initial seed if 0 records exist
+				var existingRecordCount int64
+				_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+					Where("tenant_id = ? AND site_id = ? AND device_id = ? AND period_end = ? AND calculation_mode = ?", tenantID, siteID, deviceID, periodEnd.UTC(), model.CalculationModeRegulatory).
+					Limit(1).Count(&existingRecordCount)
+
+				if existingRecordCount == 0 {
+					s.cacheMu.RLock()
+					seeded := s.regSeedCache[regSeedKey]
+					s.cacheMu.RUnlock()
+					if seeded {
+						shouldPersistRegulatory = false
+					} else {
+						var existingRegCount int64
+						_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+							Where("tenant_id = ? AND site_id = ? AND device_id = ? AND calculation_mode = ?", tenantID, siteID, deviceID, model.CalculationModeRegulatory).
+							Limit(1).Count(&existingRegCount)
+						if existingRegCount > 0 {
+							s.cacheMu.Lock()
+							s.regSeedCache[regSeedKey] = true
+							s.cacheMu.Unlock()
+							shouldPersistRegulatory = false
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Preload RawData across ALL mapped pollutants in ONE single indexed SQL query in Cloud Mode
+	// (replacing 7x Operational + 7x Regulatory per-parameter queries per bucket!).
+	type cloudRawSample struct {
+		ParameterID uint      `gorm:"column:parameter_id"`
+		Val         float64   `gorm:"column:val"`
+		Rec         time.Time `gorm:"column:rec"`
+		Ts          time.Time `gorm:"column:ts"`
+	}
+	var cloudRawByParam map[uint][]cloudRawSample
+	var cloudParamFallback map[uint]*model.Parameter
+	if isCloudMode {
+		cloudRawByParam = make(map[uint][]cloudRawSample, len(activeMappings))
+		paramIDs := make([]uint, 0, len(activeMappings))
+		devIDSet := make(map[uint]struct{}, len(activeMappings))
+		for _, m := range activeMappings {
+			if m.ParameterID > 0 {
+				paramIDs = append(paramIDs, m.ParameterID)
+			}
+			mDev := deviceID
+			if mDev == 0 && m.DeviceID > 0 {
+				mDev = m.DeviceID
+			}
+			if mDev == 0 && m.Parameter != nil && m.Parameter.DeviceID > 0 {
+				mDev = m.Parameter.DeviceID
+			}
+			if mDev > 0 {
+				devIDSet[mDev] = struct{}{}
+			}
+		}
+
+		if len(paramIDs) > 0 {
+			batchStart := periodEnd.Add(-60 * time.Minute).UTC()
+			if shouldPersistRegulatory {
+				// 25h lookback safely covers both 24h rolling window and any DailyStartHour anchor
+				regLookback := periodEnd.Add(-25 * time.Hour).UTC()
+				if regLookback.Before(batchStart) {
+					batchStart = regLookback
+				}
+			}
+			batchEnd := periodEnd.Add(2 * time.Minute).UTC()
+			if refTime.After(periodEnd) {
+				if altEnd := refTime.Add(1 * time.Minute).UTC(); altEnd.After(batchEnd) {
+					batchEnd = altEnd
+				}
+			}
+
+			var batchRows []cloudRawSample
+			batchQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+				Select("parameter_id, COALESCE(NULLIF(processed_value, 0), value) AS val, received_at AS rec, timestamp AS ts").
+				Where("parameter_id IN ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+					paramIDs, batchStart, batchEnd, model.QualityBad)
+			if len(devIDSet) == 1 {
+				for dID := range devIDSet {
+					batchQ = batchQ.Where("device_id = ?", dID)
+				}
+			} else if len(devIDSet) > 1 {
+				dIDs := make([]uint, 0, len(devIDSet))
+				for dID := range devIDSet {
+					dIDs = append(dIDs, dID)
+				}
+				batchQ = batchQ.Where("device_id IN ?", dIDs)
+			}
+			if err := batchQ.Order("received_at ASC").Find(&batchRows).Error; err == nil {
+				for _, r := range batchRows {
+					if r.Rec.IsZero() && !r.Ts.IsZero() {
+						r.Rec = r.Ts
+					}
+					cloudRawByParam[r.ParameterID] = append(cloudRawByParam[r.ParameterID], r)
+				}
+			}
+
+			// Batch-fetch live parameter fallback only if any mapped parameter had 0 rows in lookback window
+			var missingParamIDs []uint
+			for _, pid := range paramIDs {
+				if len(cloudRawByParam[pid]) == 0 {
+					missingParamIDs = append(missingParamIDs, pid)
+				}
+			}
+			if len(missingParamIDs) > 0 {
+				var pList []model.Parameter
+				if err := s.db.WithContext(ctx).Where("id IN ?", missingParamIDs).Find(&pList).Error; err == nil {
+					cloudParamFallback = make(map[uint]*model.Parameter, len(pList))
+					for i := range pList {
+						cloudParamFallback[pList[i].ID] = &pList[i]
+					}
+				}
+			}
+		}
 	}
 
 	var opParamOutputs []ParameterCalculationOutput
@@ -580,7 +826,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			mDeviceID = m.Parameter.DeviceID
 		}
 
-		// --- Mode A: Operational (Edge: Aggregation-driven; Cloud: Direct from Edge-aggregated ingest reading) ---
+		// --- Mode A: Operational (Edge: Aggregation-driven; Cloud: Direct from preloaded Edge-aggregated reading) ---
 		var opAgg model.AggregationResult
 		hasOpAgg := false
 		alignBuffer := time.Duration(intervalSec) * time.Second
@@ -600,45 +846,38 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 
 		if !hasOpAgg {
 			if isCloudMode {
-				// Direct Cloud Operational evaluation: take the latest Edge-pushed bucket value at/before periodEnd (up to 60m lookback)
 				rawEnd := periodEnd.Add(2 * time.Minute).UTC()
 				if refTime.After(periodEnd) {
 					rawEnd = refTime.Add(1 * time.Minute).UTC()
 				}
 				lookbackStart := periodEnd.Add(-60 * time.Minute).UTC()
-				var latestRaw model.RawData
-				rawLatestQ := s.db.WithContext(ctx).
-					Select("id, value, processed_value, received_at").
-					Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
-						m.ParameterID, lookbackStart, rawEnd, model.QualityBad)
-				if mDeviceID > 0 {
-					rawLatestQ = rawLatestQ.Where("device_id = ?", mDeviceID)
+				samples := cloudRawByParam[m.ParameterID]
+				for idx := len(samples) - 1; idx >= 0; idx-- {
+					pt := samples[idx]
+					if !pt.Rec.Before(lookbackStart) && !pt.Rec.After(rawEnd) {
+						v := pt.Val
+						recEnd := pt.Rec.UTC()
+						if recEnd.IsZero() {
+							recEnd = periodEnd.UTC()
+						}
+						hasOpAgg = true
+						opAgg = model.AggregationResult{
+							TenantID:        tenantID,
+							SiteID:          siteID,
+							DeviceID:        mDeviceID,
+							ParameterID:     m.ParameterID,
+							PeriodStart:     recEnd.Add(-time.Duration(intervalSec) * time.Second),
+							PeriodEnd:       recEnd,
+							IntervalSeconds: intervalSec,
+							Value:           &v,
+							Quality:         model.QualityGood,
+							Identifier:      recEnd.In(loc).Format("20060102150405"),
+						}
+						break
+					}
 				}
-				if err := rawLatestQ.Order("received_at DESC").First(&latestRaw).Error; err == nil && latestRaw.ID > 0 {
-					v := latestRaw.ProcessedValue
-					if v == 0 && latestRaw.Value != 0 {
-						v = latestRaw.Value
-					}
-					recEnd := latestRaw.ReceivedAt.UTC()
-					if recEnd.IsZero() {
-						recEnd = periodEnd.UTC()
-					}
-					hasOpAgg = true
-					opAgg = model.AggregationResult{
-						TenantID:        tenantID,
-						SiteID:          siteID,
-						DeviceID:        mDeviceID,
-						ParameterID:     m.ParameterID,
-						PeriodStart:     recEnd.Add(-time.Duration(intervalSec) * time.Second),
-						PeriodEnd:       recEnd,
-						IntervalSeconds: intervalSec,
-						Value:           &v,
-						Quality:         model.QualityGood,
-						Identifier:      recEnd.In(loc).Format("20060102150405"),
-					}
-				} else {
-					var p model.Parameter
-					if err := s.db.WithContext(ctx).First(&p, m.ParameterID).Error; err == nil && p.Enabled && p.CurrentValue != nil && !math.IsNaN(*p.CurrentValue) && !math.IsInf(*p.CurrentValue, 0) {
+				if !hasOpAgg && cloudParamFallback != nil {
+					if p, ok := cloudParamFallback[m.ParameterID]; ok && p != nil && p.Enabled && p.CurrentValue != nil && !math.IsNaN(*p.CurrentValue) && !math.IsInf(*p.CurrentValue, 0) {
 						v := *p.CurrentValue
 						hasOpAgg = true
 						opAgg = model.AggregationResult{
@@ -809,6 +1048,9 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			}
 		}
 		opParamOutputs = append(opParamOutputs, opOut)
+		if !shouldPersistRegulatory {
+			continue
+		}
 
 		// --- Mode B: Regulatory (24-hour evaluation under Permen LHK 14/2020) ---
 		// Determine parameter-specific evaluation window anchored by DailyStartHour
@@ -1018,18 +1260,35 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			if refTime.After(paramRegEnd) {
 				rawRegEnd = refTime.Add(1 * time.Minute).UTC()
 			}
-			rawRegQ := s.db.WithContext(ctx).Model(&model.RawData{}).
-				Select("COALESCE(NULLIF(processed_value, 0), value) AS val, received_at AS rec, timestamp AS ts").
-				Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
-					m.ParameterID, paramRegStart.UTC(), rawRegEnd, model.QualityBad)
-			if mDeviceID > 0 {
-				rawRegQ = rawRegQ.Where("device_id = ?", mDeviceID)
-			}
-			rawRegQ.Order("received_at ASC").Find(&rawStats)
+			if isCloudMode {
+				regStartUTC := paramRegStart.UTC()
+				for _, pt := range cloudRawByParam[m.ParameterID] {
+					if !pt.Rec.Before(regStartUTC) && !pt.Rec.After(rawRegEnd) {
+						rawStats = append(rawStats, struct {
+							Val float64
+							Rec time.Time
+							Ts  time.Time
+						}{
+							Val: pt.Val,
+							Rec: pt.Rec,
+							Ts:  pt.Ts,
+						})
+					}
+				}
+			} else {
+				rawRegQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+					Select("COALESCE(NULLIF(processed_value, 0), value) AS val, received_at AS rec, timestamp AS ts").
+					Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+						m.ParameterID, paramRegStart.UTC(), rawRegEnd, model.QualityBad)
+				if mDeviceID > 0 {
+					rawRegQ = rawRegQ.Where("device_id = ?", mDeviceID)
+				}
+				rawRegQ.Order("received_at ASC").Find(&rawStats)
 
-			for i := range rawStats {
-				if rawStats[i].Rec.IsZero() && !rawStats[i].Ts.IsZero() {
-					rawStats[i].Rec = rawStats[i].Ts
+				for i := range rawStats {
+					if rawStats[i].Rec.IsZero() && !rawStats[i].Ts.IsZero() {
+						rawStats[i].Rec = rawStats[i].Ts
+					}
 				}
 			}
 
@@ -1388,55 +1647,29 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		})
 	}
 
-	// Persist idempotently strictly on documented regulatory cadence or explicit recalculation
-	shouldPersistRegulatory := true
-	if reason == "BACKFILL_OPERATIONAL" {
-		shouldPersistRegulatory = false
-	} else if reason == "AGGREGATION_COMPLETED" || reason == "STARTUP_RECOVERY" {
-		isHourly := periodEnd.In(loc).Minute() == 0 && periodEnd.In(loc).Second() == 0
-		if !isHourly {
-			if reason == "STARTUP_RECOVERY" {
-				shouldPersistRegulatory = false
-			} else {
-				// Check if an existing regulatory record already exists for this exact period (idempotent update)
-				var existingRecordCount int64
-				_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-					Where("tenant_id = ? AND site_id = ? AND device_id = ? AND period_end = ? AND calculation_mode = ?", tenantID, siteID, deviceID, periodEnd.UTC(), model.CalculationModeRegulatory).
-					Count(&existingRecordCount)
-
-				if existingRecordCount == 0 {
-					// Allow initial seed record if station has 0 regulatory records across all history
-					var existingRegCount int64
-					_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-						Where("tenant_id = ? AND site_id = ? AND device_id = ? AND calculation_mode = ?", tenantID, siteID, deviceID, model.CalculationModeRegulatory).
-						Count(&existingRegCount)
-					if existingRegCount > 0 {
-						shouldPersistRegulatory = false
-					}
-				}
-			}
-		}
-	}
-
 	if shouldPersistRegulatory {
 		if err := s.ispuRepo.UpsertCalculationResult(calcCtx, regCalcRes); err != nil {
 			return nil, fmt.Errorf("failed to persist regulatory ISPU calculation result: %w", err)
 		}
+		s.cacheMu.Lock()
+		s.regSeedCache[regSeedKey] = true
+		s.cacheMu.Unlock()
+		logger.Info("ISPU calculated for station %d [%s] (reason=%s): Operational=%.1f (%s, Dominant=%s), Regulatory=%.1f (%s, Dominant=%s, Status=%s)",
+			deviceID, dev.DeviceCode, reason, opCalcRes.OverallISPU, opCalcRes.OverallCategory, opCalcRes.DominantPollutant,
+			regCalcRes.OverallISPU, regCalcRes.OverallCategory, regCalcRes.DominantPollutant, regCalcRes.CalculationStatus)
 	}
-
-	logger.Info("ISPU calculated for station %d [%s] (reason=%s): Operational=%.1f (%s, Dominant=%s), Regulatory=%.1f (%s, Dominant=%s, Status=%s)",
-		deviceID, dev.DeviceCode, reason, opCalcRes.OverallISPU, opCalcRes.OverallCategory, opCalcRes.DominantPollutant,
-		regCalcRes.OverallISPU, regCalcRes.OverallCategory, regCalcRes.DominantPollutant, regCalcRes.CalculationStatus)
 
 	// Broadcast real-time ISPU calculation over WebSocket
 	if s.hub != nil {
-		s.hub.Broadcast(websocket.WSMessage{
-			Type:      "ispu.calculated",
-			TenantID:  tenantID,
-			SiteID:    siteID,
-			Timestamp: time.Now().UTC(),
-			Data:      regCalcRes,
-		})
+		if shouldPersistRegulatory {
+			s.hub.Broadcast(websocket.WSMessage{
+				Type:      "ispu.calculated",
+				TenantID:  tenantID,
+				SiteID:    siteID,
+				Timestamp: time.Now().UTC(),
+				Data:      regCalcRes,
+			})
+		}
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "ispu.operational_calculated",
 			TenantID:  tenantID,
@@ -1446,6 +1679,9 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		})
 	}
 
+	if !shouldPersistRegulatory {
+		return opCalcRes, nil
+	}
 	return regCalcRes, nil
 }
 
@@ -1647,6 +1883,61 @@ func (s *ISPUService) hasAvailableStationTelemetry(ctx context.Context, deviceID
 	return false
 }
 
+func (s *ISPUService) getCachedActiveMappings(ctx context.Context, tenantID, siteID, deviceID uint, forceRefresh bool) ([]model.ISPUParameterMapping, error) {
+	scope := tenantctx.FromContext(ctx)
+	if tenantID == 0 {
+		tenantID = scope.TenantID
+	}
+	if siteID == 0 {
+		siteID = scope.SiteID
+	}
+	cacheKey := fmt.Sprintf("%d_%d_%d", tenantID, siteID, deviceID)
+	now := time.Now()
+	if !forceRefresh {
+		s.cacheMu.RLock()
+		if entry, ok := s.mappingsCache[cacheKey]; ok && now.Before(entry.expiresAt) && len(entry.mappings) > 0 {
+			out := make([]model.ISPUParameterMapping, len(entry.mappings))
+			copy(out, entry.mappings)
+			s.cacheMu.RUnlock()
+			return out, nil
+		}
+		s.cacheMu.RUnlock()
+	}
+
+	mappings, err := s.GetMappings(ctx, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	if len(mappings) > 0 {
+		cp := make([]model.ISPUParameterMapping, len(mappings))
+		copy(cp, mappings)
+		s.cacheMu.Lock()
+		s.mappingsCache[cacheKey] = ispuCachedMappingsEntry{
+			mappings:  cp,
+			expiresAt: now.Add(45 * time.Second),
+		}
+		s.cacheMu.Unlock()
+	}
+	return mappings, nil
+}
+
+func (s *ISPUService) siteHasMultipleActiveDevices(ctx context.Context) bool {
+	scope := tenantctx.FromContext(ctx)
+	devQ := s.db.WithContext(ctx).Model(&model.Device{}).
+		Where("deleted_at IS NULL AND enabled = ? AND (status != ? AND status != ?)", true, "DISABLED", "INACTIVE")
+	if scope.TenantID > 0 {
+		devQ = devQ.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		devQ = devQ.Where("site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		devQ = devQ.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	var cnt int64
+	devQ.Count(&cnt)
+	return cnt > 1
+}
+
 // GetLatestSummary retrieves the latest ISPU summary for a station.
 // Mode can be REGULATORY or OPERATIONAL (defaults to REGULATORY).
 func (s *ISPUService) GetLatestSummary(ctx context.Context, deviceID uint, modes ...string) (*model.ISPUCalculationResult, error) {
@@ -1655,7 +1946,8 @@ func (s *ISPUService) GetLatestSummary(ctx context.Context, deviceID uint, modes
 		mode = modes[0]
 	}
 	res, err := s.ispuRepo.GetLatestByDeviceID(ctx, deviceID, mode)
-	if (err != nil || res == nil || res.OverallCategory == model.CategoryUnavailable || (deviceID == 0 && res.DeviceID != 0)) &&
+	needsUnifiedMerge := deviceID == 0 && res != nil && res.DeviceID != 0 && s.siteHasMultipleActiveDevices(ctx)
+	if (err != nil || res == nil || res.OverallCategory == model.CategoryUnavailable || needsUnifiedMerge) &&
 		s.hasAvailableStationTelemetry(ctx, deviceID) &&
 		s.shouldAllowOnDemandCalc(ctx, deviceID) {
 		if _, calcErr := s.CalculateStationWindowWithReason(ctx, deviceID, time.Now().UTC(), "ON_DEMAND_INITIAL"); calcErr == nil {
@@ -2271,6 +2563,7 @@ func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParame
 	if err := s.ispuRepo.SaveMapping(ctx, mapping); err != nil {
 		return err
 	}
+	s.invalidateISPUCaches()
 
 	// Ensure 120s aggregation definition exists for this parameter (Edge Mode only; Cloud Mode calculates directly from Edge-aggregated payloads)
 	if cfg := config.Get(); cfg == nil || !cfg.IsCloudMode() {
@@ -2336,6 +2629,7 @@ func (s *ISPUService) DeleteMapping(ctx context.Context, id uint, actor, ipAddre
 	if err := s.ispuRepo.DeleteMapping(ctx, id); err != nil {
 		return err
 	}
+	s.invalidateISPUCaches()
 
 	if s.systemRepo != nil {
 		tid := m.TenantID

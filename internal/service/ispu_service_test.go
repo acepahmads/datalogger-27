@@ -815,6 +815,65 @@ func TestISPUAndWQMS_StrictForeignKeysEnabled_StationZeroPersistenceAndCooldown(
 	}
 }
 
+func TestCloudModeISPUBacklogBurstNoQueueOverflowOrDuplicateZero(t *testing.T) {
+	db, ispuSvc, dev := setupISPUTestDB(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Seed a live Edge-pushed sample on PM25
+	var pm25 model.Parameter
+	if err := db.Where("device_id = ? AND parameter_code = ?", dev.ID, "PM25").First(&pm25).Error; err != nil {
+		t.Fatalf("expected PM25 parameter: %v", err)
+	}
+	nowHourly := time.Now().UTC().Truncate(time.Hour)
+	v := 42.0
+	pm25.CurrentValue = &v
+	db.Save(&pm25)
+	db.Create(&model.RawData{
+		TenantID:       1,
+		SiteID:         1,
+		DeviceID:       dev.ID,
+		ParameterID:    pm25.ID,
+		Value:          42.0,
+		ProcessedValue: 42.0,
+		Quality:        model.QualityGood,
+		Timestamp:      nowHourly,
+		ReceivedAt:     nowHourly,
+	})
+
+	ispuSvc.StartWorker(ctx)
+	defer ispuSvc.StopWorker()
+
+	// Simulate high-speed 1,000-packet burst (duplicate & backlog buckets) exceeding old 256-slot channel
+	for i := 0; i < 1000; i++ {
+		bucket := nowHourly.Add(-time.Duration(i%6) * time.Hour)
+		ispuSvc.EnqueueCalculation(dev.ID, bucket, "EDGE_PUSH")
+	}
+
+	// Wait briefly for coalesced worker shard to drain the 6 unique hourly buckets
+	time.Sleep(800 * time.Millisecond)
+
+	// Single-device site MUST NOT create duplicate device_id = 0 rows during EDGE_PUSH
+	var zeroRows int64
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = 0").Count(&zeroRows)
+	if zeroRows != 0 {
+		t.Errorf("Expected 0 duplicate device_id=0 rows on single-device station, got %d", zeroRows)
+	}
+
+	var devRows int64
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ?", dev.ID).Count(&devRows)
+	if devRows == 0 {
+		t.Fatalf("Expected ISPU calculation rows persisted for station %d", dev.ID)
+	}
+
+	// GetLatestSummary(0) must still seamlessly return the single device's summary without forcing device_id=0 duplication
+	summary, err := ispuSvc.GetLatestSummary(ctx, 0, "REGULATORY")
+	if err != nil || summary == nil || summary.OverallCategory == model.CategoryUnavailable {
+		t.Fatalf("Expected valid GetLatestSummary(0) on single-device station, got err=%v summary=%+v", err, summary)
+	}
+}
+
+
 
 
 

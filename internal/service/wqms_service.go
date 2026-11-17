@@ -40,6 +40,14 @@ type WQMSLatestSummaryBundle struct {
 	AggregationIntervalSec int                                      `json:"aggregation_interval_sec"`
 }
 
+type wqmsDeviceEnqueueMeta struct {
+	tenantID    uint
+	siteID      uint
+	domain      string
+	hasMappings bool
+	expiresAt   time.Time
+}
+
 // WQMSService coordinates regulatory WQMS IP (Kepmen LH 115/2003) and IKA (Permen LHK 27/2021) evaluations.
 type WQMSService struct {
 	db              *gorm.DB
@@ -54,6 +62,8 @@ type WQMSService struct {
 	isWorkerRunning bool
 	onDemandMu      sync.Mutex
 	onDemandLastRun map[string]time.Time
+	cacheMu         sync.RWMutex
+	enqueueMetaMap  map[uint]wqmsDeviceEnqueueMeta
 }
 
 // NewWQMSService instantiates a WQMSService.
@@ -63,9 +73,10 @@ func NewWQMSService(db *gorm.DB, wqmsRepo *repository.WQMSRepository, systemRepo
 		wqmsRepo:        wqmsRepo,
 		systemRepo:      systemRepo,
 		calculator:      NewWQMSCalculator(),
-		jobChan:         make(chan wqmsTriggerJob, 256),
+		jobChan:         make(chan wqmsTriggerJob, 1024),
 		stopWorker:      make(chan struct{}),
 		onDemandLastRun: make(map[string]time.Time),
+		enqueueMetaMap:  make(map[uint]wqmsDeviceEnqueueMeta),
 	}
 }
 
@@ -101,48 +112,70 @@ func (s *WQMSService) StopWorker() {
 	logger.Info("WQMS IP & IKA calculation worker stopped cleanly")
 }
 
+func (s *WQMSService) invalidateWQMSCaches() {
+	s.cacheMu.Lock()
+	s.enqueueMetaMap = make(map[uint]wqmsDeviceEnqueueMeta)
+	s.cacheMu.Unlock()
+}
+
 // EnqueueCalculation enqueues an asynchronous WQMS calculation when WQMS domain or WQMS mappings are active.
 func (s *WQMSService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, reason string) {
 	if bucketEnd.IsZero() || database.IsRestoreMode() {
 		return
 	}
-	var tenantID, siteID uint = 1, 1
-	if deviceID > 0 {
-		var dev model.Device
-		if err := s.db.Select("id, tenant_id, site_id").First(&dev, deviceID).Error; err == nil {
-			if dev.TenantID > 0 {
-				tenantID = dev.TenantID
-			}
-			if dev.SiteID > 0 {
-				siteID = dev.SiteID
-			}
-		}
-	}
+	now := time.Now()
+	s.cacheMu.RLock()
+	meta, cachedOK := s.enqueueMetaMap[deviceID]
+	s.cacheMu.RUnlock()
 
-	cfg := config.Get()
-	dom := "AQMS"
-	if cfg != nil && cfg.MonitoringDomain != "" {
-		dom = strings.ToUpper(strings.TrimSpace(cfg.MonitoringDomain))
-	}
-	if siteID > 0 {
-		var site model.Site
-		if err := s.db.Select("id, monitoring_domain").First(&site, siteID).Error; err == nil && site.MonitoringDomain != "" {
-			dom = strings.ToUpper(strings.TrimSpace(site.MonitoringDomain))
+	if !cachedOK || !now.Before(meta.expiresAt) {
+		var tenantID, siteID uint = 1, 1
+		if deviceID > 0 {
+			var dev model.Device
+			if err := s.db.Select("id, tenant_id, site_id").First(&dev, deviceID).Error; err == nil {
+				if dev.TenantID > 0 {
+					tenantID = dev.TenantID
+				}
+				if dev.SiteID > 0 {
+					siteID = dev.SiteID
+				}
+			}
 		}
-	}
-	if dom != "WQMS" && dom != "ONLIMO" && dom != "CUSTOM" {
-		// Only run if explicit WQMS mappings exist for this tenant/site
+
+		cfg := config.Get()
+		dom := "AQMS"
+		if cfg != nil && cfg.MonitoringDomain != "" {
+			dom = strings.ToUpper(strings.TrimSpace(cfg.MonitoringDomain))
+		}
+		if siteID > 0 {
+			var site model.Site
+			if err := s.db.Select("id, monitoring_domain").First(&site, siteID).Error; err == nil && site.MonitoringDomain != "" {
+				dom = strings.ToUpper(strings.TrimSpace(site.MonitoringDomain))
+			}
+		}
 		var cnt int64
 		s.db.Model(&model.WQMSParameterMapping{}).Where("tenant_id = ? AND (site_id = ? OR site_id = 0) AND enabled = ?", tenantID, siteID, true).Count(&cnt)
-		if cnt == 0 {
-			return
+
+		meta = wqmsDeviceEnqueueMeta{
+			tenantID:    tenantID,
+			siteID:      siteID,
+			domain:      dom,
+			hasMappings: cnt > 0,
+			expiresAt:   now.Add(60 * time.Second),
 		}
+		s.cacheMu.Lock()
+		s.enqueueMetaMap[deviceID] = meta
+		s.cacheMu.Unlock()
+	}
+
+	if meta.domain != "WQMS" && meta.domain != "ONLIMO" && meta.domain != "CUSTOM" && !meta.hasMappings {
+		return
 	}
 	if reason == "" {
 		reason = "AGGREGATION_COMPLETED"
 	}
 	select {
-	case s.jobChan <- wqmsTriggerJob{TenantID: tenantID, SiteID: siteID, DeviceID: 0, BucketEnd: bucketEnd, Reason: reason}:
+	case s.jobChan <- wqmsTriggerJob{TenantID: meta.tenantID, SiteID: meta.siteID, DeviceID: 0, BucketEnd: bucketEnd, Reason: reason}:
 	default:
 	}
 }
@@ -427,6 +460,7 @@ func (s *WQMSService) SaveMapping(ctx context.Context, m *model.WQMSParameterMap
 	if err := s.wqmsRepo.SaveMapping(ctx, m); err != nil {
 		return err
 	}
+	s.invalidateWQMSCaches()
 
 	if s.systemRepo != nil {
 		tid := m.TenantID
@@ -457,6 +491,7 @@ func (s *WQMSService) DeleteMapping(ctx context.Context, id uint, actor, ipAddre
 	if err := s.wqmsRepo.DeleteMapping(ctx, id); err != nil {
 		return err
 	}
+	s.invalidateWQMSCaches()
 	if s.systemRepo != nil {
 		tid := m.TenantID
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{

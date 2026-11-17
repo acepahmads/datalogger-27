@@ -120,6 +120,12 @@ func RunMigrations(db *gorm.DB) error {
 		if !db.Migrator().HasColumn(&model.Parameter{}, "status_off_label") {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "status_off_label")
 		}
+		if !db.Migrator().HasColumn(&model.Parameter{}, "status_on_value") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "status_on_value")
+		}
+		if !db.Migrator().HasColumn(&model.Parameter{}, "status_off_value") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "status_off_value")
+		}
 		if !db.Migrator().HasColumn(&model.Parameter{}, "stuck_detection_enabled") {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "stuck_detection_enabled")
 		}
@@ -3599,17 +3605,17 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"device.view": true, "device.create": true, "device.update": true, "device.manage": true,
 			"device.communication.view": true, "device.communication.manage": true, "device.communication.test": true,
 			"telemetry.view": true,
-			"category.view": true, "category.manage": true, "category.assign": true,
+			"category.view":  true, "category.manage": true, "category.assign": true,
 			"backup.view": true, "backup.create": true, "backup.validate": true,
 			"retention.view": true,
-			"alarm.view": true, "alarm.acknowledge": true, "alarm.manage": true,
+			"alarm.view":     true, "alarm.acknowledge": true, "alarm.manage": true,
 			"notification.view": true, "notification.manage": true,
 			"report.view": true, "report.generate": true,
 			"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
 			"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
 			"calibration.view": true, "calibration.manage": true,
 			"site.view": true, "site.manage": true,
-			"config.view": true,
+			"config.view":      true,
 			"integration.view": true, "integration.test": true,
 		}
 		for _, p := range dbAllPerms {
@@ -3626,14 +3632,14 @@ func ensurePhase7RBAC(db *gorm.DB) {
 		opAllowed := map[string]bool{
 			"device.view": true, "device.communication.view": true,
 			"telemetry.view": true,
-			"category.view": true,
-			"alarm.view": true, "alarm.acknowledge": true,
+			"category.view":  true,
+			"alarm.view":     true, "alarm.acknowledge": true,
 			"notification.view": true,
 			"report.view":       true,
 			"ispu.view":         true, "ispu.export": true,
-			"wqms.view":         true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
-			"site.view":         true,
-			"integration.view":  true,
+			"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
+			"site.view":        true,
+			"integration.view": true,
 		}
 		for _, p := range dbAllPerms {
 			if opAllowed[p.Code] {
@@ -3895,10 +3901,10 @@ func updatePhase8Tracking(db *gorm.DB) {
 		var existingTask model.DevelopmentTask
 		if err := db.Where("phase_id = ? AND (id = ? OR task_name = ?)", phase8.ID, vt.TaskID, vt.TaskName).First(&existingTask).Error; err == nil {
 			updates := map[string]interface{}{
-				"status":       vt.Status,
-				"progress":     vt.Progress,
-				"test_result":  vt.TestResult,
-				"updated_at":   now,
+				"status":      vt.Status,
+				"progress":    vt.Progress,
+				"test_result": vt.TestResult,
+				"updated_at":  now,
 			}
 			if vt.Status == model.StatusDone {
 				updates["completion_date"] = &now
@@ -4649,7 +4655,3 @@ func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
 		}
 	}
 }
-
-
-
-

@@ -7803,6 +7803,10 @@ export default {
         return {
           ...item,
           formula: formulaStr,
+          status_on_label: item.status_on_label || rawP.status_on_label || '',
+          status_off_label: item.status_off_label || rawP.status_off_label || '',
+          status_on_value: rawP.status_on_value !== undefined ? rawP.status_on_value : (item.status_on_value !== undefined ? item.status_on_value : null),
+          status_off_value: rawP.status_off_value !== undefined ? rawP.status_off_value : (item.status_off_value !== undefined ? item.status_off_value : null),
           device_status: deviceStatus,
           quality,
           quality_reason: qualityReason,
@@ -8974,6 +8978,190 @@ export default {
       return dev.parameters.some(
         p => p && p.enabled !== false && p.enabled !== 0 && String(p.formula || '').trim() !== ''
       );
+    },
+    isDiscreteStatusParam(param) {
+      if (!param) return false;
+      const cat = typeof this.getParamCategory === 'function' ? this.getParamCategory(param) : null;
+      if (cat && (String(cat.code || '').toLowerCase() === 'status' || /^status$/i.test(cat.name || ''))) {
+        return true;
+      }
+      const dt = String(param.data_type || '').toUpperCase();
+      if (dt === 'BOOL' || dt === 'BOOLEAN') return true;
+      const rt = String(param.register_type || '').toUpperCase();
+      if (rt === 'COIL' || rt === 'DISCRETE_INPUT') return true;
+      if ((param.status_on_label && String(param.status_on_label).trim()) || (param.status_off_label && String(param.status_off_label).trim())) {
+        return true;
+      }
+      const rawP = param._rawParam || {};
+      const onV = param.status_on_value !== undefined ? param.status_on_value : rawP.status_on_value;
+      const offV = param.status_off_value !== undefined ? param.status_off_value : rawP.status_off_value;
+      return (onV !== undefined && onV !== null) || (offV !== undefined && offV !== null);
+    },
+    evaluateDiscreteParamState(param, val) {
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'string') {
+        const s = val.trim().toLowerCase();
+        if (['true', 'on', 'nyala', 'open', 'terbuka', 'running', 'aktif'].includes(s)) return true;
+        if (['false', 'off', 'mati', 'closed', 'tertutup', 'stopped', 'nonaktif'].includes(s)) return false;
+      }
+      const n = Number(val);
+      if (isNaN(n)) return false;
+
+      const rawP = (param && param._rawParam) || {};
+      const rawOn = param && param.status_on_value !== undefined ? param.status_on_value : rawP.status_on_value;
+      const rawOff = param && param.status_off_value !== undefined ? param.status_off_value : rawP.status_off_value;
+      const hasOn = rawOn !== undefined && rawOn !== null && rawOn !== '' && !isNaN(Number(rawOn));
+      const hasOff = rawOff !== undefined && rawOff !== null && rawOff !== '' && !isNaN(Number(rawOff));
+
+      if (!hasOn && !hasOff) {
+        return n >= 0.5;
+      }
+      if (hasOn && hasOff) {
+        const onVal = Number(rawOn);
+        const offVal = Number(rawOff);
+        if (onVal === 1 && offVal === 0) {
+          return n >= 0.5;
+        }
+        if (onVal === offVal) {
+          return Math.abs(n - onVal) <= 1e-6;
+        }
+        return Math.abs(n - onVal) <= Math.abs(n - offVal);
+      }
+      if (hasOn) {
+        return Math.abs(n - Number(rawOn)) <= 1e-6;
+      }
+      return Math.abs(n - Number(rawOff)) > 1e-6;
+    },
+    getDiscreteStatusInfo(param) {
+      if (!param || this.formatParamValue(param) === '--') {
+        return {
+          valid: false,
+          isOn: false,
+          label: '--',
+          pillClass: 'bg-slate-100 dark:bg-slate-800/70 border-slate-300/70 dark:border-slate-700 text-slate-400 dark:text-slate-500',
+          dotClass: 'bg-transparent border-[1.5px] border-slate-400/60 dark:border-slate-600',
+          durationText: '',
+          tooltip: (this.$i18n && this.$i18n.locale === 'en') ? 'Status unavailable (No valid telemetry)' : 'Status tidak tersedia (Data belum valid / offline)',
+        };
+      }
+
+      const isOn = this.evaluateDiscreteParamState(param, param.value);
+      const labels = this.resolveDiscreteStatusLabels(param);
+      const label = isOn ? labels.on : labels.off;
+
+      let pillClass = '';
+      let dotClass = '';
+      if (param.alarm_status === 'CRITICAL') {
+        pillClass = 'bg-rose-500/15 dark:bg-rose-500/25 border-rose-500/50 text-rose-700 dark:text-rose-300 shadow-2xs';
+        dotClass = 'bg-rose-500 dark:bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.85)] animate-pulse';
+      } else if (param.alarm_status === 'WARNING') {
+        pillClass = 'bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/50 text-amber-700 dark:text-amber-300 shadow-2xs';
+        dotClass = 'bg-amber-500 dark:bg-amber-400 shadow-[0_0_5px_rgba(245,158,11,0.75)]';
+      } else if (isOn) {
+        pillClass = 'bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/45 dark:border-emerald-400/40 text-emerald-700 dark:text-emerald-300 shadow-2xs';
+        dotClass = 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.85)]';
+      } else {
+        pillClass = 'bg-slate-200/75 dark:bg-slate-800/90 border-slate-300/90 dark:border-slate-600/60 text-slate-600 dark:text-slate-300';
+        dotClass = 'bg-transparent border-[1.5px] border-slate-400 dark:border-slate-500';
+      }
+
+      const pid = Number(param.param_id || param.id);
+      const rawHistory = (pid && this.sparklinesMap && Array.isArray(this.sparklinesMap[pid])) ? this.sparklinesMap[pid] : [];
+      let sinceMs = null;
+      for (let i = rawHistory.length - 1; i >= 0; i--) {
+        const pt = rawHistory[i];
+        if (!pt || pt.val === null || pt.val === undefined || !isFinite(pt.val)) break;
+        const ptOn = this.evaluateDiscreteParamState(param, pt.val);
+        if (ptOn === isOn) {
+          if (pt.time) sinceMs = Number(pt.time);
+        } else {
+          break;
+        }
+      }
+      if (!sinceMs && param.received_at) {
+        const parsed = new Date(param.received_at).getTime();
+        if (!isNaN(parsed)) sinceMs = parsed;
+      }
+
+      const nowMs = Date.now();
+      const durationText = sinceMs && nowMs >= sinceMs ? this.formatStatusDurationCompact(nowMs - sinceMs) : '';
+      const isEn = this.$i18n && this.$i18n.locale === 'en';
+      const sinceClock = sinceMs ? new Date(sinceMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+      const rawNumStr = param.value !== null && param.value !== undefined ? String(param.value) : '--';
+      const tooltip = sinceClock
+        ? (isEn
+            ? `Status: ${label} (Raw: ${rawNumStr}) · Since ${sinceClock}${durationText ? ' (' + durationText + ')' : ''}`
+            : `Status: ${label} (Nilai raw: ${rawNumStr}) · Sejak ${sinceClock}${durationText ? ' (' + durationText + ')' : ''}`)
+        : `Status: ${label} (Raw: ${rawNumStr})`;
+
+      return {
+        valid: true,
+        isOn,
+        label,
+        pillClass,
+        dotClass,
+        durationText,
+        tooltip,
+      };
+    },
+    getStatusTimelineBlocks(param) {
+      if (!param) return [];
+      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) return [];
+
+      if (this.isParamInAlarmOrFault(param)) {
+        return [{
+          x: 0,
+          y: 8.5,
+          w: 100,
+          h: 3,
+          rx: 1,
+          fill: this.getSparklineColor(param),
+          opacity: 0.9,
+        }];
+      }
+
+      const pid = Number(param.param_id || param.id);
+      const rawHistory = (pid && this.sparklinesMap && Array.isArray(this.sparklinesMap[pid])) ? this.sparklinesMap[pid] : [];
+      const validPts = rawHistory.filter(pt => pt && pt.val !== null && pt.val !== undefined && isFinite(pt.val));
+
+      let states = validPts.slice(-24).map(pt => this.evaluateDiscreteParamState(param, pt.val));
+      if (states.length === 0) {
+        if (this.formatParamValue(param) === '--') return [];
+        states = [this.evaluateDiscreteParamState(param, param.value)];
+      }
+
+      const runs = [];
+      for (const st of states) {
+        if (runs.length > 0 && runs[runs.length - 1].isOn === st) {
+          runs[runs.length - 1].count++;
+        } else {
+          runs.push({ isOn: st, count: 1 });
+        }
+      }
+
+      const totalCount = states.length;
+      const gap = runs.length > 1 ? 1.2 : 0;
+      const usableW = Math.max(10, 98 - gap * (runs.length - 1));
+      const onColor = this.isDark ? '#10B981' : '#059669';
+      const offColor = this.isDark ? '#334155' : '#CBD5E1';
+
+      const blocks = [];
+      let cursorX = 1.0;
+      for (let i = 0; i < runs.length; i++) {
+        const r = runs[i];
+        const w = Math.max(2.5, Number(((r.count / totalCount) * usableW).toFixed(2)));
+        blocks.push({
+          x: Number(cursorX.toFixed(2)),
+          y: r.isOn ? 2.5 : 9.5,
+          w,
+          h: r.isOn ? 15.0 : 8.0,
+          rx: 1.2,
+          fill: r.isOn ? onColor : offColor,
+          opacity: r.isOn ? 0.95 : 0.75,
+        });
+        cursorX += w + gap;
+      }
+      return blocks;
     },
     isParamFormulaFallback(param) {
       if (!param) return false;

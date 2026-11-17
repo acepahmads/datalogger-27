@@ -273,21 +273,30 @@
                   Label Status SCADA (Tampilan Dashboard Operator)
                 </span>
               </div>
-              <div class="flex items-center space-x-1.5 text-4xs font-mono">
+              <div class="flex flex-wrap items-center gap-1.5 text-4xs font-mono">
                 <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded border bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-bold">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
-                  <span>1 = {{ resolvedModalStatusLabels.on }}</span>
+                  <span>{{ effectiveStatusOnBadgePrefix }} = {{ resolvedModalStatusLabels.on }}</span>
                 </span>
+                <button
+                  type="button"
+                  @click="swapStatusValues"
+                  class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-sans font-semibold transition cursor-pointer"
+                  title="Tukar nilai Aktif & Nonaktif (misal 1/0 menjadi 0/1 Active-Low)"
+                >
+                  <span>⇄</span>
+                  <span>Tukar Nilai</span>
+                </button>
                 <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded border bg-slate-200/80 dark:bg-slate-800/90 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-bold">
                   <span class="w-1.5 h-1.5 rounded-full border border-slate-400 dark:border-slate-500"></span>
-                  <span>0 = {{ resolvedModalStatusLabels.off }}</span>
+                  <span>{{ effectiveStatusOffBadgePrefix }} = {{ resolvedModalStatusLabels.off }}</span>
                 </span>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
               <!-- Preset Selector -->
-              <div>
+              <div class="md:col-span-4">
                 <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
                   Preset Jenis Alat
                 </label>
@@ -307,38 +316,74 @@
                 </select>
               </div>
 
-              <!-- Label Aktif (1) -->
-              <div>
-                <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Label Aktif (Nilai &ge; 1)
-                </label>
-                <input
-                  v-model="form.status_on_label"
-                  type="text"
-                  maxlength="32"
-                  :placeholder="autoModalStatusLabels.on + ' (Otomatis)'"
-                  class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono uppercase"
-                />
+              <!-- Nilai & Label Aktif -->
+              <div class="md:col-span-4 flex items-start gap-2">
+                <div class="w-24 shrink-0">
+                  <label class="block text-3xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1">
+                    Nilai Aktif
+                  </label>
+                  <input
+                    v-model="form.status_on_value"
+                    type="number"
+                    step="any"
+                    placeholder="1"
+                    class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-emerald-400/70 dark:border-emerald-600/60 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono font-bold text-center"
+                  />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Label Aktif ({{ effectiveStatusOnBadgePrefix }})
+                  </label>
+                  <input
+                    v-model="form.status_on_label"
+                    type="text"
+                    maxlength="32"
+                    :placeholder="autoModalStatusLabels.on + ' (Otomatis)'"
+                    class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono uppercase"
+                  />
+                </div>
               </div>
 
-              <!-- Label Nonaktif (0) -->
-              <div>
-                <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Label Nonaktif (Nilai 0)
-                </label>
-                <input
-                  v-model="form.status_off_label"
-                  type="text"
-                  maxlength="32"
-                  :placeholder="autoModalStatusLabels.off + ' (Otomatis)'"
-                  class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-slate-500 font-mono uppercase"
-                />
+              <!-- Nilai & Label Nonaktif -->
+              <div class="md:col-span-4 flex items-start gap-2">
+                <div class="w-24 shrink-0">
+                  <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Nilai Nonaktif
+                  </label>
+                  <input
+                    v-model="form.status_off_value"
+                    type="number"
+                    step="any"
+                    placeholder="0"
+                    class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-slate-500 font-mono font-bold text-center"
+                  />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Label Nonaktif ({{ effectiveStatusOffBadgePrefix }})
+                  </label>
+                  <input
+                    v-model="form.status_off_label"
+                    type="text"
+                    maxlength="32"
+                    :placeholder="autoModalStatusLabels.off + ' (Otomatis)'"
+                    class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-slate-500 font-mono uppercase"
+                  />
+                </div>
               </div>
+            </div>
+
+            <div
+              v-if="statusValueWarning"
+              class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-3xs text-rose-700 dark:text-rose-300 font-semibold flex items-center space-x-1.5"
+            >
+              <span>⚠️</span>
+              <span>{{ statusValueWarning }}</span>
             </div>
 
             <div class="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-3xs text-emerald-700 dark:text-emerald-300 flex items-center space-x-1.5">
               <span>🛡️</span>
-              <span>Mode Status Diskrit: Nilai tetap (0 / 1) otomatis bebas dari alarm <strong>Stuck Value</strong>, <strong>Spike</strong>, dan error nilai <strong>0</strong>.</span>
+              <span>Mode Status Diskrit: Nilai tetap ({{ effectiveStatusOffValue }} / {{ effectiveStatusOnValue }}) otomatis bebas dari alarm <strong>Stuck Value</strong>, <strong>Spike</strong>, dan error nilai <strong>0</strong>.</span>
             </div>
           </div>
         </div>
@@ -1431,6 +1476,8 @@ export default {
         icon: '',
         status_on_label: '',
         status_off_label: '',
+        status_on_value: 1,
+        status_off_value: 0,
         description: '',
         slave_id: 1,
         register_address: 0,
@@ -1596,7 +1643,42 @@ export default {
       if (dt === 'BOOL' || dt === 'BOOLEAN') return true;
       const rt = String(this.form.register_type || '').toUpperCase();
       if (rt === 'COIL' || rt === 'DISCRETE_INPUT') return true;
-      return Boolean((this.form.status_on_label && this.form.status_on_label.trim()) || (this.form.status_off_label && this.form.status_off_label.trim()));
+      if ((this.form.status_on_label && this.form.status_on_label.trim()) || (this.form.status_off_label && this.form.status_off_label.trim())) {
+        return true;
+      }
+      const src = this.isCopying ? this.sourceParam : this.paramToEdit;
+      if (src && ((src.status_on_value !== undefined && src.status_on_value !== null) || (src.status_off_value !== undefined && src.status_off_value !== null))) {
+        return true;
+      }
+      return false;
+    },
+    effectiveStatusOnValue() {
+      const n = this.cleanNum(this.form.status_on_value);
+      return n !== null ? n : 1;
+    },
+    effectiveStatusOffValue() {
+      const n = this.cleanNum(this.form.status_off_value);
+      return n !== null ? n : 0;
+    },
+    effectiveStatusOnBadgePrefix() {
+      if (this.effectiveStatusOnValue === 1 && this.effectiveStatusOffValue === 0) {
+        return '≥ 1';
+      }
+      return String(this.effectiveStatusOnValue);
+    },
+    effectiveStatusOffBadgePrefix() {
+      return String(this.effectiveStatusOffValue);
+    },
+    statusValueWarning() {
+      if (!this.isStatusCategoryOrBool) return null;
+      const onN = this.cleanNum(this.form.status_on_value);
+      const offN = this.cleanNum(this.form.status_off_value);
+      const effOn = onN !== null ? onN : 1;
+      const effOff = offN !== null ? offN : 0;
+      if (effOn === effOff) {
+        return `Nilai Aktif (${effOn}) dan Nilai Nonaktif (${effOff}) tidak boleh sama.`;
+      }
+      return null;
     },
     autoModalStatusLabels() {
       const isEn = this.$i18n && this.$i18n.locale === 'en';
@@ -1804,6 +1886,9 @@ export default {
       }
       if (this.byteOrderValidationError) {
         return this.byteOrderValidationError;
+      }
+      if (this.statusValueWarning) {
+        return this.statusValueWarning;
       }
       return null;
     },
@@ -2051,6 +2136,8 @@ export default {
         icon: '',
         status_on_label: '',
         status_off_label: '',
+        status_on_value: 1,
+        status_off_value: 0,
         description: '',
         slave_id: (dev && dev.connection && dev.connection.slave_id) || 1,
         register_address: 0,
@@ -2116,6 +2203,8 @@ export default {
         icon: param.icon || '',
         status_on_label: param.status_on_label || '',
         status_off_label: param.status_off_label || '',
+        status_on_value: (param.status_on_value !== undefined && param.status_on_value !== null) ? Number(param.status_on_value) : 1,
+        status_off_value: (param.status_off_value !== undefined && param.status_off_value !== null) ? Number(param.status_off_value) : 0,
         description: param.description || '',
         slave_id: (param.slave_id !== undefined && param.slave_id !== null && param.slave_id > 0) ? param.slave_id : ((dev && dev.connection && dev.connection.slave_id) || 1),
         register_address: param.register_address !== undefined ? param.register_address : 0,
@@ -2162,6 +2251,8 @@ export default {
         icon: source.icon || '',
         status_on_label: source.status_on_label || '',
         status_off_label: source.status_off_label || '',
+        status_on_value: (source.status_on_value !== undefined && source.status_on_value !== null) ? Number(source.status_on_value) : 1,
+        status_off_value: (source.status_off_value !== undefined && source.status_off_value !== null) ? Number(source.status_off_value) : 0,
         description: source.description || '',
         slave_id: (source.slave_id !== undefined && source.slave_id !== null && source.slave_id > 0) ? source.slave_id : 1,
         register_address: source.register_address !== undefined ? source.register_address : 0,
@@ -2346,6 +2437,12 @@ export default {
         this.form.status_off_label = map[preset].off;
       }
     },
+    swapStatusValues() {
+      const prevOn = this.effectiveStatusOnValue;
+      const prevOff = this.effectiveStatusOffValue;
+      this.form.status_on_value = prevOff;
+      this.form.status_off_value = prevOn;
+    },
     async submitForm() {
       if (this.clientValidationError) {
         this.error = this.clientValidationError;
@@ -2363,6 +2460,12 @@ export default {
       const pollInt = this.cleanNum(this.form.polling_interval_ms);
       const clearPollInt = pollInt === null || pollInt <= 0;
 
+      const isDiscreteCfg = !!this.isStatusCategoryOrBool;
+      const rawStatusOn = isDiscreteCfg ? this.cleanNum(this.form.status_on_value) : null;
+      const rawStatusOff = isDiscreteCfg ? this.cleanNum(this.form.status_off_value) : null;
+      const statusOnVal = isDiscreteCfg ? (rawStatusOn !== null ? rawStatusOn : 1) : null;
+      const statusOffVal = isDiscreteCfg ? (rawStatusOff !== null ? rawStatusOff : 0) : null;
+
       const rawCat = this.form.category_id;
       const catId = (rawCat !== null && rawCat !== undefined && rawCat !== '' && Number(rawCat) > 0)
         ? Number(rawCat)
@@ -2378,6 +2481,10 @@ export default {
         icon: this.form.icon ? this.form.icon.trim() : '',
         status_on_label: this.form.status_on_label ? this.form.status_on_label.trim() : '',
         status_off_label: this.form.status_off_label ? this.form.status_off_label.trim() : '',
+        status_on_value: statusOnVal,
+        status_off_value: statusOffVal,
+        clear_status_on_value: statusOnVal === null,
+        clear_status_off_value: statusOffVal === null,
         description: this.form.description ? this.form.description.trim() : '',
         slave_id: this.cleanNum(this.form.slave_id) || 1,
         register_address: this.isPushOrMqttDevice ? 0 : (this.cleanNum(this.form.register_address) || 0),
