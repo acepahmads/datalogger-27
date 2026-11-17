@@ -60,21 +60,37 @@ if [ -f "./bin/datalogger-linux-arm64" ] && [ "$ARCH" = "aarch64" -o "$ARCH" = "
   CANDIDATE_BIN="./bin/datalogger-linux-arm64"
 elif [ -f "./bin/datalogger-linux-armv7" ] && [ "$ARCH" = "armv7l" -o "$ARCH" = "armhf" ]; then
   CANDIDATE_BIN="./bin/datalogger-linux-armv7"
+elif [ -f "./bin/datalogger-linux-armv6" ] && [ "$ARCH" = "armv6l" ]; then
+  CANDIDATE_BIN="./bin/datalogger-linux-armv6"
 elif [ -f "./bin/datalogger-linux-amd64" ] && [ "$ARCH" = "x86_64" ]; then
   CANDIDATE_BIN="./bin/datalogger-linux-amd64"
 fi
 
-# If Go compiler is installed and .go sources have newer commits than prebuilt binary, compile fresh binary
+# Resolve modern Go binary if installed (sudo often strips /usr/local/go/bin from PATH)
+GO_BIN=""
+if [ -x "/usr/local/go/bin/go" ]; then
+  GO_BIN="/usr/local/go/bin/go"
+elif [ -x "/snap/bin/go" ]; then
+  GO_BIN="/snap/bin/go"
+elif command -v go &> /dev/null; then
+  GO_BIN=$(command -v go)
+fi
+
+# If Go compiler is installed, compatible with go.mod, and .go sources are newer than prebuilt binary, compile fresh binary
 PREFER_NATIVE_BUILD=0
-if [ -d ".git" ] && [ -n "$CANDIDATE_BIN" ] && command -v go &> /dev/null; then
+if [ -d ".git" ] && [ -n "$CANDIDATE_BIN" ] && [ -n "$GO_BIN" ]; then
   LAST_GO_COMMIT=$(run_git log -n 1 --format=%H -- cmd internal pkg 2>/dev/null || echo "")
   LAST_BIN_COMMIT=$(run_git log -n 1 --format=%H -- "$CANDIDATE_BIN" 2>/dev/null || echo "")
   if [ -n "$LAST_GO_COMMIT" ] && [ "$LAST_GO_COMMIT" != "$LAST_BIN_COMMIT" ]; then
     ANCESTOR_CHECK=0
     run_git merge-base --is-ancestor "$LAST_GO_COMMIT" "$LAST_BIN_COMMIT" 2>/dev/null && ANCESTOR_CHECK=1 || true
     if [ "$ANCESTOR_CHECK" -eq 0 ]; then
-      echo "Detected Go source commits newer than $CANDIDATE_BIN; compiling fresh native binary..."
-      PREFER_NATIVE_BUILD=1
+      if GOTOOLCHAIN=auto "$GO_BIN" list -m >/dev/null 2>&1; then
+        echo "Detected Go source commits newer than $CANDIDATE_BIN; compiling fresh native binary..."
+        PREFER_NATIVE_BUILD=1
+      else
+        echo "Warning: Local Go compiler ($("$GO_BIN" version 2>/dev/null || echo 'unknown')) is older than go.mod; using pre-built binary ($CANDIDATE_BIN)..."
+      fi
     fi
   fi
 fi
@@ -86,12 +102,22 @@ if [ "$PREFER_NATIVE_BUILD" -eq 0 ] && [ -n "$CANDIDATE_BIN" ]; then
 fi
 
 if [ "$UPDATED" -eq 0 ]; then
-  if command -v go &> /dev/null; then
-    echo "Compiling native binary on target machine using Go..."
-    sudo CGO_ENABLED=0 go build -ldflags "-s -w" -o "$TARGET_BIN" ./cmd/main.go
+  if [ -n "$GO_BIN" ]; then
+    echo "Compiling native binary on target machine using Go ($GO_BIN)..."
+    if sudo env PATH="/usr/local/go/bin:$PATH" CGO_ENABLED=0 GOTOOLCHAIN=auto "$GO_BIN" build -ldflags "-s -w" -o "$TARGET_BIN" ./cmd/main.go; then
+      UPDATED=1
+    elif [ -n "$CANDIDATE_BIN" ]; then
+      echo "Warning: Native Go build failed; falling back to pre-built binary ($CANDIDATE_BIN)..."
+      sudo cp "$CANDIDATE_BIN" "$TARGET_BIN"
+      UPDATED=1
+    else
+      echo "Error: Native Go build failed and no pre-built binary matched ($ARCH)."
+      exit 1
+    fi
   elif [ -n "$CANDIDATE_BIN" ]; then
     echo "Go compiler not found; falling back to pre-built binary ($CANDIDATE_BIN)..."
     sudo cp "$CANDIDATE_BIN" "$TARGET_BIN"
+    UPDATED=1
   else
     echo "Error: Pre-built binary not matched and Go compiler not found."
     exit 1
