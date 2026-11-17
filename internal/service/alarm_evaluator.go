@@ -135,6 +135,12 @@ type AlarmEvaluator struct {
 	activeAbnormality   map[string]*ActiveAlarmEntry      // key: "deviceID:paramID:alarmCode"
 	abnormalityTracking map[string]*paramAbnormalityState // key: "deviceID:paramID"
 
+	// Steady-state DB synchronization guards (eliminates redundant per-sample SQL sweeps when state has not changed)
+	commHealthySynced     map[uint]bool
+	onlineStatusSynced    map[uint]bool
+	offlineStatusSynced   map[uint]bool
+	disabledClearedSynced map[uint]bool
+
 	// Device status synchronization callback
 	statusUpdater func(deviceID uint, status model.DeviceConnectionStatus) error
 
@@ -157,6 +163,14 @@ func (e *AlarmEvaluator) SetDeviceStatusUpdater(updater func(deviceID uint, stat
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.statusUpdater = updater
+}
+
+// GetBadQualityCountThreshold returns the configured consecutive BAD sample threshold
+func (e *AlarmEvaluator) GetBadQualityCountThreshold() int {
+	if e == nil || e.cfg.BadQualityCountThreshold <= 0 {
+		return DefaultBadQualityCountThreshold
+	}
+	return e.cfg.BadQualityCountThreshold
 }
 
 // NewAlarmEvaluator constructs a new AlarmEvaluator and synchronizes active alarms from DB
@@ -193,16 +207,20 @@ func NewAlarmEvaluator(ctx context.Context, alarmService *AlarmService, cfg Alar
 	}
 
 	e := &AlarmEvaluator{
-		alarmService:        alarmService,
-		cfg:                 cfg,
-		paramLookup:         lookup,
-		startTime:           time.Now().UTC(),
-		activeHigh:          make(map[string]*ActiveAlarmEntry),
-		activeLow:           make(map[string]*ActiveAlarmEntry),
-		activeDeviceOffline: make(map[uint]*ActiveAlarmEntry),
-		activeCommErrors:    make(map[uint]*ActiveAlarmEntry),
-		activeAbnormality:   make(map[string]*ActiveAlarmEntry),
-		abnormalityTracking: make(map[string]*paramAbnormalityState),
+		alarmService:          alarmService,
+		cfg:                   cfg,
+		paramLookup:           lookup,
+		startTime:             time.Now().UTC(),
+		activeHigh:            make(map[string]*ActiveAlarmEntry),
+		activeLow:             make(map[string]*ActiveAlarmEntry),
+		activeDeviceOffline:   make(map[uint]*ActiveAlarmEntry),
+		activeCommErrors:      make(map[uint]*ActiveAlarmEntry),
+		activeAbnormality:     make(map[string]*ActiveAlarmEntry),
+		abnormalityTracking:   make(map[string]*paramAbnormalityState),
+		commHealthySynced:     make(map[uint]bool),
+		onlineStatusSynced:    make(map[uint]bool),
+		offlineStatusSynced:   make(map[uint]bool),
+		disabledClearedSynced: make(map[uint]bool),
 	}
 
 	if cfg.AutoReloadActiveAlarms && alarmService != nil {
@@ -233,6 +251,10 @@ func (e *AlarmEvaluator) ReloadActiveAlarms(ctx context.Context) error {
 	e.activeDeviceOffline = make(map[uint]*ActiveAlarmEntry)
 	e.activeCommErrors = make(map[uint]*ActiveAlarmEntry)
 	e.activeAbnormality = make(map[string]*ActiveAlarmEntry)
+	e.commHealthySynced = make(map[uint]bool)
+	e.onlineStatusSynced = make(map[uint]bool)
+	e.offlineStatusSynced = make(map[uint]bool)
+	e.disabledClearedSynced = make(map[uint]bool)
 
 	for i := range alarms {
 		alm := alarms[i]
@@ -750,11 +772,19 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 			}
 		}
 
-		if e.alarmService != nil {
-			_ = e.alarmService.ClearAllDeviceAlarms(ctx, device.ID)
+		delete(e.commHealthySynced, device.ID)
+		delete(e.onlineStatusSynced, device.ID)
+		delete(e.offlineStatusSynced, device.ID)
+		if !e.disabledClearedSynced[device.ID] {
+			if e.alarmService != nil {
+				_ = e.alarmService.ClearAllDeviceAlarms(ctx, device.ID)
+			}
+			e.disabledClearedSynced[device.ID] = true
 		}
 		return
 	}
+
+	delete(e.disabledClearedSynced, device.ID)
 
 	// 2. Startup Grace Period Protection
 	now := time.Now().UTC()
@@ -810,8 +840,11 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 	existing := e.activeDeviceOffline[device.ID]
 
 	if isOffline {
-		if e.statusUpdater != nil {
+		delete(e.commHealthySynced, device.ID)
+		delete(e.onlineStatusSynced, device.ID)
+		if e.statusUpdater != nil && (!e.offlineStatusSynced[device.ID] || existing == nil) {
 			_ = e.statusUpdater(device.ID, model.DeviceConnOffline)
+			e.offlineStatusSynced[device.ID] = true
 		}
 
 		if existing != nil {
@@ -838,15 +871,20 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 		}
 	} else {
 		// Device is healthy/recovered: resolve outage alarm
+		delete(e.offlineStatusSynced, device.ID)
+		needsOnlineSync := existing != nil || !e.onlineStatusSynced[device.ID]
 		if existing != nil {
 			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 			delete(e.activeDeviceOffline, device.ID)
 		}
-		if e.alarmService != nil {
-			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
-		}
-		if e.statusUpdater != nil {
-			_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
+		if needsOnlineSync {
+			if e.alarmService != nil {
+				_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
+			}
+			if e.statusUpdater != nil {
+				_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
+			}
+			e.onlineStatusSynced[device.ID] = true
 		}
 	}
 }
@@ -929,6 +967,11 @@ func (e *AlarmEvaluator) EvaluateDeviceCommFailure(ctx context.Context, device *
 		return
 	}
 
+	delete(e.commHealthySynced, device.ID)
+	delete(e.onlineStatusSynced, device.ID)
+	delete(e.offlineStatusSynced, device.ID)
+	delete(e.disabledClearedSynced, device.ID)
+
 	consec := 1
 	cat := "COMMUNICATION_FAILURE"
 	if health != nil {
@@ -984,15 +1027,25 @@ func (e *AlarmEvaluator) EvaluateDeviceCommSuccess(ctx context.Context, device *
 		recoveryThreshold = DefaultCommRecoveryThreshold
 	}
 
-	isRecovered := consecSuccess >= recoveryThreshold || (health != nil && health.State == "CONNECTED")
+	delete(e.offlineStatusSynced, device.ID)
+	delete(e.disabledClearedSynced, device.ID)
+	_, hadCommErr := e.activeCommErrors[device.ID]
+	_, hadOffline := e.activeDeviceOffline[device.ID]
+	needsCommSync := !e.commHealthySynced[device.ID]
+	needsOnlineSync := !e.onlineStatusSynced[device.ID]
+
+	// When invoked from active valid telemetry ingestion (health == nil), treat confirmed fresh telemetry
+	// as valid communication recovery so COMMUNICATION_ERROR alarms also clear cleanly.
+	isRecovered := consecSuccess >= recoveryThreshold || health == nil || (health != nil && health.State == "CONNECTED")
 	if isRecovered {
 		if existing, ok := e.activeCommErrors[device.ID]; ok {
 			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 			delete(e.activeCommErrors, device.ID)
 		}
-		if e.alarmService != nil {
+		if (hadCommErr || needsCommSync) && e.alarmService != nil {
 			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeCommError)
 		}
+		e.commHealthySynced[device.ID] = true
 	}
 
 	// 2. Recover Device Offline Alarm
@@ -1000,11 +1053,14 @@ func (e *AlarmEvaluator) EvaluateDeviceCommSuccess(ctx context.Context, device *
 		e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 		delete(e.activeDeviceOffline, device.ID)
 	}
-	if e.alarmService != nil {
-		_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
-	}
-	if e.statusUpdater != nil {
-		_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
+	if hadOffline || needsOnlineSync {
+		if e.alarmService != nil {
+			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
+		}
+		if e.statusUpdater != nil {
+			_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
+		}
+		e.onlineStatusSynced[device.ID] = true
 	}
 }
 
@@ -1012,6 +1068,11 @@ func (e *AlarmEvaluator) EvaluateDeviceCommSuccess(ctx context.Context, device *
 func (e *AlarmEvaluator) ClearDeviceAlarms(ctx context.Context, deviceID uint) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	delete(e.commHealthySynced, deviceID)
+	delete(e.onlineStatusSynced, deviceID)
+	delete(e.offlineStatusSynced, deviceID)
+	delete(e.disabledClearedSynced, deviceID)
 
 	if existing, ok := e.activeDeviceOffline[deviceID]; ok {
 		e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)

@@ -19,18 +19,18 @@ type AdapterFactory func(cfg *model.DeviceConnection) (ProtocolAdapter, error)
 
 // ConnectionManager manages all protocol connections, auto-recovery, backoff, and health tracking per device
 type ConnectionManager struct {
-	mu             sync.RWMutex
-	adapters       map[uint]ProtocolAdapter
-	deviceService  *service.DeviceService
-	factory        AdapterFactory
-	stateMachine   *ConnectionStateMachine
-	healthTracker  *ConnectionHealthTracker
-	backoffPolicy  *BackoffPolicy
-	reconnectingMu sync.Mutex
-	reconnecting   map[uint]bool
-	diagMu         sync.Mutex
-	diagActive     map[uint]time.Time
-	tracer         *CommTracer
+	mu              sync.RWMutex
+	adapters        map[uint]ProtocolAdapter
+	deviceService   *service.DeviceService
+	factory         AdapterFactory
+	stateMachine    *ConnectionStateMachine
+	healthTracker   *ConnectionHealthTracker
+	backoffPolicy   *BackoffPolicy
+	reconnectingMu  sync.Mutex
+	reconnecting    map[uint]bool
+	diagMu          sync.Mutex
+	diagActive      map[uint]time.Time
+	tracer          *CommTracer
 	activityMonitor *ActivityMonitor
 }
 
@@ -399,6 +399,25 @@ func (m *ConnectionManager) GetCommTracer() *CommTracer {
 	return m.tracer
 }
 
+type singleProbeCtxKey struct{}
+
+// WithSingleProbeAttempt marks a polling context so ExecuteWithRetry performs a single non-blocking probe
+// without multi-retry bus stalls while a device is already in confirmed offline backoff.
+func WithSingleProbeAttempt(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, singleProbeCtxKey{}, true)
+}
+
+func isSingleProbeAttempt(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v, _ := ctx.Value(singleProbeCtxKey{}).(bool)
+	return v
+}
+
 // ResetDeviceBackoff resets consecutive failures and backoff delay for immediate hot-plug recovery
 func (m *ConnectionManager) ResetDeviceBackoff(deviceID uint) {
 	if m.healthTracker != nil {
@@ -432,6 +451,9 @@ func (m *ConnectionManager) ExecuteWithRetry(
 	}
 	if retryLimit > 5 {
 		retryLimit = 5
+	}
+	if isSingleProbeAttempt(ctx) {
+		retryLimit = 0
 	}
 
 	var lastErr error
@@ -885,6 +907,14 @@ func (m *ConnectionManager) TestConnection(ctx context.Context, device *model.De
 	return diag.LatencyMs, nil
 }
 
+// IsAdapterTransportOpen reports whether the underlying physical/socket protocol adapter is currently open.
+func (m *ConnectionManager) IsAdapterTransportOpen(deviceID uint) bool {
+	m.mu.RLock()
+	adapter, exists := m.adapters[deviceID]
+	m.mu.RUnlock()
+	return exists && adapter != nil && adapter.IsConnected()
+}
+
 // GetAdapterStatus returns live status of the adapter combined with health metrics
 func (m *ConnectionManager) GetAdapterStatus(deviceID uint) (AdapterStatus, bool) {
 	m.mu.RLock()
@@ -960,4 +990,3 @@ func isTimeoutError(err error) bool {
 	errLower := strings.ToLower(err.Error())
 	return strings.Contains(errLower, "timeout") || strings.Contains(errLower, "deadline exceeded") || strings.Contains(errLower, "i/o timeout")
 }
-

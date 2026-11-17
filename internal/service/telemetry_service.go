@@ -171,6 +171,7 @@ type TelemetryService struct {
 	flushReqCh       chan chan struct{}
 	latestMu         sync.RWMutex
 	latestCache      map[uint]*LatestTelemetry // Key: parameter_id
+	commErrStreak    map[uint]int              // Key: parameter_id (tracks consecutive repeated comm-error BAD samples)
 	staleEvalLastAt  map[uint]time.Time        // Key: parameter_id (tracks last stale alarm evaluation step)
 	ctx              context.Context
 	cancel           context.CancelFunc
@@ -234,6 +235,7 @@ func NewTelemetryService(
 		buffer:            make(chan *model.RawData, cfg.BufferSize),
 		flushReqCh:        make(chan chan struct{}, 4),
 		latestCache:       make(map[uint]*LatestTelemetry),
+		commErrStreak:     make(map[uint]int),
 		staleEvalLastAt:   make(map[uint]time.Time),
 		ctx:               ctx,
 		cancel:            cancel,
@@ -329,6 +331,7 @@ func (s *TelemetryService) ClearDeviceCache(deviceID uint) {
 	for k, item := range s.latestCache {
 		if item != nil && item.DeviceID == deviceID {
 			delete(s.latestCache, k)
+			delete(s.commErrStreak, k)
 			delete(s.staleEvalLastAt, k)
 		}
 	}
@@ -339,6 +342,7 @@ func (s *TelemetryService) ClearParameterCache(paramID uint) {
 	s.latestMu.Lock()
 	defer s.latestMu.Unlock()
 	delete(s.latestCache, paramID)
+	delete(s.commErrStreak, paramID)
 	delete(s.staleEvalLastAt, paramID)
 }
 
@@ -402,14 +406,25 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 		return fmt.Errorf("telemetry service is stopped")
 	}
 
-	// Skip disabled parameters from ingestion pipeline
-	if payload.Parameter != nil && !payload.Parameter.Enabled {
+	// Skip disabled parameters from ingestion pipeline and hydrate parameter metadata once per ingest
+	evalParam := payload.Parameter
+	if evalParam != nil && !evalParam.Enabled {
 		return nil
 	}
 	if s.paramLookup != nil {
-		if p, err := s.paramLookup(payload.ParameterID); err == nil && p != nil && !p.Enabled {
-			return nil
+		if p, err := s.paramLookup(payload.ParameterID); err == nil && p != nil {
+			if !p.Enabled {
+				return nil
+			}
+			if evalParam == nil || (evalParam.CategoryID != nil && *evalParam.CategoryID > 0 && evalParam.Category == nil && p.Category != nil) {
+				evalParam = p
+			}
 		}
+	}
+	if payload.Parameter == nil && evalParam != nil {
+		payloadCopy := *payload
+		payloadCopy.Parameter = evalParam
+		payload = &payloadCopy
 	}
 
 	// 1. Validation & Quality Processing (Phase 3.2)
@@ -421,26 +436,44 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 
 	atomic.AddUint64(&s.ingestedCount, 1)
 
+	isCommReadErr := payload.ReadError != nil &&
+		latest.Quality == model.QualityBad &&
+		latest.QualityReason == model.ReasonCommunicationError
+
 	// 2. Update Instantaneous In-Memory Cache (O(1) lookup for dashboard)
 	// Reliability (Phase 4.1): If read failed or quality is BAD, retain previous valid values AND valid timestamps
 	// so that dashboard and operator console show true last-seen time rather than failed poll attempt timestamps.
 	s.latestMu.Lock()
+	prevCached, hadPrev := s.latestCache[latest.ParameterID]
+	wasAlreadyCommBad := hadPrev &&
+		prevCached != nil &&
+		prevCached.Quality == model.QualityBad &&
+		prevCached.QualityReason == model.ReasonCommunicationError
+
+	commStreak := 0
+	if isCommReadErr {
+		commStreak = s.commErrStreak[latest.ParameterID] + 1
+		s.commErrStreak[latest.ParameterID] = commStreak
+	} else if payload.ReadError == nil && latest.Quality != model.QualityBad {
+		delete(s.commErrStreak, latest.ParameterID)
+	}
+
 	if payload.ReadError != nil || latest.Quality == model.QualityBad {
-		if prev, ok := s.latestCache[latest.ParameterID]; ok {
-			latest.Value = prev.Value
-			latest.ProcessedValue = prev.ProcessedValue
-			latest.UncalibratedValue = prev.UncalibratedValue
-			latest.ValueNumeric = prev.ValueNumeric
-			latest.FormulaValue = prev.FormulaValue
-			latest.ValueText = prev.ValueText
-			latest.ValueBool = prev.ValueBool
-			latest.RawValue = prev.RawValue
-			latest.RawHex = prev.RawHex
-			if !prev.ReceivedAt.IsZero() {
-				latest.ReceivedAt = prev.ReceivedAt
+		if hadPrev && prevCached != nil {
+			latest.Value = prevCached.Value
+			latest.ProcessedValue = prevCached.ProcessedValue
+			latest.UncalibratedValue = prevCached.UncalibratedValue
+			latest.ValueNumeric = prevCached.ValueNumeric
+			latest.FormulaValue = prevCached.FormulaValue
+			latest.ValueText = prevCached.ValueText
+			latest.ValueBool = prevCached.ValueBool
+			latest.RawValue = prevCached.RawValue
+			latest.RawHex = prevCached.RawHex
+			if !prevCached.ReceivedAt.IsZero() {
+				latest.ReceivedAt = prevCached.ReceivedAt
 			}
-			if prev.DeviceTimestamp != nil {
-				latest.DeviceTimestamp = prev.DeviceTimestamp
+			if prevCached.DeviceTimestamp != nil {
+				latest.DeviceTimestamp = prevCached.DeviceTimestamp
 			}
 		}
 	} else if latest.Quality != model.QualityStale && !latest.IsHeldValue {
@@ -451,18 +484,32 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 
 	// Phase 6 Wave 1: Automated Alarm Threshold Evaluation
 	if s.alarmEvaluator != nil {
-		s.alarmEvaluator.EvaluateTelemetry(s.ctx, latest, payload.Parameter)
-		// Active telemetry proves device communication is alive: recover offline status if active
-		dev := &model.Device{
-			ID:         latest.DeviceID,
-			TenantID:   latest.TenantID,
-			SiteID:     latest.SiteID,
-			DeviceCode: latest.DeviceCode,
-			Enabled:    true,
-			Status:     model.DeviceStatusActive,
-			LastDataAt: &latest.ReceivedAt,
+		badEvalLimit := s.alarmEvaluator.GetBadQualityCountThreshold() + 3
+		if badEvalLimit < 8 {
+			badEvalLimit = 8
 		}
-		s.alarmEvaluator.EvaluateDeviceCommSuccess(s.ctx, dev, nil)
+		if !isCommReadErr || !wasAlreadyCommBad || commStreak <= badEvalLimit {
+			s.alarmEvaluator.EvaluateTelemetry(s.ctx, latest, evalParam)
+		}
+		// Only genuine valid telemetry (never failed ReadError / BAD / STALE) proves device communication is alive
+		if payload.ReadError == nil && latest.Quality != model.QualityBad && latest.Quality != model.QualityStale {
+			dev := &model.Device{
+				ID:         latest.DeviceID,
+				TenantID:   latest.TenantID,
+				SiteID:     latest.SiteID,
+				DeviceCode: latest.DeviceCode,
+				Enabled:    true,
+				Status:     model.DeviceStatusActive,
+				LastDataAt: &latest.ReceivedAt,
+			}
+			s.alarmEvaluator.EvaluateDeviceCommSuccess(s.ctx, dev, nil)
+		}
+	}
+
+	// Steady-state offline deduplication: once the initial transition to BAD (COMMUNICATION_ERROR) has already
+	// been broadcast and persisted, suppress repetitive identical comm-error writes to WAL, MariaDB, and WebSocket.
+	if isCommReadErr && wasAlreadyCommBad {
+		return nil
 	}
 
 	// 3. Realtime WebSocket Broadcast

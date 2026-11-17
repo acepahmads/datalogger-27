@@ -337,6 +337,8 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 
 	cyclesSinceRefresh := 0
 	consecutiveFailures := 0
+	wasPortMissing := false
+	var lastOfflineEventAt time.Time
 
 	for {
 		select {
@@ -365,8 +367,10 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 						}
 						if newInt >= 200 && newInt != baseIntervalMs {
 							baseIntervalMs = newInt
-							currentIntervalMs = baseIntervalMs
-							ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+							if consecutiveFailures == 0 {
+								currentIntervalMs = baseIntervalMs
+								ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+							}
 							logger.Info("Device %s (%d) dynamic polling interval updated to %dms", freshDev.DeviceCode, deviceID, baseIntervalMs)
 						}
 					}
@@ -381,7 +385,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 					}
 					GetSharedAdapterTracker().SetDeviceFormulaActive(deviceID, deviceHasActiveFormula(cachedDev))
 					targetTick := calculateDeviceTickIntervalMs(baseIntervalMs, cachedParams)
-					if targetTick != currentIntervalMs {
+					if consecutiveFailures == 0 && targetTick != currentIntervalMs {
 						currentIntervalMs = targetTick
 						ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
 					}
@@ -429,7 +433,11 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				continue
 			}
 
-			cycleSuccess := p.pollDevice(ctx, cachedDev, dueParams)
+			pollCtx := ctx
+			if consecutiveFailures >= 5 {
+				pollCtx = WithSingleProbeAttempt(ctx)
+			}
+			cycleSuccess := p.pollDevice(pollCtx, cachedDev, dueParams)
 			if cycleSuccess {
 				for _, param := range dueParams {
 					paramLastPolled[param.ID] = pollStart
@@ -477,11 +485,14 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				}
 				wasFailing := consecutiveFailures > 0
 				consecutiveFailures = 0
-				if wasFailing || currentIntervalMs != baseIntervalMs {
-					currentIntervalMs = baseIntervalMs
+				wasPortMissing = false
+				lastOfflineEventAt = time.Time{}
+				targetNormalTick := calculateDeviceTickIntervalMs(baseIntervalMs, cachedParams)
+				if wasFailing || currentIntervalMs != targetNormalTick {
+					currentIntervalMs = targetNormalTick
 					ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
 					logger.Info("Device %s (%d) communication active, restored normal polling interval (%dms)",
-						cachedDev.DeviceCode, deviceID, baseIntervalMs)
+						cachedDev.DeviceCode, deviceID, currentIntervalMs)
 				}
 
 				GetSharedAdapterTracker().OnCommunicationSuccess(cachedDev.ID, pollDurationMs)
@@ -500,6 +511,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 
 				if portMissing {
 					consecutiveFailures++
+					wasPortMissing = true
 					GetSharedAdapterTracker().OnPortMissing(cachedDev.ID, targetPort, fmt.Sprintf("Serial port %s disconnected/missing", targetPort))
 
 					// Keep checking at 1500ms intervals so that hot-plug reinsertion is detected immediately!
@@ -509,8 +521,9 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 					}
 				} else {
 					consecutiveFailures++
-					// If the port is present (e.g. re-plugged), notify recovery of physical link
-					if isSerial {
+					// Only reset backoff when physical USB serial port transitions from missing -> re-plugged!
+					if isSerial && wasPortMissing {
+						wasPortMissing = false
 						GetSharedAdapterTracker().OnPortRecovered(cachedDev.ID, targetPort)
 						if p.connManager != nil {
 							p.connManager.ResetDeviceBackoff(cachedDev.ID)
@@ -520,44 +533,51 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 						if p.deviceService != nil {
 							_ = p.deviceService.SetConnectionError(cachedDev.ID, "Device communication failure")
 						}
-						if p.hub != nil {
-							p.broadcastForDevice(cachedDev, websocket.WSMessage{
-								Type:      "device.connection.changed",
-								Timestamp: time.Now(),
-								Data: map[string]interface{}{
-									"device_id":         cachedDev.ID,
-									"id":                cachedDev.ID,
-									"device_code":       cachedDev.DeviceCode,
-									"connection_status": CommOffline,
-									"transport_status":  TransportAvailable,
-									"status":            CommOffline,
-									"reason":            "COMMUNICATION_FAILURE",
-								},
-							})
+						nowOffline := time.Now()
+						shouldEmitOfflineEvent := consecutiveFailures == 2 || lastOfflineEventAt.IsZero() || nowOffline.Sub(lastOfflineEventAt) >= 60*time.Second
+						if shouldEmitOfflineEvent {
+							lastOfflineEventAt = nowOffline
+							if p.hub != nil {
+								p.broadcastForDevice(cachedDev, websocket.WSMessage{
+									Type:      "device.connection.changed",
+									Timestamp: nowOffline,
+									Data: map[string]interface{}{
+										"device_id":         cachedDev.ID,
+										"id":                cachedDev.ID,
+										"device_code":       cachedDev.DeviceCode,
+										"connection_status": CommOffline,
+										"transport_status":  TransportAvailable,
+										"status":            CommOffline,
+										"reason":            "COMMUNICATION_FAILURE",
+									},
+								})
+							}
 						}
 						if mon := p.getActivityMonitor(); mon != nil {
-							mon.RecordEvent(ActivityEvent{
-								Severity:    SeverityError,
-								Category:    CategoryCommunication,
-								Component:   "PollingEngine",
-								DeviceID:    cachedDev.ID,
-								DeviceCode:  cachedDev.DeviceCode,
-								DeviceName:  cachedDev.DeviceName,
-								EventName:   "COMMUNICATION_TIMEOUT",
-								Description: fmt.Sprintf("Device %s communication timeout (%d consecutive failures)", cachedDev.DeviceCode, consecutiveFailures),
-								ErrorDetail: "Awaiting automatic retry/reconnect recovery",
-							})
-							mon.RecordEvent(ActivityEvent{
-								Severity:    SeverityError,
-								Category:    CategoryCommunication,
-								Component:   "PollingEngine",
-								DeviceID:    cachedDev.ID,
-								DeviceCode:  cachedDev.DeviceCode,
-								DeviceName:  cachedDev.DeviceName,
-								EventName:   "DEVICE_OFFLINE",
-								Description: fmt.Sprintf("Device %s marked OFFLINE: consecutive communication failures threshold reached", cachedDev.DeviceCode),
-								ErrorDetail: "Awaiting automatic retry/reconnect recovery",
-							})
+							if shouldEmitOfflineEvent {
+								mon.RecordEvent(ActivityEvent{
+									Severity:    SeverityError,
+									Category:    CategoryCommunication,
+									Component:   "PollingEngine",
+									DeviceID:    cachedDev.ID,
+									DeviceCode:  cachedDev.DeviceCode,
+									DeviceName:  cachedDev.DeviceName,
+									EventName:   "COMMUNICATION_TIMEOUT",
+									Description: fmt.Sprintf("Device %s communication timeout (%d consecutive failures)", cachedDev.DeviceCode, consecutiveFailures),
+									ErrorDetail: "Awaiting automatic retry/reconnect recovery",
+								})
+								mon.RecordEvent(ActivityEvent{
+									Severity:    SeverityError,
+									Category:    CategoryCommunication,
+									Component:   "PollingEngine",
+									DeviceID:    cachedDev.ID,
+									DeviceCode:  cachedDev.DeviceCode,
+									DeviceName:  cachedDev.DeviceName,
+									EventName:   "DEVICE_OFFLINE",
+									Description: fmt.Sprintf("Device %s marked OFFLINE: consecutive communication failures threshold reached", cachedDev.DeviceCode),
+									ErrorDetail: "Awaiting automatic retry/reconnect recovery",
+								})
+							}
 							mon.UpdateDevicePollingSnapshot(cachedDev.ID, func(s *DevicePollingSnapshot) {
 								s.CommunicationStatus = CommOffline
 								s.TransportStatus = TransportAvailable
@@ -579,16 +599,28 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 						}
 					}
 
-					// Auto-recovery (Phase 4.1): Trigger asynchronous deduplicated reconnection attempt
-					go func(d *model.Device) {
-						reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 45*time.Second)
-						defer reconnCancel()
-						_ = p.connManager.ReconnectDevice(reconnCtx, d)
-					}(cachedDev)
+					// Auto-recovery (Phase 4.1): Trigger asynchronous deduplicated reconnection only when transport is not open
+					// (prevents tearing down an already-healthy shared RS-485 serial port when only one slave device is powered off).
+					shouldReconnect := true
+					if isSerial && p.connManager != nil && p.connManager.IsAdapterTransportOpen(cachedDev.ID) {
+						shouldReconnect = false
+					}
+					if shouldReconnect && p.connManager != nil {
+						go func(d *model.Device) {
+							reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 45*time.Second)
+							defer reconnCancel()
+							_ = p.connManager.ReconnectDevice(reconnCtx, d)
+						}(cachedDev)
+					}
 
-					// Bounded adaptive backoff: capped at 5s max (instead of 15s) so sensor replug is detected promptly
+					// Graduated adaptive backoff: scales up to 15s during prolonged device power-off to protect Edge CPU & RS-485 bus,
+					// and snaps back to normal interval immediately on the first valid response.
 					var backoffMs int
-					if consecutiveFailures >= 5 {
+					if consecutiveFailures >= 24 {
+						backoffMs = 15000 // 15s backoff
+					} else if consecutiveFailures >= 12 {
+						backoffMs = 10000 // 10s backoff
+					} else if consecutiveFailures >= 5 {
 						backoffMs = 5000 // 5s backoff
 					} else if consecutiveFailures >= 2 {
 						backoffMs = 3000 // 3s backoff
@@ -1076,6 +1108,8 @@ func (p *PollingEngine) ingestFallbackReading(
 
 	if p.telemetryService != nil {
 		_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+			TenantID:      device.TenantID,
+			SiteID:        device.SiteID,
 			DeviceID:      device.ID,
 			DeviceCode:    device.DeviceCode,
 			DeviceName:    device.DeviceName,
@@ -1183,6 +1217,8 @@ func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []mo
 		}
 		if p.telemetryService != nil {
 			_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+				TenantID:      device.TenantID,
+				SiteID:        device.SiteID,
 				DeviceID:      device.ID,
 				DeviceCode:    device.DeviceCode,
 				DeviceName:    device.DeviceName,
@@ -1425,6 +1461,8 @@ func (p *PollingEngine) ReadParameter(
 
 		if p.telemetryService != nil {
 			_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+				TenantID:      device.TenantID,
+				SiteID:        device.SiteID,
 				DeviceID:      device.ID,
 				DeviceCode:    device.DeviceCode,
 				DeviceName:    device.DeviceName,
@@ -1540,6 +1578,8 @@ func (p *PollingEngine) processDecodedParameter(
 			source = string(device.Connection.Protocol)
 		}
 		_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+			TenantID:          device.TenantID,
+			SiteID:            device.SiteID,
 			DeviceID:          device.ID,
 			DeviceCode:        device.DeviceCode,
 			DeviceName:        device.DeviceName,

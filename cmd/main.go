@@ -181,16 +181,16 @@ func main() {
 		alarmService,
 		service.DefaultAlarmEvaluatorConfig(),
 		func(ctx context.Context, paramID uint) (*model.Parameter, error) {
-			return deviceRepo.FindParameterByID(paramID)
+			return deviceRepo.FindCachedParameterForPipeline(paramID)
 		},
 	)
 	alarmEvaluator.SetDeviceLookup(func(ctx context.Context, deviceID uint) (*model.Device, error) {
-		return deviceRepo.GetByID(deviceID)
+		return deviceRepo.GetCachedDeviceForPipeline(deviceID)
 	})
 	alarmEvaluator.SetDeviceStatusUpdater(deviceRepo.SetConnectionStatus)
 	alarmService.SetAlarmEvaluator(alarmEvaluator)
-	telemetryService.SetDeviceLookup(deviceRepo.GetByID)
-	telemetryService.SetParamLookup(deviceRepo.FindParameterByID)
+	telemetryService.SetDeviceLookup(deviceRepo.GetCachedDeviceForPipeline)
+	telemetryService.SetParamLookup(deviceRepo.FindCachedParameterForPipeline)
 	telemetryService.SetAlarmEvaluator(alarmEvaluator)
 	logger.Info("AlarmEvaluator initialized with active DB alarm synchronization and attached to TelemetryService")
 
@@ -238,6 +238,7 @@ func main() {
 			pollingEngine.PauseAllWorkers()
 		},
 		func() {
+			deviceRepo.InvalidateMetadataCache()
 			pollingEngine.ResumeAllWorkers()
 			aggService.SetPaused(false)
 		},
@@ -322,6 +323,7 @@ func main() {
 	calibrationService := service.NewCalibrationService(calibrationRepo, deviceRepo, systemRepo, telemetryService)
 	calibrationService.SetTenantService(tenantService)
 	calibrationService.SetOnDeviceReload(func(deviceID uint) {
+		deviceRepo.InvalidateDeviceMetadata(deviceID)
 		if pollingEngine != nil {
 			if dev, err := deviceService.GetDeviceByID(deviceID); err == nil && dev != nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
 				pollingEngine.StartDeviceWorker(dev)

@@ -3,6 +3,7 @@ package repository
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"datalogger/internal/model"
@@ -26,12 +27,179 @@ type DeviceFilterParams struct {
 	PageSize         int
 }
 
+const pipelineMetadataCacheTTL = 20 * time.Second
+
+type cachedDeviceMetaEntry struct {
+	dev       *model.Device
+	expiresAt time.Time
+}
+
+type cachedParamMetaEntry struct {
+	param     *model.Parameter
+	expiresAt time.Time
+}
+
 type DeviceRepository struct {
-	db *gorm.DB
+	db              *gorm.DB
+	metaMu          sync.RWMutex
+	deviceMetaCache map[uint]cachedDeviceMetaEntry
+	paramMetaCache  map[uint]cachedParamMetaEntry
 }
 
 func NewDeviceRepository(db *gorm.DB) *DeviceRepository {
-	return &DeviceRepository{db: db}
+	return &DeviceRepository{
+		db:              db,
+		deviceMetaCache: make(map[uint]cachedDeviceMetaEntry),
+		paramMetaCache:  make(map[uint]cachedParamMetaEntry),
+	}
+}
+
+func cloneDeviceForPipeline(src *model.Device) *model.Device {
+	if src == nil {
+		return nil
+	}
+	cp := *src
+	if src.Connection != nil {
+		connCp := *src.Connection
+		cp.Connection = &connCp
+	}
+	if len(src.Parameters) > 0 {
+		paramsCp := make([]model.Parameter, len(src.Parameters))
+		copy(paramsCp, src.Parameters)
+		cp.Parameters = paramsCp
+	}
+	return &cp
+}
+
+func cloneParamForPipeline(src *model.Parameter) *model.Parameter {
+	if src == nil {
+		return nil
+	}
+	cp := *src
+	if src.Category != nil {
+		catCp := *src.Category
+		cp.Category = &catCp
+	}
+	return &cp
+}
+
+// InvalidateMetadataCache clears all cached hot-path device and parameter metadata.
+func (r *DeviceRepository) InvalidateMetadataCache() {
+	r.metaMu.Lock()
+	r.deviceMetaCache = make(map[uint]cachedDeviceMetaEntry)
+	r.paramMetaCache = make(map[uint]cachedParamMetaEntry)
+	r.metaMu.Unlock()
+}
+
+// InvalidateDeviceMetadata evicts cached metadata for a specific device and all its parameters.
+func (r *DeviceRepository) InvalidateDeviceMetadata(deviceID uint) {
+	if deviceID == 0 {
+		r.InvalidateMetadataCache()
+		return
+	}
+	r.metaMu.Lock()
+	delete(r.deviceMetaCache, deviceID)
+	for pid, entry := range r.paramMetaCache {
+		if entry.param == nil || entry.param.DeviceID == deviceID {
+			delete(r.paramMetaCache, pid)
+		}
+	}
+	r.metaMu.Unlock()
+}
+
+// InvalidateParameterMetadata evicts cached metadata for a parameter and its parent device.
+func (r *DeviceRepository) InvalidateParameterMetadata(deviceID, paramID uint) {
+	r.metaMu.Lock()
+	if paramID > 0 {
+		if existing, ok := r.paramMetaCache[paramID]; ok && existing.param != nil && deviceID == 0 {
+			deviceID = existing.param.DeviceID
+		}
+		delete(r.paramMetaCache, paramID)
+	}
+	if deviceID > 0 {
+		delete(r.deviceMetaCache, deviceID)
+	}
+	r.metaMu.Unlock()
+}
+
+// GetCachedDeviceForPipeline fetches lightweight device + connection + parameter metadata for high-frequency
+// ingestion, stale-check, and alarm-evaluation paths without repeating 7-way GORM Preload SQL queries per sample.
+func (r *DeviceRepository) GetCachedDeviceForPipeline(id uint) (*model.Device, error) {
+	if id == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	now := time.Now()
+	r.metaMu.RLock()
+	if entry, ok := r.deviceMetaCache[id]; ok && entry.dev != nil && now.Before(entry.expiresAt) {
+		cp := cloneDeviceForPipeline(entry.dev)
+		r.metaMu.RUnlock()
+		return cp, nil
+	}
+	r.metaMu.RUnlock()
+
+	var dev model.Device
+	err := r.db.Where("deleted_at IS NULL").
+		Preload("Connection").
+		Preload("Parameters", "deleted_at IS NULL").
+		Preload("Parameters.Category").
+		First(&dev, id).Error
+	if err != nil {
+		return nil, err
+	}
+
+	r.metaMu.Lock()
+	if r.deviceMetaCache == nil {
+		r.deviceMetaCache = make(map[uint]cachedDeviceMetaEntry)
+	}
+	r.deviceMetaCache[id] = cachedDeviceMetaEntry{
+		dev:       cloneDeviceForPipeline(&dev),
+		expiresAt: now.Add(pipelineMetadataCacheTTL),
+	}
+	if r.paramMetaCache == nil {
+		r.paramMetaCache = make(map[uint]cachedParamMetaEntry)
+	}
+	for i := range dev.Parameters {
+		p := dev.Parameters[i]
+		r.paramMetaCache[p.ID] = cachedParamMetaEntry{
+			param:     cloneParamForPipeline(&p),
+			expiresAt: now.Add(pipelineMetadataCacheTTL),
+		}
+	}
+	r.metaMu.Unlock()
+
+	return cloneDeviceForPipeline(&dev), nil
+}
+
+// FindCachedParameterForPipeline resolves parameter + category metadata from in-memory cache on hot ingestion/alarm paths.
+func (r *DeviceRepository) FindCachedParameterForPipeline(paramID uint) (*model.Parameter, error) {
+	if paramID == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	now := time.Now()
+	r.metaMu.RLock()
+	if entry, ok := r.paramMetaCache[paramID]; ok && entry.param != nil && now.Before(entry.expiresAt) {
+		cp := cloneParamForPipeline(entry.param)
+		r.metaMu.RUnlock()
+		return cp, nil
+	}
+	r.metaMu.RUnlock()
+
+	param, err := r.FindParameterByID(paramID)
+	if err != nil {
+		return nil, err
+	}
+
+	r.metaMu.Lock()
+	if r.paramMetaCache == nil {
+		r.paramMetaCache = make(map[uint]cachedParamMetaEntry)
+	}
+	r.paramMetaCache[paramID] = cachedParamMetaEntry{
+		param:     cloneParamForPipeline(param),
+		expiresAt: now.Add(pipelineMetadataCacheTTL),
+	}
+	r.metaMu.Unlock()
+
+	return cloneParamForPipeline(param), nil
 }
 
 // List queries devices with search, filtering, pagination, and sorting
@@ -250,7 +418,7 @@ func (r *DeviceRepository) GetByLegacyModuleIDInTenant(tenantID uint, legacyModu
 
 // Create inserts a new device and optional connection
 func (r *DeviceRepository) Create(device *model.Device) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		conn := device.Connection
 		if err := tx.Omit("Tenant", "Site", "Connection", "Parameters").Create(device).Error; err != nil {
 			return err
@@ -265,11 +433,15 @@ func (r *DeviceRepository) Create(device *model.Device) error {
 		}
 		return nil
 	})
+	if err == nil && device != nil {
+		r.InvalidateDeviceMetadata(device.ID)
+	}
+	return err
 }
 
 // Update updates device details and optionally updates/creates connection
 func (r *DeviceRepository) Update(device *model.Device) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		conn := device.Connection
 		// Update device attributes (never overwrite immutable created_at with zero value on MariaDB)
 		if err := tx.Omit("Tenant", "Site", "Connection", "Parameters", "created_at").Save(device).Error; err != nil {
@@ -295,11 +467,15 @@ func (r *DeviceRepository) Update(device *model.Device) error {
 		}
 		return nil
 	})
+	if err == nil && device != nil {
+		r.InvalidateDeviceMetadata(device.ID)
+	}
+	return err
 }
 
 // Delete performs soft delete of device and its associated parameters and aggregation definitions
 func (r *DeviceRepository) Delete(id uint) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		if tx.Migrator().HasTable(&model.AggregationDefinition{}) {
 			_ = tx.Model(&model.AggregationDefinition{}).Where("device_id = ?", id).Update("enabled", false).Error
 			_ = tx.Where("device_id = ?", id).Delete(&model.AggregationDefinition{}).Error
@@ -309,6 +485,8 @@ func (r *DeviceRepository) Delete(id uint) error {
 		}
 		return tx.Where("id = ?", id).Delete(&model.Device{}).Error
 	})
+	r.InvalidateDeviceMetadata(id)
+	return err
 }
 
 // SetEnabled toggles enabled status (and ensures transport connection is enabled when activating)
@@ -319,6 +497,7 @@ func (r *DeviceRepository) SetEnabled(id uint, enabled bool) error {
 	if enabled {
 		_ = r.db.Model(&model.DeviceConnection{}).Where("device_id = ?", id).Update("enabled", true).Error
 	}
+	r.InvalidateDeviceMetadata(id)
 	return nil
 }
 
@@ -742,12 +921,17 @@ func (r *DeviceRepository) CloneDeviceChildren(srcDevice, targetDevice *model.De
 		return nil
 	})
 
+	if targetDevice != nil {
+		r.InvalidateDeviceMetadata(targetDevice.ID)
+	}
 	return summary, err
 }
 
 // SetStatus updates administrative status
 func (r *DeviceRepository) SetStatus(id uint, status model.DeviceAdminStatus) error {
-	return r.db.Model(&model.Device{}).Where("id = ?", id).Update("status", status).Error
+	err := r.db.Model(&model.Device{}).Where("id = ?", id).Update("status", status).Error
+	r.InvalidateDeviceMetadata(id)
+	return err
 }
 
 // UpdateLastSeen updates last seen timestamp
@@ -760,12 +944,31 @@ func (r *DeviceRepository) UpdateLastSeen(id uint, t time.Time) error {
 
 // UpdateLastData updates last data received timestamp
 func (r *DeviceRepository) UpdateLastData(id uint, t time.Time) error {
-	return r.db.Model(&model.Device{}).Where("id = ?", id).Update("last_data_at", &t).Error
+	err := r.db.Model(&model.Device{}).Where("id = ?", id).Update("last_data_at", &t).Error
+	if err == nil {
+		r.metaMu.Lock()
+		if entry, ok := r.deviceMetaCache[id]; ok && entry.dev != nil {
+			tCp := t
+			entry.dev.LastDataAt = &tCp
+			r.deviceMetaCache[id] = entry
+		}
+		r.metaMu.Unlock()
+	}
+	return err
 }
 
 // SetConnectionStatus updates communication status
 func (r *DeviceRepository) SetConnectionStatus(id uint, status model.DeviceConnectionStatus) error {
-	return r.db.Model(&model.Device{}).Where("id = ?", id).Update("connection_status", status).Error
+	err := r.db.Model(&model.Device{}).Where("id = ?", id).Update("connection_status", status).Error
+	if err == nil {
+		r.metaMu.Lock()
+		if entry, ok := r.deviceMetaCache[id]; ok && entry.dev != nil {
+			entry.dev.ConnectionStatus = status
+			r.deviceMetaCache[id] = entry
+		}
+		r.metaMu.Unlock()
+	}
+	return err
 }
 
 // Parameters
@@ -811,6 +1014,7 @@ func (r *DeviceRepository) CreateParameter(param *model.Parameter) error {
 	if param.CategoryID != nil && *param.CategoryID > 0 {
 		_ = r.db.Preload("Category").First(param, param.ID).Error
 	}
+	r.InvalidateParameterMetadata(param.DeviceID, param.ID)
 	return nil
 }
 
@@ -821,6 +1025,7 @@ func (r *DeviceRepository) UpdateParameter(param *model.Parameter) error {
 	if param.CategoryID != nil && *param.CategoryID > 0 {
 		_ = r.db.Preload("Category").First(param, param.ID).Error
 	}
+	r.InvalidateParameterMetadata(param.DeviceID, param.ID)
 	return nil
 }
 
@@ -845,7 +1050,7 @@ func (r *DeviceRepository) DeleteParametersBulk(deviceID uint, paramIDs []uint) 
 	if deviceID == 0 || len(paramIDs) == 0 {
 		return nil
 	}
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		if tx.Migrator().HasTable(&model.AggregationDefinition{}) {
 			_ = tx.Model(&model.AggregationDefinition{}).Where("device_id = ? AND parameter_id IN ?", deviceID, paramIDs).Update("enabled", false).Error
 			_ = tx.Where("device_id = ? AND parameter_id IN ?", deviceID, paramIDs).Delete(&model.AggregationDefinition{}).Error
@@ -875,28 +1080,42 @@ func (r *DeviceRepository) DeleteParametersBulk(deviceID uint, paramIDs []uint) 
 
 		return tx.Where("device_id = ? AND id IN ?", deviceID, paramIDs).Delete(&model.Parameter{}).Error
 	})
+	r.InvalidateDeviceMetadata(deviceID)
+	for _, pid := range paramIDs {
+		r.InvalidateParameterMetadata(deviceID, pid)
+	}
+	return err
 }
 
 func (r *DeviceRepository) SetParameterEnabled(deviceID, paramID uint, enabled bool) error {
-	return r.db.Model(&model.Parameter{}).Where("id = ? AND device_id = ?", paramID, deviceID).Update("enabled", enabled).Error
+	err := r.db.Model(&model.Parameter{}).Where("id = ? AND device_id = ?", paramID, deviceID).Update("enabled", enabled).Error
+	r.InvalidateParameterMetadata(deviceID, paramID)
+	return err
 }
 
 func (r *DeviceRepository) SetParametersEnabledBulk(deviceID uint, paramIDs []uint, enabled bool) error {
 	if deviceID == 0 || len(paramIDs) == 0 {
 		return nil
 	}
-	return r.db.Model(&model.Parameter{}).
+	err := r.db.Model(&model.Parameter{}).
 		Where("device_id = ? AND id IN ? AND deleted_at IS NULL", deviceID, paramIDs).
 		Update("enabled", enabled).Error
+	r.InvalidateDeviceMetadata(deviceID)
+	for _, pid := range paramIDs {
+		r.InvalidateParameterMetadata(deviceID, pid)
+	}
+	return err
 }
 
 func (r *DeviceRepository) SyncDeviceParametersStaleTimeout(deviceID uint, staleTimeoutSeconds int) error {
 	if deviceID == 0 || staleTimeoutSeconds <= 0 {
 		return nil
 	}
-	return r.db.Model(&model.Parameter{}).
+	err := r.db.Model(&model.Parameter{}).
 		Where("device_id = ? AND deleted_at IS NULL", deviceID).
 		Update("stale_timeout_seconds", staleTimeoutSeconds).Error
+	r.InvalidateDeviceMetadata(deviceID)
+	return err
 }
 
 // GetDeviceAuditTrail fetches audit records related to a specific device

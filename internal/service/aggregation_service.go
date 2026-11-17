@@ -115,6 +115,8 @@ type AggregationService struct {
 	isWorkerRun            bool
 	workerMu               sync.Mutex
 	calcMu                 sync.Mutex
+	activeBucketSigMu      sync.Mutex
+	activeBucketSig        map[uint]string
 	paused                 int32
 	onBucketCompleted      func(ctx context.Context, deviceID uint, bucketEnd time.Time)
 	onAggregationCompleted func(ctx context.Context, event AggregationCompletedEvent)
@@ -128,13 +130,14 @@ func NewAggregationService(
 	hub *websocket.Hub,
 ) *AggregationService {
 	return &AggregationService{
-		repo:         repo,
-		devRepo:      devRepo,
-		systemRepo:   systemRepo,
-		hub:          hub,
-		engine:       aggregation.NewEngine(),
-		pollInterval: 1 * time.Second,
-		stopCh:       make(chan struct{}),
+		repo:            repo,
+		devRepo:         devRepo,
+		systemRepo:      systemRepo,
+		hub:             hub,
+		engine:          aggregation.NewEngine(),
+		pollInterval:    1 * time.Second,
+		stopCh:          make(chan struct{}),
+		activeBucketSig: make(map[uint]string),
 	}
 }
 
@@ -158,8 +161,21 @@ func (s *AggregationService) SetPaused(paused bool) {
 	if paused {
 		atomic.StoreInt32(&s.paused, 1)
 	} else {
+		s.clearActiveBucketSignatures()
 		atomic.StoreInt32(&s.paused, 0)
 	}
+}
+
+func (s *AggregationService) clearActiveBucketSignatures() {
+	s.activeBucketSigMu.Lock()
+	s.activeBucketSig = make(map[uint]string)
+	s.activeBucketSigMu.Unlock()
+}
+
+func (s *AggregationService) clearActiveBucketSignatureForDef(defID uint) {
+	s.activeBucketSigMu.Lock()
+	delete(s.activeBucketSig, defID)
+	s.activeBucketSigMu.Unlock()
 }
 
 // IsPaused returns true when background aggregation is paused or global database restore mode is active.
@@ -449,6 +465,7 @@ func (s *AggregationService) UpdateDefinition(ctx context.Context, id uint, req 
 	if err := s.repo.UpdateDefinition(ctx, def); err != nil {
 		return nil, fmt.Errorf("failed to update aggregation definition: %w", err)
 	}
+	s.clearActiveBucketSignatureForDef(def.ID)
 
 	if s.systemRepo != nil {
 		if username == "" {
@@ -486,6 +503,7 @@ func (s *AggregationService) DeleteDefinition(ctx context.Context, id uint, user
 	if err := s.repo.DeleteDefinition(ctx, id); err != nil {
 		return fmt.Errorf("failed to delete aggregation definition: %w", err)
 	}
+	s.clearActiveBucketSignatureForDef(id)
 
 	if s.systemRepo != nil {
 		if username == "" {
@@ -607,6 +625,10 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 }
 
 func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration) (int, []time.Time, []AggregationCompletedEvent, error) {
+	return s.processPendingBucketsWithOpts(ctx, def, lookback, false)
+}
+
+func (s *AggregationService) processPendingBucketsWithOpts(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration, deduplicateActiveBucket bool) (int, []time.Time, []AggregationCompletedEvent, error) {
 	if s.IsPaused() || ctx.Err() != nil {
 		return 0, nil, nil, ctx.Err()
 	}
@@ -694,19 +716,50 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 	if !s.IsPaused() && ctx.Err() == nil && activeBucket.PeriodEnd.After(now) {
 		activeSamples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, activeBucket.PeriodStart, now)
 		if err == nil && len(activeSamples) > 0 {
-			activeResult := s.engine.Calculate(def, activeBucket.PeriodStart, activeBucket.PeriodEnd, activeSamples)
-			activeResult.Identifier = activeBucket.Identifier
-			if err := s.repo.SaveResult(ctx, activeResult); err == nil {
-				if s.hub != nil {
-					s.hub.Broadcast(websocket.WSMessage{
-						Type:      "aggregation.result.updated",
-						Timestamp: time.Now().UTC(),
-						TenantID:  activeResult.TenantID,
-						SiteID:    activeResult.SiteID,
-						Data:      activeResult,
-					})
+			lastSample := activeSamples[len(activeSamples)-1]
+			firstSample := activeSamples[0]
+			sig := fmt.Sprintf("%s|%s|%s|%d|%d|%d|%s|%.6g",
+				activeBucket.Identifier,
+				def.Function,
+				def.SourceType,
+				len(activeSamples),
+				firstSample.ID,
+				lastSample.ID,
+				lastSample.Quality,
+				lastSample.ProcessedValue,
+			)
+
+			unchanged := false
+			if deduplicateActiveBucket {
+				s.activeBucketSigMu.Lock()
+				if s.activeBucketSig[def.ID] == sig {
+					unchanged = true
 				}
-				processedCount++
+				s.activeBucketSigMu.Unlock()
+			}
+
+			if !unchanged {
+				activeResult := s.engine.Calculate(def, activeBucket.PeriodStart, activeBucket.PeriodEnd, activeSamples)
+				activeResult.Identifier = activeBucket.Identifier
+				if err := s.repo.SaveResult(ctx, activeResult); err == nil {
+					s.activeBucketSigMu.Lock()
+					if s.activeBucketSig == nil {
+						s.activeBucketSig = make(map[uint]string)
+					}
+					s.activeBucketSig[def.ID] = sig
+					s.activeBucketSigMu.Unlock()
+
+					if s.hub != nil {
+						s.hub.Broadcast(websocket.WSMessage{
+							Type:      "aggregation.result.updated",
+							Timestamp: time.Now().UTC(),
+							TenantID:  activeResult.TenantID,
+							SiteID:    activeResult.SiteID,
+							Data:      activeResult,
+						})
+					}
+					processedCount++
+				}
 			}
 		}
 	}
@@ -754,6 +807,10 @@ func (s *AggregationService) fireDeferredBucketCallbacks(completedByDevice map[u
 }
 
 func (s *AggregationService) runAllActiveDefinitionsLocked(ctx context.Context) (int, map[uint]map[int64]time.Time, []AggregationCompletedEvent, error) {
+	return s.runAllActiveDefinitionsWithOptsLocked(ctx, false)
+}
+
+func (s *AggregationService) runAllActiveDefinitionsWithOptsLocked(ctx context.Context, deduplicateActiveBucket bool) (int, map[uint]map[int64]time.Time, []AggregationCompletedEvent, error) {
 	if s.IsPaused() {
 		return 0, nil, nil, nil
 	}
@@ -773,7 +830,7 @@ func (s *AggregationService) runAllActiveDefinitionsLocked(ctx context.Context) 
 			continue
 		}
 		// Lookback 2 hours by default during continuous polling
-		count, ends, aggEvents, err := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour)
+		count, ends, aggEvents, err := s.processPendingBucketsWithOpts(ctx, &def, 2*time.Hour, deduplicateActiveBucket)
 		if err != nil {
 			if !s.IsPaused() && ctx.Err() == nil {
 				logger.Warn("Error processing definition %s: %v", def.Name, err)
@@ -806,7 +863,7 @@ func (s *AggregationService) runBackgroundWorkerCycle(ctx context.Context) (int,
 	if !s.calcMu.TryLock() {
 		return 0, nil
 	}
-	totalBuckets, completedByDevice, aggEvents, err := s.runAllActiveDefinitionsLocked(ctx)
+	totalBuckets, completedByDevice, aggEvents, err := s.runAllActiveDefinitionsWithOptsLocked(ctx, true)
 	s.calcMu.Unlock()
 	if err != nil {
 		return totalBuckets, err
@@ -1269,6 +1326,7 @@ func (s *AggregationService) RecalculateRangeForDevice(
 	}
 
 	s.calcMu.Lock()
+	s.clearActiveBucketSignatures()
 
 	defs, err := s.repo.ListDefinitions(ctx, deviceID, true)
 	if err != nil {

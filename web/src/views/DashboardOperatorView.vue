@@ -7958,6 +7958,11 @@ export default {
   },
   beforeDestroy() {
     this.stopBentoTrendResize();
+    if (this._bentoTelemFlushTimer) {
+      clearTimeout(this._bentoTelemFlushTimer);
+      this._bentoTelemFlushTimer = null;
+    }
+    this._bentoTelemQueue = null;
     if (this._unsubBentoAudioState) {
       this._unsubBentoAudioState();
       this._unsubBentoAudioState = null;
@@ -8786,11 +8791,97 @@ export default {
       const lim = this.resolveBentoParamLimits(param);
       return lim && lim.upper !== null ? lim.upper : null;
     },
+    isDeviceActiveOnline(dev) {
+      if (!dev) return false;
+      const status = dev.connection_status || dev.status;
+      if (
+        status === 'OFFLINE' ||
+        status === 'DISCONNECTED' ||
+        status === 'ERROR' ||
+        status === 'FAILED' ||
+        status === 'DISABLED' ||
+        dev.enabled === false
+      ) {
+        return false;
+      }
+      const devStaleTimeout = this.getDeviceStaleTimeoutSeconds ? this.getDeviceStaleTimeoutSeconds(dev) : 120;
+      // Depend on staleCheckTimeMs (10s cadence) instead of currentTimeMs (1s clock cadence)
+      // so the 1-second digital clock never forces full 31-card + 61-alarm grid recomputation.
+      const nowMs = this.staleCheckTimeMs || Date.now();
+      if (status === 'ONLINE' || status === 'CONNECTED') {
+        const params = dev.parameters || [];
+        if (params.length > 0) {
+          const hasAnyFreshData = params.some((p) => {
+            const live = this.liveMap && this.liveMap[p.id];
+            const q = (live && live.quality) || p.current_quality;
+            const ts = (live && live.received_at) || p.current_received_at;
+            const ageSec = ts ? (nowMs - new Date(ts).getTime()) / 1000 : Infinity;
+            const staleLimit = this.isDevicePassivePush && this.isDevicePassivePush(dev)
+              ? Math.max(Number(p.stale_timeout_seconds || 0), devStaleTimeout)
+              : (p.stale_timeout_seconds || 120);
+            return q !== 'STALE' && q !== 'BAD' && ageSec < staleLimit;
+          });
+          if (!hasAnyFreshData) {
+            return false;
+          }
+        }
+        return true;
+      }
+      const fallbackLimitSec = this.isDevicePassivePush && this.isDevicePassivePush(dev) ? devStaleTimeout : 15;
+      return (dev.parameters || []).some((p) => {
+        const live = this.liveMap && this.liveMap[p.id];
+        const ts = (live && live.received_at) || p.current_received_at;
+        if (!ts) return false;
+        const ageSec = (nowMs - new Date(ts).getTime()) / 1000;
+        const q = (live && live.quality) || p.current_quality;
+        return ageSec < fallbackLimitSec && q === 'GOOD';
+      });
+    },
+    getBentoCardRenderMemo(param) {
+      if (!param || typeof param !== 'object' || typeof WeakMap === 'undefined') return null;
+      if (!Object.prototype.hasOwnProperty.call(this, '_bentoCardRenderMemo') || !this._bentoCardRenderMemo) {
+        Object.defineProperty(this, '_bentoCardRenderMemo', {
+          value: new WeakMap(),
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      }
+      const alarmMapRef = this.bentoParamActiveAlarmMap || null;
+      const relBucket = Math.floor((this.staleCheckTimeMs || Date.now()) / 10000);
+      const canEdit = Boolean(this.canEditConfig);
+      let slot = this._bentoCardRenderMemo.get(param);
+      if (!slot || slot.alarmMapRef !== alarmMapRef || slot.relBucket !== relBucket || slot.canEdit !== canEdit) {
+        slot = {
+          alarmMapRef,
+          relBucket,
+          canEdit,
+          hasActiveAlarm: false,
+          activeAlarm: null,
+          statusBadge: null,
+          progress: null,
+          colorKey: '',
+          colorVal: '',
+        };
+        this._bentoCardRenderMemo.set(param, slot);
+      }
+      return slot;
+    },
     getBentoParamActiveAlarm(param) {
       if (!param) return null;
+      const memo = this.getBentoCardRenderMemo(param);
+      if (memo && memo.hasActiveAlarm) {
+        return memo.activeAlarm;
+      }
       const pid = Number(param.param_id || param.id);
       const entry = (pid && this.bentoParamActiveAlarmMap && this.bentoParamActiveAlarmMap[pid]) || null;
-      if (!entry || !entry.primary) return null;
+      if (!entry || !entry.primary) {
+        if (memo) {
+          memo.hasActiveAlarm = true;
+          memo.activeAlarm = null;
+        }
+        return null;
+      }
 
       const alm = entry.primary;
       const code = String(alm.alarm_code || alm.alarm_type || alm.type || '').toUpperCase();
@@ -8829,7 +8920,7 @@ export default {
       const extraStr = entry.count > 1 ? ' (+' + (entry.count - 1) + ' alarm aktif lainnya)' : '';
       const tooltipText = 'Alarm Aktif [' + sev + ']: ' + msgStr + (ageStr ? ' · ' + ageStr : '') + extraStr + ' — Klik badge untuk Acknowledge';
 
-      return {
+      const result = {
         primary: alm,
         count: entry.count,
         all: entry.all,
@@ -8841,6 +8932,11 @@ export default {
         ageStr,
         tooltipText,
       };
+      if (memo) {
+        memo.hasActiveAlarm = true;
+        memo.activeAlarm = result;
+      }
+      return result;
     },
     getBentoDotColor(param) {
       if (this.isBentoParamCommOffline(param)) return '#F43F5E';
@@ -8888,19 +8984,26 @@ export default {
       return flags.includes('formula_fallback') || param.quality_reason === 'FORMULA_FALLBACK';
     },
     getBentoStatusBadge(param) {
+      const memo = this.getBentoCardRenderMemo(param);
+      if (memo && memo.statusBadge) {
+        return memo.statusBadge;
+      }
       const res = this.resolveCoreBentoStatusBadge(param);
       if (!param || this.isBentoParamCommOffline(param) || !this.isParamFormulaFallback(param)) {
+        if (memo) memo.statusBadge = res;
         return res;
       }
       const baseLabel = String(res.label || 'Baik');
       const nextLabel = baseLabel.endsWith('*') ? baseLabel : `${baseLabel}*`;
       const fallbackNote = '(*) Sensor fisik tidak terhubung — nilai dihitung otomatis dari formula';
       const nextTooltip = res.tooltip ? `${res.tooltip} · ${fallbackNote}` : fallbackNote;
-      return {
+      const enriched = {
         ...res,
         label: nextLabel,
         tooltip: nextTooltip,
       };
+      if (memo) memo.statusBadge = enriched;
+      return enriched;
     },
     resolveCoreBentoStatusBadge(param) {
       if (!param) return { label: 'Normal', toneClass: 'badge-green', isAlarm: false, alarm: null, tooltip: '' };
@@ -9012,27 +9115,48 @@ export default {
     getBentoCardColor(param) {
       const dark = this.isDark;
       if (!param) return dark ? '#38BDF8' : '#0284C7';
-      const badge = this.getBentoStatusBadge(param);
-      if (badge.toneClass === 'badge-rose') {
-        return '#F43F5E';
-      }
-      if (badge.toneClass === 'badge-amber') {
-        return dark ? '#FBBF24' : '#D97706';
-      }
       const plotted = (this.activeTrendSeries || []).find(s => Number(s.parameterId) === Number(param.param_id));
-      if (plotted && plotted.color) {
-        return plotted.color;
+      const plottedColor = (plotted && plotted.color) || '';
+      const memo = this.getBentoCardRenderMemo(param);
+      const colorKey = `${dark ? 1 : 0}:${plottedColor}`;
+      if (memo && memo.colorVal && memo.colorKey === colorKey) {
+        return memo.colorVal;
       }
-      if (badge.toneClass === 'badge-blue') return dark ? '#38BDF8' : '#0284C7';
-      if (badge.toneClass === 'badge-teal') return dark ? '#2DD4BF' : '#0D9488';
-      const unitStr = (param.unit || '').trim().toLowerCase();
-      if (unitStr === 'c' || unitStr === '°c') return dark ? '#FBBF24' : '#D97706';
-      return dark ? '#34D399' : '#059669';
+      const badge = this.getBentoStatusBadge(param);
+      let resolved;
+      if (badge.toneClass === 'badge-rose') {
+        resolved = '#F43F5E';
+      } else if (badge.toneClass === 'badge-amber') {
+        resolved = dark ? '#FBBF24' : '#D97706';
+      } else if (plottedColor) {
+        resolved = plottedColor;
+      } else if (badge.toneClass === 'badge-blue') {
+        resolved = dark ? '#38BDF8' : '#0284C7';
+      } else if (badge.toneClass === 'badge-teal') {
+        resolved = dark ? '#2DD4BF' : '#0D9488';
+      } else {
+        const unitStr = (param.unit || '').trim().toLowerCase();
+        if (unitStr === 'c' || unitStr === '°c') resolved = dark ? '#FBBF24' : '#D97706';
+        else resolved = dark ? '#34D399' : '#059669';
+      }
+      if (memo) {
+        memo.colorKey = colorKey;
+        memo.colorVal = resolved;
+      }
+      return resolved;
     },
     getBentoCardProgress(param) {
       if (!param) {
         return { pct: 0, metaLabel: '-', shortMetaLabel: '-', rightLabel: '', tableLimitLabel: '', isConfiguredLimit: false, limitTooltip: '' };
       }
+      const memo = this.getBentoCardRenderMemo(param);
+      if (memo && memo.progress) {
+        return memo.progress;
+      }
+      const finish = (obj) => {
+        if (memo) memo.progress = obj;
+        return obj;
+      };
       const editHint = this.canEditConfig ? 'Klik untuk mengatur limit parameter' : 'Klik untuk melihat konfigurasi limit';
       const rel = param.received_at ? this.formatRelative(param.received_at) : '';
       const activeInfo = this.getBentoParamActiveAlarm(param);
@@ -9042,7 +9166,7 @@ export default {
 
       const limits = this.resolveBentoParamLimits(param);
       if (this.isBentoParamCommOffline(param)) {
-        return {
+        return finish({
           pct: 0,
           metaLabel: rel ? `Terakhir aktif · ${rel}` : 'Sensor tidak terhubung',
           shortMetaLabel: rel || 'Offline',
@@ -9050,11 +9174,11 @@ export default {
           tableLimitLabel: limits ? limits.shortLabel : '',
           isConfiguredLimit: Boolean(limits && limits.source === 'configured'),
           limitTooltip: `Status Offline${limits ? ' · ' + limits.detailNote : ''} · ${editHint}`,
-        };
+        });
       }
       if (this.isDiscreteStatusParam(param)) {
         const info = this.getDiscreteStatusInfo(param);
-        return {
+        return finish({
           pct: info && info.isOn ? 100 : 18,
           metaLabel: rel ? `Status Kanal · ${rel}` : 'Status Kanal Aktif',
           shortMetaLabel: rel || 'Kanal Digital',
@@ -9062,7 +9186,7 @@ export default {
           tableLimitLabel: '',
           isConfiguredLimit: false,
           limitTooltip: editHint,
-        };
+        });
       }
       const val = Number(param.value);
       const hasVal = param.value !== null && param.value !== undefined && param.value !== '' && isFinite(val);
@@ -9073,7 +9197,7 @@ export default {
         const rawPct = hasVal && span > 0 ? Math.round(((val - base) / span) * 100) : 0;
         const barPct = hasVal ? Math.min(Math.max(rawPct, val > base ? 3 : 0), 100) : 0;
         const displayPct = hasVal ? Math.max(0, Math.min(rawPct, 999)) : 0;
-        return {
+        return finish({
           pct: barPct,
           metaLabel: activeMetaSuffix ? `${limits.longLabel} · ${activeMetaSuffix}` : limits.longLabel,
           shortMetaLabel: limits.shortLabel,
@@ -9081,10 +9205,10 @@ export default {
           tableLimitLabel: limits.shortLabel,
           isConfiguredLimit: limits.source === 'configured',
           limitTooltip: `${limits.detailNote} (${limits.source === 'configured' ? 'Edit Config' : 'Default'}) · ${editHint}`,
-        };
+        });
       }
       if (limits && limits.lower !== null) {
-        return {
+        return finish({
           pct: hasVal && val <= limits.lower ? 100 : 35,
           metaLabel: activeMetaSuffix ? `${limits.longLabel} · ${activeMetaSuffix}` : limits.longLabel,
           shortMetaLabel: limits.shortLabel,
@@ -9092,9 +9216,9 @@ export default {
           tableLimitLabel: limits.shortLabel,
           isConfiguredLimit: true,
           limitTooltip: `${limits.detailNote} · ${editHint}`,
-        };
+        });
       }
-      return {
+      return finish({
         pct: hasVal ? 35 : 0,
         metaLabel: activeMetaSuffix ? `Update · ${activeMetaSuffix}` : 'Online',
         shortMetaLabel: activeInfo ? activeInfo.shortMeta : (rel || 'Online'),
@@ -9102,7 +9226,7 @@ export default {
         tableLimitLabel: '',
         isConfiguredLimit: false,
         limitTooltip: `Belum ada limit khusus · ${editHint}`,
-      };
+      });
     },
     shouldFlattenBentoSparkline(param) {
       if (!param) return false;
@@ -9455,6 +9579,7 @@ export default {
             (target.parameters || []).forEach((p) => {
               if (String(p.formula || '').trim() !== '') return;
               const prev = this.liveMap[p.id] || {};
+              if (prev.quality === 'BAD' && prev.quality_reason === (data.reason || 'PORT_DISCONNECTED')) return;
               this.$set(this.liveMap, p.id, {
                 ...prev,
                 parameter_id: p.id,
@@ -9467,22 +9592,124 @@ export default {
         }
       }
 
+      // Suppress redundant steady-state OFFLINE/ERROR comm events from repeatedly invalidating staleCheckTimeMs
+      // and rewriting every parameter in liveMap when the device and its parameters are already marked offline/BAD.
+      if (target) {
+        const curConn = String(target.connection_status || '').toUpperCase();
+        if (type === 'device.communication.error') {
+          if (curConn === 'ERROR' || curConn === 'OFFLINE') {
+            if (typeof this.recordTrendOutageEvent === 'function') {
+              this.recordTrendOutageEvent({
+                id: `err-${devId}-${Date.now()}`,
+                type: 'COMMUNICATION_LOST',
+                timestamp: Date.now(),
+                deviceId: devId,
+                deviceCode: target.device_code,
+                reason: data.error || data.reason || 'Komunikasi sensor timeout / error',
+              });
+            }
+            return;
+          }
+        } else if (type === 'device.connection.changed') {
+          const nextStatus = String(data.connection_status || data.status || '').toUpperCase();
+          if (nextStatus === 'OFFLINE' || nextStatus === 'ERROR' || nextStatus === 'DISCONNECTED') {
+            const enabledParams = (target.parameters || []).filter(p => p && p.enabled !== false && p.enabled !== 0);
+            const allAlreadyBad = enabledParams.every((p) => {
+              const prev = this.liveMap && this.liveMap[p.id];
+              return prev && prev.quality === 'BAD';
+            });
+            if (curConn === nextStatus && allAlreadyBad) {
+              return;
+            }
+          }
+        }
+      }
+
       if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onDeviceCommEvent) {
         OperatorCommandCenterView.methods.onDeviceCommEvent.call(this, e);
       }
     },
     onTelemetryEvent(e) {
-      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onTelemetryEvent) {
-        OperatorCommandCenterView.methods.onTelemetryEvent.call(this, e);
-      }
       const data = e && e.detail;
-      if (data && data.device_id && data.quality === 'BAD') {
-        const target = (this.devicesList || []).find(d => Number(d.id) === Number(data.device_id));
-        if (target && this.deviceHasConfiguredFormula(target)) {
-          this.$set(target, 'connection_status', 'ONLINE');
-          this.$set(target, 'status', 'ONLINE');
+      if (!data) return;
+
+      // Fast-path deduplication for repeated BAD communication-error packets on offline parameters:
+      // never blink offline cards, never push BAD comm-error samples into sparkline/trend arrays,
+      // and skip reactive liveMap mutation when the parameter is already in the exact same BAD state.
+      if (data.quality === 'BAD' && !data.is_held_value) {
+        if (data.device_id) {
+          const target = (this.devicesList || []).find(d => Number(d.id) === Number(data.device_id));
+          if (target) {
+            if (this.deviceHasConfiguredFormula(target)) {
+              if (target.connection_status !== 'ONLINE') {
+                this.$set(target, 'connection_status', 'ONLINE');
+                this.$set(target, 'status', 'ONLINE');
+              }
+            } else if (
+              (data.quality_reason === 'COMMUNICATION_ERROR' || data.quality_reason === 'DEVICE_OFFLINE') &&
+              target.connection_status !== 'OFFLINE' &&
+              target.connection_status !== 'ERROR'
+            ) {
+              this.$set(target, 'connection_status', 'ERROR');
+            }
+          }
+        }
+        if (data.parameter_id && data.value !== undefined) {
+          const prev = this.liveMap && this.liveMap[data.parameter_id];
+          if (
+            !prev ||
+            prev.quality !== 'BAD' ||
+            prev.quality_reason !== data.quality_reason ||
+            prev.value !== data.value
+          ) {
+            this.$set(this.liveMap, data.parameter_id, data);
+          }
+        }
+        return;
+      }
+
+      // Coalesce bursts of live telemetry packets across an ~80ms micro-frame window so multi-channel
+      // station bursts apply in one batched render turn instead of N separate Vue DOM diff passes.
+      if (!Object.prototype.hasOwnProperty.call(this, '_bentoTelemQueue') || !this._bentoTelemQueue) {
+        Object.defineProperty(this, '_bentoTelemQueue', {
+          value: new Map(),
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      }
+      const qKey = data.parameter_id != null ? Number(data.parameter_id) : `raw-${this._bentoTelemQueue.size}`;
+      this._bentoTelemQueue.set(qKey, e);
+
+      if (!this._bentoTelemFlushTimer) {
+        this._bentoTelemFlushTimer = setTimeout(() => {
+          this.flushBentoTelemetryQueue();
+        }, 75);
+      }
+    },
+    flushBentoTelemetryQueue() {
+      this._bentoTelemFlushTimer = null;
+      const queue = this._bentoTelemQueue;
+      if (!queue || queue.size === 0) return;
+      const batch = Array.from(queue.values());
+      queue.clear();
+
+      const baseHandler = OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onTelemetryEvent;
+      for (let i = 0; i < batch.length; i++) {
+        const ev = batch[i];
+        if (baseHandler) {
+          baseHandler.call(this, ev);
+        }
+        const data = ev && ev.detail;
+        if (data && data.device_id && data.quality === 'BAD') {
+          const target = (this.devicesList || []).find(d => Number(d.id) === Number(data.device_id));
+          if (target && this.deviceHasConfiguredFormula(target)) {
+            this.$set(target, 'connection_status', 'ONLINE');
+            this.$set(target, 'status', 'ONLINE');
+          }
         }
       }
+
       if (
         this.canManageCategories &&
         this.gpsModbusMapping &&
