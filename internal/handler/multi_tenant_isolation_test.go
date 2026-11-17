@@ -32,6 +32,10 @@ type multiTenantTestEnv struct {
 	AuthService     *service.AuthService
 	TenantService   *service.TenantService
 	TelemetrySvc    *service.TelemetryService
+	IngestSvc       *service.IngestService
+	AggSvc          *service.AggregationService
+	ISPUSvc         *service.ISPUService
+	WQMSSvc         *service.WQMSService
 	SuperAdminToken string
 	Tenant1AdmToken string
 }
@@ -40,7 +44,7 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	dsn := fmt.Sprintf("file:mem_mt_iso_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	dsn := fmt.Sprintf("file:mem_mt_iso_%d?mode=memory&cache=shared&_pragma=busy_timeout(5000)", time.Now().UnixNano())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
@@ -83,8 +87,8 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	tCfg.QueueEnabled = false
 	tCfg.FlushInterval = 20 * time.Millisecond
 	telemetryService := service.NewTelemetryService(telemetryRepo, hub, tCfg)
-	telemetryService.SetDeviceLookup(deviceRepo.GetByID)
-	telemetryService.SetParamLookup(deviceRepo.FindParameterByID)
+	telemetryService.SetDeviceLookup(deviceRepo.GetCachedDeviceForPipeline)
+	telemetryService.SetParamLookup(deviceRepo.FindCachedParameterForPipeline)
 	t.Cleanup(func() {
 		telemetryService.Stop()
 		if g := config.Get(); g != nil {
@@ -103,10 +107,23 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	aggRepo := repository.NewAggregationRepository(db)
 	aggService := service.NewAggregationService(aggRepo, deviceRepo, systemRepo, hub)
 
+	ispuRepo := repository.NewISPURepository(db)
+	ispuService := service.NewISPUService(db, ispuRepo, systemRepo)
+	ispuService.SetHub(hub)
+	ispuService.StartWorker(context.Background())
+
+	wqmsRepo := repository.NewWQMSRepository(db)
+	wqmsService := service.NewWQMSService(db, wqmsRepo, systemRepo)
+	wqmsService.SetHub(hub)
+	wqmsService.StartWorker(context.Background())
+
 	ingestService := service.NewIngestService(tenantService, deviceRepo, categoryRepo, telemetryService)
 	ingestService.SetHub(hub)
 	outboundService := service.NewOutboundService(outboundRepo, deviceRepo, nil)
 	ingestService.SetOnDeviceWindowIngested(func(deviceID uint, paramIDs []uint, minTS, maxTS time.Time) {
+		if config.Get() != nil && config.Get().IsCloudMode() {
+			return
+		}
 		ctx := context.Background()
 		_, completedEnds, err := aggService.RecalculateRangeForDevice(ctx, deviceID, paramIDs, minTS, maxTS.Add(1*time.Second), false)
 		if err != nil {
@@ -115,6 +132,15 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		for _, pe := range completedEnds {
 			_ = outboundService.HandleBucketCompleted(ctx, deviceID, pe)
 		}
+	})
+	ingestService.SetOnDeviceIngested(func(deviceID uint, lastTS time.Time) {
+		ispuService.EnqueueCalculation(deviceID, lastTS, "EDGE_PUSH")
+		wqmsService.EnqueueCalculation(deviceID, lastTS, "EDGE_PUSH")
+	})
+	t.Cleanup(func() {
+		ingestService.Stop()
+		ispuService.StopWorker()
+		wqmsService.StopWorker()
 	})
 
 	authHandler := handler.NewAuthHandler(authService)
@@ -263,6 +289,10 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		AuthService:     authService,
 		TenantService:   tenantService,
 		TelemetrySvc:    telemetryService,
+		IngestSvc:       ingestService,
+		AggSvc:          aggService,
+		ISPUSvc:         ispuService,
+		WQMSSvc:         wqmsService,
 		SuperAdminToken: superTok,
 		Tenant1AdmToken: t1AdmTok,
 	}

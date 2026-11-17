@@ -49,6 +49,7 @@
           </button>
 
           <button
+            v-if="!isCloudMode"
             @click="setMode('AGGREGATED')"
             :title="$t('analysis.aggregatedSemantic')"
             class="px-2.5 py-1 rounded-md font-semibold transition flex items-center justify-center space-x-1.5 min-w-0"
@@ -1299,6 +1300,10 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isCloudMode() {
+      const st = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(st.cloud_mode || String(st.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     isPurgeRawValid() {
       const kw = (this.purgeConfirmText || '').trim().toUpperCase();
       return this.purgeConfirmCheck && (kw === 'PURGE' || kw === 'HAPUS');
@@ -1903,10 +1908,13 @@ export default {
       if (query.mode && ['HISTORICAL', 'RAW', 'AGGREGATED'].includes(query.mode.toUpperCase())) {
         const targetMode = query.mode.toUpperCase();
         this.activeMode = (this.isOperator && targetMode === 'RAW') ? 'HISTORICAL' : targetMode;
+        if (this.isCloudMode && this.activeMode === 'AGGREGATED') {
+          this.activeMode = 'HISTORICAL';
+        }
         if (!this.canAccessRawMode) {
           this.rawChartMode = 'scaled';
         }
-      } else if (this.isOperator && this.activeMode === 'RAW') {
+      } else if ((this.isOperator && this.activeMode === 'RAW') || (this.isCloudMode && this.activeMode === 'AGGREGATED')) {
         this.activeMode = 'HISTORICAL';
       }
       if (this.isOperator) {
@@ -1943,7 +1951,7 @@ export default {
       }
     },
     setMode(mode) {
-      if (this.isOperator && mode === 'RAW') {
+      if ((this.isOperator && mode === 'RAW') || (this.isCloudMode && mode === 'AGGREGATED')) {
         mode = 'HISTORICAL';
       }
       if (!this.canAccessRawMode) {

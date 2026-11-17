@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,18 +41,25 @@ type cachedParamMetaEntry struct {
 	expiresAt time.Time
 }
 
+type cachedDeviceLookupIDEntry struct {
+	deviceID  uint
+	expiresAt time.Time
+}
+
 type DeviceRepository struct {
-	db              *gorm.DB
-	metaMu          sync.RWMutex
-	deviceMetaCache map[uint]cachedDeviceMetaEntry
-	paramMetaCache  map[uint]cachedParamMetaEntry
+	db                *gorm.DB
+	metaMu            sync.RWMutex
+	deviceMetaCache   map[uint]cachedDeviceMetaEntry
+	paramMetaCache    map[uint]cachedParamMetaEntry
+	deviceLookupCache map[string]cachedDeviceLookupIDEntry
 }
 
 func NewDeviceRepository(db *gorm.DB) *DeviceRepository {
 	return &DeviceRepository{
-		db:              db,
-		deviceMetaCache: make(map[uint]cachedDeviceMetaEntry),
-		paramMetaCache:  make(map[uint]cachedParamMetaEntry),
+		db:                db,
+		deviceMetaCache:   make(map[uint]cachedDeviceMetaEntry),
+		paramMetaCache:    make(map[uint]cachedParamMetaEntry),
+		deviceLookupCache: make(map[string]cachedDeviceLookupIDEntry),
 	}
 }
 
@@ -88,6 +97,7 @@ func (r *DeviceRepository) InvalidateMetadataCache() {
 	r.metaMu.Lock()
 	r.deviceMetaCache = make(map[uint]cachedDeviceMetaEntry)
 	r.paramMetaCache = make(map[uint]cachedParamMetaEntry)
+	r.deviceLookupCache = make(map[string]cachedDeviceLookupIDEntry)
 	r.metaMu.Unlock()
 }
 
@@ -104,6 +114,7 @@ func (r *DeviceRepository) InvalidateDeviceMetadata(deviceID uint) {
 			delete(r.paramMetaCache, pid)
 		}
 	}
+	r.deviceLookupCache = make(map[string]cachedDeviceLookupIDEntry)
 	r.metaMu.Unlock()
 }
 
@@ -200,6 +211,146 @@ func (r *DeviceRepository) FindCachedParameterForPipeline(paramID uint) (*model.
 	r.metaMu.Unlock()
 
 	return cloneParamForPipeline(param), nil
+}
+
+func (r *DeviceRepository) getCachedLookupDeviceID(key string) (uint, bool) {
+	now := time.Now()
+	r.metaMu.RLock()
+	entry, ok := r.deviceLookupCache[key]
+	r.metaMu.RUnlock()
+	if ok && entry.deviceID > 0 && now.Before(entry.expiresAt) {
+		return entry.deviceID, true
+	}
+	return 0, false
+}
+
+func (r *DeviceRepository) setCachedLookupDeviceID(key string, deviceID uint) {
+	if key == "" || deviceID == 0 {
+		return
+	}
+	r.metaMu.Lock()
+	if r.deviceLookupCache == nil {
+		r.deviceLookupCache = make(map[string]cachedDeviceLookupIDEntry)
+	}
+	r.deviceLookupCache[key] = cachedDeviceLookupIDEntry{
+		deviceID:  deviceID,
+		expiresAt: time.Now().Add(pipelineMetadataCacheTTL),
+	}
+	r.metaMu.Unlock()
+}
+
+// GetCachedDeviceByCodeInTenant resolves a device + its parameters for high-frequency Cloud/Edge HTTP & MQTT ingestion
+// using short-TTL in-memory metadata cache instead of running 6-way GORM Preload queries on every push.
+func (r *DeviceRepository) GetCachedDeviceByCodeInTenant(tenantID uint, code string) (*model.Device, error) {
+	cleanCode := strings.TrimSpace(code)
+	if cleanCode == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	key := fmt.Sprintf("code:%d:%s", tenantID, strings.ToLower(cleanCode))
+	if id, ok := r.getCachedLookupDeviceID(key); ok {
+		if dev, err := r.GetCachedDeviceForPipeline(id); err == nil && dev != nil {
+			return dev, nil
+		}
+	}
+	var row struct {
+		ID uint
+	}
+	q := r.db.Model(&model.Device{}).Select("id").Where("deleted_at IS NULL AND (LOWER(device_code) = LOWER(?) OR LOWER(code) = LOWER(?))", cleanCode, cleanCode)
+	if tenantID > 0 {
+		q = q.Where("tenant_id = ?", tenantID)
+	}
+	if err := q.First(&row).Error; err != nil || row.ID == 0 {
+		if err != nil {
+			return nil, err
+		}
+		return nil, gorm.ErrRecordNotFound
+	}
+	r.setCachedLookupDeviceID(key, row.ID)
+	return r.GetCachedDeviceForPipeline(row.ID)
+}
+
+// GetCachedDeviceByLegacyModuleIDInSite resolves an active device by legacy module_id within a site using RAM cache.
+func (r *DeviceRepository) GetCachedDeviceByLegacyModuleIDInSite(tenantID, siteID uint, legacyModuleID string) (*model.Device, error) {
+	clean := strings.TrimSpace(legacyModuleID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	key := fmt.Sprintf("legacy:%d:%d:%s", tenantID, siteID, strings.ToLower(clean))
+	if id, ok := r.getCachedLookupDeviceID(key); ok {
+		if dev, err := r.GetCachedDeviceForPipeline(id); err == nil && dev != nil && dev.Enabled {
+			return dev, nil
+		}
+	}
+	var row struct {
+		ID uint
+	}
+	err := r.db.Model(&model.Device{}).Select("id").
+		Where("tenant_id = ? AND site_id = ? AND deleted_at IS NULL AND enabled = ? AND LOWER(legacy_module_id) = LOWER(?)", tenantID, siteID, true, clean).
+		Order("id ASC").
+		First(&row).Error
+	if err != nil || row.ID == 0 {
+		if err != nil {
+			return nil, err
+		}
+		return nil, gorm.ErrRecordNotFound
+	}
+	r.setCachedLookupDeviceID(key, row.ID)
+	return r.GetCachedDeviceForPipeline(row.ID)
+}
+
+// GetCachedSingleActiveDeviceForSite returns the sole enabled device in a site (plus active count) using RAM cache when unambiguous.
+func (r *DeviceRepository) GetCachedSingleActiveDeviceForSite(tenantID, siteID uint) (*model.Device, int, error) {
+	key := fmt.Sprintf("solesite:%d:%d", tenantID, siteID)
+	if id, ok := r.getCachedLookupDeviceID(key); ok {
+		if dev, err := r.GetCachedDeviceForPipeline(id); err == nil && dev != nil && dev.Enabled {
+			return dev, 1, nil
+		}
+	}
+	var ids []uint
+	err := r.db.Model(&model.Device{}).
+		Where("tenant_id = ? AND site_id = ? AND deleted_at IS NULL AND enabled = ?", tenantID, siteID, true).
+		Order("id ASC").
+		Limit(3).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(ids) == 1 {
+		r.setCachedLookupDeviceID(key, ids[0])
+		dev, dErr := r.GetCachedDeviceForPipeline(ids[0])
+		return dev, 1, dErr
+	}
+	return nil, len(ids), nil
+}
+
+// RecordEdgePushOnline atomically updates last_seen_at, last_communication, last_data_at, connection_status=ONLINE,
+// latency_ms, and success_count in ONE SQL UPDATE (replacing 5 separate device UPDATE queries on every HTTP push).
+func (r *DeviceRepository) RecordEdgePushOnline(deviceID uint, seenAt, lastDataAt time.Time, latencyMs int) error {
+	if deviceID == 0 {
+		return nil
+	}
+	err := r.db.Model(&model.Device{}).Where("id = ?", deviceID).Updates(map[string]interface{}{
+		"last_seen_at":       &seenAt,
+		"last_communication": &seenAt,
+		"last_data_at":       &lastDataAt,
+		"connection_status":  model.DeviceConnOnline,
+		"latency_ms":         latencyMs,
+		"success_count":      gorm.Expr("success_count + ?", 1),
+	}).Error
+	if err == nil {
+		r.metaMu.Lock()
+		if entry, ok := r.deviceMetaCache[deviceID]; ok && entry.dev != nil {
+			seenCp := seenAt
+			dataCp := lastDataAt
+			entry.dev.LastSeenAt = &seenCp
+			entry.dev.LastCommunication = &seenCp
+			entry.dev.LastDataAt = &dataCp
+			entry.dev.ConnectionStatus = model.DeviceConnOnline
+			r.deviceMetaCache[deviceID] = entry
+		}
+		r.metaMu.Unlock()
+	}
+	return err
 }
 
 // List queries devices with search, filtering, pagination, and sorting
@@ -1177,4 +1328,115 @@ func (r *DeviceRepository) UpdateParameterCurrentReadings(paramID uint, uncalibr
 		updates["current_formula_value"] = formulaVal
 	}
 	return r.db.Model(&model.Parameter{}).Where("id = ?", paramID).Updates(updates).Error
+}
+
+// ParameterLiveReadingUpdate carries a single parameter's latest ingested engineering values for bulk SQL update.
+type ParameterLiveReadingUpdate struct {
+	ParamID           uint
+	UncalibratedValue float64
+	FinalValue        float64
+	FormulaValue      *float64
+	Timestamp         time.Time
+}
+
+// BulkUpdateParameterCurrentReadings updates all touched parameters of a device in ONE single SQL statement
+// sorted by primary key ID, eliminating 16-31 per-parameter SQL round-trips and InnoDB deadlock risk on Cloud Ingest.
+func (r *DeviceRepository) BulkUpdateParameterCurrentReadings(items []ParameterLiveReadingUpdate) error {
+	if len(items) == 0 {
+		return nil
+	}
+	if len(items) == 1 {
+		it := items[0]
+		u := it.UncalibratedValue
+		v := it.FinalValue
+		ts := it.Timestamp
+		updates := map[string]interface{}{
+			"current_value":              &v,
+			"current_value_numeric":      &v,
+			"current_processed_value":    &v,
+			"current_uncalibrated_value": &u,
+			"current_formula_value":      it.FormulaValue,
+			"is_current_held":            false,
+			"current_quality":            model.QualityGood,
+			"current_quality_reason":     model.ReasonNone,
+			"current_quality_flags":      "",
+			"last_updated":               &ts,
+			"current_received_at":        &ts,
+			"current_device_timestamp":   &ts,
+		}
+		return r.db.Model(&model.Parameter{}).Where("id = ?", it.ParamID).Updates(updates).Error
+	}
+
+	sorted := make([]ParameterLiveReadingUpdate, len(items))
+	copy(sorted, items)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].ParamID < sorted[j].ParamID
+	})
+
+	n := len(sorted)
+	buildFloatCase := func(getter func(ParameterLiveReadingUpdate) interface{}) (string, []interface{}) {
+		var sb strings.Builder
+		args := make([]interface{}, 0, n*2)
+		sb.WriteString("CASE id")
+		for _, it := range sorted {
+			sb.WriteString(" WHEN ? THEN ?")
+			args = append(args, it.ParamID, getter(it))
+		}
+		sb.WriteString(" END")
+		return sb.String(), args
+	}
+
+	valCase, valArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
+	numCase, numArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
+	procCase, procArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.FinalValue })
+	uncalCase, uncalArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.UncalibratedValue })
+	formCase, formArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} {
+		if it.FormulaValue != nil {
+			return *it.FormulaValue
+		}
+		return nil
+	})
+	luCase, luArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
+	recCase, recArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
+	devTSCase, devTSArgs := buildFloatCase(func(it ParameterLiveReadingUpdate) interface{} { return it.Timestamp })
+
+	inPlaceholders := make([]string, n)
+	idArgs := make([]interface{}, n)
+	for i, it := range sorted {
+		inPlaceholders[i] = "?"
+		idArgs[i] = it.ParamID
+	}
+
+	allArgs := make([]interface{}, 0, n*17+4)
+	allArgs = append(allArgs, valArgs...)
+	allArgs = append(allArgs, numArgs...)
+	allArgs = append(allArgs, procArgs...)
+	allArgs = append(allArgs, uncalArgs...)
+	allArgs = append(allArgs, formArgs...)
+	allArgs = append(allArgs, false, string(model.QualityGood), string(model.ReasonNone), "")
+	allArgs = append(allArgs, luArgs...)
+	allArgs = append(allArgs, recArgs...)
+	allArgs = append(allArgs, devTSArgs...)
+	allArgs = append(allArgs, idArgs...)
+
+	sqlQuery := fmt.Sprintf(`UPDATE parameters SET
+		current_value = %s,
+		current_value_numeric = %s,
+		current_processed_value = %s,
+		current_uncalibrated_value = %s,
+		current_formula_value = %s,
+		is_current_held = ?,
+		current_quality = ?,
+		current_quality_reason = ?,
+		current_quality_flags = ?,
+		last_updated = %s,
+		current_received_at = %s,
+		current_device_timestamp = %s
+		WHERE id IN (%s)`,
+		valCase, numCase, procCase, uncalCase, formCase,
+		luCase, recCase, devTSCase,
+		strings.Join(inPlaceholders, ","),
+	)
+
+	return r.db.Exec(sqlQuery, allArgs...).Error
 }

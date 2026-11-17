@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode"
 
+	"datalogger/internal/config"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
@@ -31,6 +32,24 @@ func (e *IngestHTTPError) Error() string {
 	return e.Message
 }
 
+const ingestDeviceLockStripes = 64
+
+type pendingDevicePostIngest struct {
+	deviceID    uint
+	minTS       time.Time
+	maxTS       time.Time
+	lastTS      time.Time
+	recCount    int
+	paramSet    map[uint]bool
+	paramIDs    []uint
+	bucketTimes map[int64]time.Time
+}
+
+type pendingAPIKeyUsage struct {
+	ip       string
+	ingested int64
+}
+
 type IngestService struct {
 	tenantService          *TenantService
 	deviceRepo             *repository.DeviceRepository
@@ -39,7 +58,15 @@ type IngestService struct {
 	hub                    *websocket.Hub
 	onDeviceIngested       func(deviceID uint, lastTS time.Time)
 	onDeviceWindowIngested func(deviceID uint, paramIDs []uint, minTS, maxTS time.Time)
-	ingestMu               sync.Mutex
+	deviceLocks            [ingestDeviceLockStripes]sync.Mutex
+
+	postMu          sync.Mutex
+	pendingDevPost  map[uint]*pendingDevicePostIngest
+	pendingKeyUsage map[uint]pendingAPIKeyUsage
+	postWakeCh      chan struct{}
+	postFlushReqCh  chan chan struct{}
+	stopPostCh      chan struct{}
+	stopOnce        sync.Once
 }
 
 func NewIngestService(
@@ -48,11 +75,184 @@ func NewIngestService(
 	categoryRepo *repository.CategoryRepository,
 	telemetryService *TelemetryService,
 ) *IngestService {
-	return &IngestService{
+	s := &IngestService{
 		tenantService:    tenantService,
 		deviceRepo:       deviceRepo,
 		categoryRepo:     categoryRepo,
 		telemetryService: telemetryService,
+		pendingDevPost:   make(map[uint]*pendingDevicePostIngest),
+		pendingKeyUsage:  make(map[uint]pendingAPIKeyUsage),
+		postWakeCh:       make(chan struct{}, 1),
+		postFlushReqCh:   make(chan chan struct{}, 8),
+		stopPostCh:       make(chan struct{}),
+	}
+	go s.postIngestWorker()
+	return s
+}
+
+// Stop flushes pending background post-ingest tasks and stops the post-ingest worker cleanly.
+func (s *IngestService) Stop() {
+	if s == nil {
+		return
+	}
+	s.stopOnce.Do(func() {
+		_ = s.FlushPostIngest(context.Background())
+		close(s.stopPostCh)
+	})
+}
+
+// FlushPostIngest synchronously drains pending background raw_data persistence, API key usage counters,
+// and asynchronous ISPU/WQMS calculation triggers.
+func (s *IngestService) FlushPostIngest(ctx context.Context) error {
+	if s == nil || s.postFlushReqCh == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	done := make(chan struct{})
+	select {
+	case s.postFlushReqCh <- done:
+	case <-s.stopPostCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-s.stopPostCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *IngestService) lockDeviceStripes(devIDs []uint) func() {
+	if len(devIDs) == 0 {
+		return func() {}
+	}
+	if len(devIDs) == 1 {
+		idx := devIDs[0] % ingestDeviceLockStripes
+		s.deviceLocks[idx].Lock()
+		return func() {
+			s.deviceLocks[idx].Unlock()
+		}
+	}
+	stripeSet := make(map[int]struct{}, len(devIDs))
+	for _, id := range devIDs {
+		stripeSet[int(id%ingestDeviceLockStripes)] = struct{}{}
+	}
+	stripes := make([]int, 0, len(stripeSet))
+	for idx := range stripeSet {
+		stripes = append(stripes, idx)
+	}
+	sort.Ints(stripes)
+	for _, idx := range stripes {
+		s.deviceLocks[idx].Lock()
+	}
+	return func() {
+		for i := len(stripes) - 1; i >= 0; i-- {
+			s.deviceLocks[stripes[i]].Unlock()
+		}
+	}
+}
+
+func (s *IngestService) postIngestWorker() {
+	const coalesceWindow = 15 * time.Millisecond
+	for {
+		select {
+		case <-s.stopPostCh:
+			s.drainAndExecutePostIngest()
+			return
+		case done := <-s.postFlushReqCh:
+			s.drainAndExecutePostIngest()
+			close(done)
+		case <-s.postWakeCh:
+			timer := time.NewTimer(coalesceWindow)
+			select {
+			case <-s.stopPostCh:
+				timer.Stop()
+				s.drainAndExecutePostIngest()
+				return
+			case done := <-s.postFlushReqCh:
+				timer.Stop()
+				s.drainAndExecutePostIngest()
+				close(done)
+			case <-timer.C:
+				s.drainAndExecutePostIngest()
+			}
+		}
+	}
+}
+
+func (s *IngestService) drainAndExecutePostIngest() {
+	s.postMu.Lock()
+	if len(s.pendingDevPost) == 0 && len(s.pendingKeyUsage) == 0 {
+		s.postMu.Unlock()
+		return
+	}
+	devJobs := s.pendingDevPost
+	keyUsage := s.pendingKeyUsage
+	s.pendingDevPost = make(map[uint]*pendingDevicePostIngest)
+	s.pendingKeyUsage = make(map[uint]pendingAPIKeyUsage)
+	s.postMu.Unlock()
+
+	// 1. Coalesced background flush: commit buffered raw_data rows for the entire multi-tenant burst in ONE barrier
+	//    so downstream ISPU & WQMS IP/IKA workers read 100% persisted Edge-aggregated data without ever blocking HTTP 200.
+	if s.telemetryService != nil && len(devJobs) > 0 {
+		flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_ = s.telemetryService.FlushNow(flushCtx)
+		cancel()
+	}
+
+	// 2. Coalesced API key usage counter flush (eliminates InnoDB row-lock contention on shared Global Master Tokens)
+	if s.tenantService != nil && s.tenantService.GetRepo() != nil && len(keyUsage) > 0 {
+		tRepo := s.tenantService.GetRepo()
+		for keyID, usage := range keyUsage {
+			if keyID > 0 && usage.ingested > 0 {
+				tRepo.RecordAPIKeyUsage(keyID, usage.ip, usage.ingested)
+			}
+		}
+	}
+
+	isCloud := config.Get() != nil && config.Get().IsCloudMode()
+	nowUTC := time.Now().UTC()
+
+	// 3. Trigger downstream calculations:
+	//    - In Cloud Mode: skip AggregationService completely (payloads are already Edge-aggregated) and immediately
+	//      enqueue ISPU & WQMS IP/IKA calculation at the exact Edge bucket timestamp(s).
+	//    - In Edge Mode: run historical bucket recalculation if needed, plus ISPU/WQMS enqueue.
+	for devID, job := range devJobs {
+		if !isCloud && s.onDeviceWindowIngested != nil {
+			if job.recCount > 1 || nowUTC.Sub(job.minTS) > 90*time.Second {
+				s.onDeviceWindowIngested(devID, job.paramIDs, job.minTS, job.maxTS)
+			}
+		}
+
+		if s.onDeviceIngested != nil {
+			if len(job.bucketTimes) > 1 && len(job.bucketTimes) <= 48 {
+				tsList := make([]time.Time, 0, len(job.bucketTimes))
+				for _, bt := range job.bucketTimes {
+					tsList = append(tsList, bt)
+				}
+				sort.Slice(tsList, func(i, j int) bool { return tsList[i].Before(tsList[j]) })
+				// Evaluate newest bucket (plus any hourly boundary buckets in a multi-record batch)
+				for idx, bt := range tsList {
+					isLast := idx == len(tsList)-1
+					isHourly := bt.Minute() == 0 && bt.Second() == 0
+					if isLast || isHourly {
+						s.onDeviceIngested(devID, bt)
+					}
+				}
+			} else {
+				targetTS := job.lastTS
+				if targetTS.IsZero() {
+					targetTS = nowUTC
+				}
+				s.onDeviceIngested(devID, targetTS)
+			}
+		}
 	}
 }
 
@@ -865,9 +1065,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 	source = strings.ToUpper(strings.TrimSpace(source))
 
 	now := time.Now().UTC()
-
-	s.ingestMu.Lock()
-	defer s.ingestMu.Unlock()
+	tRepo := s.tenantService.GetRepo()
 
 	type resolvedBatch struct {
 		batch *edgeDeviceBatch
@@ -887,22 +1085,22 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			return nil, err
 		}
 
-		// 1. Strict Manual Site Resolution (NO Auto-Create)
+		// 1. Strict Manual Site Resolution via Short-TTL RAM Cache (NO Auto-Create, NO global GROUP BY scan)
 		var site *model.Site
 		if apiKey.IsGlobal {
 			// Cross-Tenant Legacy Master Token: dynamically route to target Site & Tenant via station_id, site_code, or module_id
 			if batch.SiteCode != "" {
-				site, _ = s.tenantService.GetRepo().GetSiteByCodeGlobal(batch.SiteCode)
+				site, _ = tRepo.GetCachedSiteByCodeGlobalForIngest(batch.SiteCode)
 			}
 			if site == nil {
 				if sHint := strings.TrimSpace(batch.StationHint); sHint != "" {
-					site, _ = s.tenantService.GetRepo().GetSiteByLegacyStationIDGlobal(sHint)
+					site, _ = tRepo.GetCachedSiteByLegacyStationIDGlobalForIngest(sHint)
 					if site == nil {
-						site, _ = s.tenantService.GetRepo().GetSiteByCodeGlobal(sHint)
+						site, _ = tRepo.GetCachedSiteByCodeGlobalForIngest(sHint)
 					}
 					if site == nil {
 						if parsedSiteID, pErr := strconv.ParseUint(sHint, 10, 64); pErr == nil && parsedSiteID > 0 {
-							if st, _ := s.tenantService.GetRepo().GetSiteByID(uint(parsedSiteID)); st != nil && st.Enabled {
+							if st, _ := tRepo.GetCachedSiteByIDForIngest(uint(parsedSiteID)); st != nil && st.Enabled {
 								site = st
 							}
 						}
@@ -912,7 +1110,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			if site == nil {
 				if dHint := strings.TrimSpace(batch.DeviceHint); dHint != "" {
 					if d, _ := s.deviceRepo.GetByLegacyModuleIDGlobal(dHint); d != nil && d.SiteID > 0 {
-						if st, _ := s.tenantService.GetRepo().GetSiteByID(d.SiteID); st != nil && st.Enabled {
+						if st, _ := tRepo.GetCachedSiteByIDForIngest(d.SiteID); st != nil && st.Enabled {
 							site = st
 						}
 					}
@@ -931,7 +1129,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				}
 			}
 			if site.Tenant == nil {
-				if tgtTenant, tErr := s.tenantService.GetRepo().GetTenantByID(site.TenantID); tErr == nil && tgtTenant != nil && strings.EqualFold(tgtTenant.Status, model.TenantStatusSuspended) {
+				if tgtTenant, tErr := tRepo.GetTenantByID(site.TenantID); tErr == nil && tgtTenant != nil && strings.EqualFold(tgtTenant.Status, model.TenantStatusSuspended) {
 					return nil, &IngestHTTPError{
 						StatusCode: 403,
 						Message:    "tenant account is suspended",
@@ -939,7 +1137,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				}
 			}
 		} else if apiKey.SiteID != nil && *apiKey.SiteID > 0 {
-			site, _ = s.tenantService.GetRepo().GetSiteByID(*apiKey.SiteID)
+			site, _ = tRepo.GetCachedSiteByIDForIngest(*apiKey.SiteID)
 			if site == nil || site.TenantID != tenantID {
 				return nil, &IngestHTTPError{
 					StatusCode: 403,
@@ -956,9 +1154,9 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				}
 			}
 		} else if batch.SiteCode != "" {
-			site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, model.NormalizeSlugCode(batch.SiteCode))
+			site, _ = tRepo.GetCachedSiteByCodeForIngest(tenantID, model.NormalizeSlugCode(batch.SiteCode))
 			if site == nil {
-				site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, strings.TrimSpace(batch.SiteCode))
+				site, _ = tRepo.GetCachedSiteByCodeForIngest(tenantID, strings.TrimSpace(batch.SiteCode))
 			}
 			if site == nil {
 				return nil, &IngestHTTPError{
@@ -968,16 +1166,16 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			}
 		} else {
 			if sHint := strings.TrimSpace(batch.StationHint); sHint != "" {
-				site, _ = s.tenantService.GetRepo().GetSiteByLegacyStationID(tenantID, sHint)
+				site, _ = tRepo.GetCachedSiteByLegacyStationIDForIngest(tenantID, sHint)
 				if site == nil {
-					site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, model.NormalizeSlugCode(sHint))
+					site, _ = tRepo.GetCachedSiteByCodeForIngest(tenantID, model.NormalizeSlugCode(sHint))
 				}
 				if site == nil {
-					site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, sHint)
+					site, _ = tRepo.GetCachedSiteByCodeForIngest(tenantID, sHint)
 				}
 				if site == nil {
 					if parsedSiteID, pErr := strconv.ParseUint(sHint, 10, 64); pErr == nil && parsedSiteID > 0 {
-						if st, _ := s.tenantService.GetRepo().GetSiteByID(uint(parsedSiteID)); st != nil && st.TenantID == tenantID && st.Enabled {
+						if st, _ := tRepo.GetCachedSiteByIDForIngest(uint(parsedSiteID)); st != nil && st.TenantID == tenantID && st.Enabled {
 							site = st
 						}
 					}
@@ -986,13 +1184,13 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			if site == nil {
 				if dHint := strings.TrimSpace(batch.DeviceHint); dHint != "" {
 					if d, _ := s.deviceRepo.GetByLegacyModuleIDInTenant(tenantID, dHint); d != nil && d.SiteID > 0 {
-						if st, _ := s.tenantService.GetRepo().GetSiteByID(d.SiteID); st != nil && st.TenantID == tenantID && st.Enabled {
+						if st, _ := tRepo.GetCachedSiteByIDForIngest(d.SiteID); st != nil && st.TenantID == tenantID && st.Enabled {
 							site = st
 						}
 					}
 					if site == nil {
-						if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, dHint); d != nil && d.SiteID > 0 {
-							if st, _ := s.tenantService.GetRepo().GetSiteByID(d.SiteID); st != nil && st.TenantID == tenantID && st.Enabled {
+						if d, _ := s.deviceRepo.GetCachedDeviceByCodeInTenant(tenantID, dHint); d != nil && d.SiteID > 0 {
+							if st, _ := tRepo.GetCachedSiteByIDForIngest(d.SiteID); st != nil && st.TenantID == tenantID && st.Enabled {
 								site = st
 							}
 						}
@@ -1000,7 +1198,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				}
 			}
 			if site == nil {
-				site, _ = s.tenantService.GetRepo().GetDefaultSiteForTenant(tenantID)
+				site, _ = tRepo.GetCachedDefaultSiteForTenantForIngest(tenantID)
 			}
 			if site == nil {
 				return nil, &IngestHTTPError{
@@ -1027,11 +1225,11 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			return nil, err
 		}
 
-		// 2. Strict Manual Device Resolution (NO Auto-Create)
+		// 2. Strict Manual Device Resolution via Cached Pipeline Metadata (NO Auto-Create, NO 6-way Preload per push)
 		var dev *model.Device
 		devCode := strings.TrimSpace(batch.DeviceCode)
 		if devCode != "" {
-			dev, _ = s.deviceRepo.GetByCodeInTenant(batchTenantID, devCode)
+			dev, _ = s.deviceRepo.GetCachedDeviceByCodeInTenant(batchTenantID, devCode)
 			if dev == nil {
 				return nil, &IngestHTTPError{
 					StatusCode: 404,
@@ -1047,33 +1245,27 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		} else {
 			devHint := strings.TrimSpace(batch.DeviceHint)
 			if devHint != "" {
-				if d, _ := s.deviceRepo.GetByLegacyModuleIDInSite(batchTenantID, site.ID, devHint); d != nil && d.Enabled {
+				if d, _ := s.deviceRepo.GetCachedDeviceByLegacyModuleIDInSite(batchTenantID, site.ID, devHint); d != nil && d.Enabled {
 					dev = d
-				} else if d, _ := s.deviceRepo.GetByCodeInTenant(batchTenantID, devHint); d != nil && d.SiteID == site.ID && d.Enabled {
+				} else if d, _ := s.deviceRepo.GetCachedDeviceByCodeInTenant(batchTenantID, devHint); d != nil && d.SiteID == site.ID && d.Enabled {
 					dev = d
 				} else if parsedDevID, pErr := strconv.ParseUint(devHint, 10, 64); pErr == nil && parsedDevID > 0 {
-					if dByID, _ := s.deviceRepo.GetByID(uint(parsedDevID)); dByID != nil && dByID.TenantID == batchTenantID && dByID.SiteID == site.ID && dByID.Enabled {
+					if dByID, _ := s.deviceRepo.GetCachedDeviceForPipeline(uint(parsedDevID)); dByID != nil && dByID.TenantID == batchTenantID && dByID.SiteID == site.ID && dByID.Enabled {
 						dev = dByID
 					}
 				}
 			}
 			if dev == nil {
-				enabledFlag := true
-				siteDevs, _, _ := s.deviceRepo.List(repository.DeviceFilterParams{
-					TenantID: batchTenantID,
-					SiteID:   site.ID,
-					Enabled:  &enabledFlag,
-					PageSize: 10,
-				})
-				if len(siteDevs) == 1 {
-					if devHint != "" && strings.TrimSpace(siteDevs[0].LegacyModuleID) != "" && !strings.EqualFold(strings.TrimSpace(siteDevs[0].LegacyModuleID), devHint) {
+				soleDev, activeCnt, _ := s.deviceRepo.GetCachedSingleActiveDeviceForSite(batchTenantID, site.ID)
+				if activeCnt == 1 && soleDev != nil {
+					if devHint != "" && strings.TrimSpace(soleDev.LegacyModuleID) != "" && !strings.EqualFold(strings.TrimSpace(soleDev.LegacyModuleID), devHint) {
 						return nil, &IngestHTTPError{
 							StatusCode: 404,
-							Message:    fmt.Sprintf("Device dengan module_id '%s' tidak cocok pada stasiun '%s' (Legacy Module ID terdaftar: '%s')", devHint, site.Code, siteDevs[0].LegacyModuleID),
+							Message:    fmt.Sprintf("Device dengan module_id '%s' tidak cocok pada stasiun '%s' (Legacy Module ID terdaftar: '%s')", devHint, site.Code, soleDev.LegacyModuleID),
 						}
 					}
-					dev = &siteDevs[0]
-				} else if len(siteDevs) == 0 {
+					dev = soleDev
+				} else if activeCnt == 0 {
 					return nil, &IngestHTTPError{
 						StatusCode: 404,
 						Message:    fmt.Sprintf("No active device registered in station '%s' (please create device manually first)", site.Code),
@@ -1081,7 +1273,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				} else {
 					return nil, &IngestHTTPError{
 						StatusCode: 400,
-						Message:    fmt.Sprintf("Station '%s' has %d active devices; please specify 'device_code' or configure matching Legacy Module ID ('module_id') on the target device", site.Code, len(siteDevs)),
+						Message:    fmt.Sprintf("Station '%s' has %d active devices; please specify 'device_code' or configure matching Legacy Module ID ('module_id') on the target device", site.Code, activeCnt),
 					}
 				}
 			}
@@ -1122,6 +1314,14 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			ts:    effectiveTS,
 		})
 	}
+
+	// Acquire striped per-device lock ONLY for the resolved device(s) in this request so 28-1000+ tenants run in parallel
+	devIDList := make([]uint, 0, len(uniqueDevices))
+	for devID := range uniqueDevices {
+		devIDList = append(devIDList, devID)
+	}
+	unlockDeviceStripes := s.lockDeviceStripes(devIDList)
+	defer unlockDeviceStripes()
 
 	// Sort chronologically (oldest -> newest) so historical backfill updates latestCache & Parameter.current_value with the newest record
 	sort.SliceStable(resolved, func(i, j int) bool {
@@ -1169,11 +1369,12 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		ts         time.Time
 	}
 	type devIngestWindow struct {
-		minTS    time.Time
-		maxTS    time.Time
-		recCount int
-		paramSet map[uint]bool
-		paramIDs []uint
+		minTS       time.Time
+		maxTS       time.Time
+		recCount    int
+		paramSet    map[uint]bool
+		paramIDs    []uint
+		bucketTimes map[int64]time.Time
 	}
 	latestByParam := make(map[uint]latestParamReading)
 	touchedDevices := make(map[uint]time.Time)
@@ -1298,28 +1499,29 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			if s.telemetryService != nil {
 				tsCopy := recTS
 				_ = s.telemetryService.Ingest(&TelemetryIngestPayload{
-					TenantID:          item.site.TenantID,
-					SiteID:            item.site.ID,
-					DeviceID:          item.dev.ID,
-					DeviceCode:        item.dev.DeviceCode,
-					DeviceName:        item.dev.DeviceName,
-					ParameterID:       param.ID,
-					ParameterCode:     param.ParameterCode,
-					ParameterName:     param.ParameterName,
-					Unit:              param.Unit,
-					DataType:          param.DataType,
-					RawValue:          r.Value,
-					UncalibratedValue: &uncalVal,
-					Value:             finalVal,
-					ProcessedValue:    finalVal,
-					FormulaValue:      formulaVal,
-					Formula:           effectiveFormula,
-					Quality:           model.QualityGood,
-					QualityReason:     model.ReasonNone,
-					Source:            source,
-					DeviceTimestamp:   &tsCopy,
-					ReceivedAt:        tsCopy,
-					Parameter:         param,
+					TenantID:              item.site.TenantID,
+					SiteID:                item.site.ID,
+					DeviceID:              item.dev.ID,
+					DeviceCode:            item.dev.DeviceCode,
+					DeviceName:            item.dev.DeviceName,
+					ParameterID:           param.ID,
+					ParameterCode:         param.ParameterCode,
+					ParameterName:         param.ParameterName,
+					Unit:                  param.Unit,
+					DataType:              param.DataType,
+					RawValue:              r.Value,
+					UncalibratedValue:     &uncalVal,
+					Value:                 finalVal,
+					ProcessedValue:        finalVal,
+					FormulaValue:          formulaVal,
+					Formula:               effectiveFormula,
+					Quality:               model.QualityGood,
+					QualityReason:         model.ReasonNone,
+					Source:                source,
+					DeviceTimestamp:       &tsCopy,
+					ReceivedAt:            tsCopy,
+					Parameter:             param,
+					SkipParameterLiveSync: true,
 				})
 			}
 
@@ -1338,9 +1540,10 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 			win, hasWin := devWindows[item.dev.ID]
 			if !hasWin {
 				win = &devIngestWindow{
-					minTS:    recTS,
-					maxTS:    recTS,
-					paramSet: make(map[uint]bool),
+					minTS:       recTS,
+					maxTS:       recTS,
+					paramSet:    make(map[uint]bool),
+					bucketTimes: make(map[int64]time.Time),
 				}
 				devWindows[item.dev.ID] = win
 			} else {
@@ -1351,6 +1554,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 					win.maxTS = recTS
 				}
 			}
+			win.bucketTimes[recTS.Unix()] = recTS
 			if !win.paramSet[param.ID] {
 				win.paramSet[param.ID] = true
 				win.paramIDs = append(win.paramIDs, param.ID)
@@ -1401,16 +1605,19 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		}
 	}
 
-	// Ensure buffered raw_data rows are synchronously committed to DB before triggering historical bucket recalculations
-	if s.telemetryService != nil {
-		_ = s.telemetryService.FlushNow(context.Background())
-	}
-
-	// Persist latest parameter values & device ONLINE state so Operator Dashboard reflects pushed values immediately
+	// Persist latest parameter values in ONE bulk SQL query (sorted by ID) & device ONLINE state in ONE SQL query
+	// so Operator Dashboard & GET /api/devices reflect pushed values immediately without blocking HTTP on global FlushNow!
+	bulkUpdates := make([]repository.ParameterLiveReadingUpdate, 0, len(latestByParam))
 	for paramID, lr := range latestByParam {
-		u := lr.uncalVal
-		_ = s.deviceRepo.UpdateParameterCurrentReadings(paramID, &u, lr.finalVal, lr.formulaVal, false, lr.ts)
+		bulkUpdates = append(bulkUpdates, repository.ParameterLiveReadingUpdate{
+			ParamID:           paramID,
+			UncalibratedValue: lr.uncalVal,
+			FinalValue:        lr.finalVal,
+			FormulaValue:      lr.formulaVal,
+			Timestamp:         lr.ts,
+		})
 	}
+	_ = s.deviceRepo.BulkUpdateParameterCurrentReadings(bulkUpdates)
 
 	for devID, lastTS := range touchedDevices {
 		dev := uniqueDevices[devID]
@@ -1418,20 +1625,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		if lastTS.After(seenAt) {
 			seenAt = lastTS
 		}
-		_ = s.deviceRepo.UpdateLastSeen(devID, seenAt)
-		_ = s.deviceRepo.UpdateLastData(devID, lastTS)
-		_ = s.deviceRepo.SetConnectionStatus(devID, model.DeviceConnOnline)
-		_ = s.deviceRepo.RecordCommunicationResult(devID, true, 1)
-
-		if s.onDeviceWindowIngested != nil {
-			if win, ok := devWindows[devID]; ok && (win.recCount > 1 || now.Sub(win.minTS) > 90*time.Second) {
-				s.onDeviceWindowIngested(devID, win.paramIDs, win.minTS, win.maxTS)
-			}
-		}
-
-		if s.onDeviceIngested != nil {
-			s.onDeviceIngested(devID, seenAt)
-		}
+		_ = s.deviceRepo.RecordEdgePushOnline(devID, seenAt, lastTS, 1)
 
 		if s.hub != nil && dev != nil {
 			s.hub.Broadcast(websocket.WSMessage{
@@ -1451,8 +1645,64 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		}
 	}
 
-	if s.tenantService.GetRepo() != nil {
-		s.tenantService.GetRepo().RecordAPIKeyUsage(apiKey.ID, clientIP, int64(totalIngested))
+	// Enqueue non-blocking background post-ingest flush + async ISPU / WQMS IP/IKA calculation + coalesced API key usage counter
+	s.postMu.Lock()
+	if apiKey.ID > 0 && totalIngested > 0 {
+		prev := s.pendingKeyUsage[apiKey.ID]
+		prev.ip = clientIP
+		prev.ingested += int64(totalIngested)
+		s.pendingKeyUsage[apiKey.ID] = prev
+	}
+	for devID, lastTS := range touchedDevices {
+		win := devWindows[devID]
+		existing, exists := s.pendingDevPost[devID]
+		if !exists {
+			existing = &pendingDevicePostIngest{
+				deviceID:    devID,
+				minTS:       lastTS,
+				maxTS:       lastTS,
+				lastTS:      lastTS,
+				paramSet:    make(map[uint]bool),
+				bucketTimes: make(map[int64]time.Time),
+			}
+			if win != nil {
+				existing.minTS = win.minTS
+				existing.maxTS = win.maxTS
+			}
+			s.pendingDevPost[devID] = existing
+		} else {
+			if lastTS.After(existing.lastTS) {
+				existing.lastTS = lastTS
+			}
+			if win != nil {
+				if win.minTS.Before(existing.minTS) {
+					existing.minTS = win.minTS
+				}
+				if win.maxTS.After(existing.maxTS) {
+					existing.maxTS = win.maxTS
+				}
+			}
+		}
+		if win != nil {
+			existing.recCount += win.recCount
+			for pid := range win.paramSet {
+				if !existing.paramSet[pid] {
+					existing.paramSet[pid] = true
+					existing.paramIDs = append(existing.paramIDs, pid)
+				}
+			}
+			for unixSec, bt := range win.bucketTimes {
+				existing.bucketTimes[unixSec] = bt
+			}
+		} else {
+			existing.bucketTimes[lastTS.Unix()] = lastTS
+		}
+	}
+	s.postMu.Unlock()
+
+	select {
+	case s.postWakeCh <- struct{}{}:
+	default:
 	}
 
 	return resp, nil

@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"datalogger/internal/model"
@@ -9,12 +11,188 @@ import (
 	"gorm.io/gorm"
 )
 
+const siteIngestCacheTTL = 20 * time.Second
+
+type cachedSiteIngestEntry struct {
+	site      *model.Site
+	expiresAt time.Time
+}
+
 type TenantRepository struct {
-	db *gorm.DB
+	db                *gorm.DB
+	siteCacheMu       sync.RWMutex
+	siteByIDCache     map[uint]cachedSiteIngestEntry
+	siteByLookupCache map[string]cachedSiteIngestEntry
 }
 
 func NewTenantRepository(db *gorm.DB) *TenantRepository {
-	return &TenantRepository{db: db}
+	return &TenantRepository{
+		db:                db,
+		siteByIDCache:     make(map[uint]cachedSiteIngestEntry),
+		siteByLookupCache: make(map[string]cachedSiteIngestEntry),
+	}
+}
+
+func cloneSiteForIngest(src *model.Site) *model.Site {
+	if src == nil {
+		return nil
+	}
+	cp := *src
+	if src.Tenant != nil {
+		tCp := *src.Tenant
+		cp.Tenant = &tCp
+	}
+	return &cp
+}
+
+// InvalidateSiteIngestCache clears cached site & tenant metadata used on the high-throughput ingest path.
+func (r *TenantRepository) InvalidateSiteIngestCache() {
+	r.siteCacheMu.Lock()
+	r.siteByIDCache = make(map[uint]cachedSiteIngestEntry)
+	r.siteByLookupCache = make(map[string]cachedSiteIngestEntry)
+	r.siteCacheMu.Unlock()
+}
+
+func (r *TenantRepository) cacheSiteEntry(lookupKey string, s *model.Site) *model.Site {
+	if s == nil {
+		return nil
+	}
+	exp := time.Now().Add(siteIngestCacheTTL)
+	entry := cachedSiteIngestEntry{
+		site:      cloneSiteForIngest(s),
+		expiresAt: exp,
+	}
+	r.siteCacheMu.Lock()
+	if r.siteByIDCache == nil {
+		r.siteByIDCache = make(map[uint]cachedSiteIngestEntry)
+	}
+	if r.siteByLookupCache == nil {
+		r.siteByLookupCache = make(map[string]cachedSiteIngestEntry)
+	}
+	if s.ID > 0 {
+		r.siteByIDCache[s.ID] = entry
+	}
+	if lookupKey != "" {
+		r.siteByLookupCache[lookupKey] = entry
+	}
+	r.siteCacheMu.Unlock()
+	return cloneSiteForIngest(s)
+}
+
+func (r *TenantRepository) getCachedSiteByLookup(lookupKey string) (*model.Site, bool) {
+	now := time.Now()
+	r.siteCacheMu.RLock()
+	entry, ok := r.siteByLookupCache[lookupKey]
+	if ok && entry.site != nil && now.Before(entry.expiresAt) {
+		cp := cloneSiteForIngest(entry.site)
+		r.siteCacheMu.RUnlock()
+		return cp, true
+	}
+	r.siteCacheMu.RUnlock()
+	return nil, false
+}
+
+// GetCachedSiteByIDForIngest fetches lightweight site + tenant status for high-frequency HTTP/MQTT ingestion
+// without running global GROUP BY device count queries on every request.
+func (r *TenantRepository) GetCachedSiteByIDForIngest(id uint) (*model.Site, error) {
+	if id == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	now := time.Now()
+	r.siteCacheMu.RLock()
+	if entry, ok := r.siteByIDCache[id]; ok && entry.site != nil && now.Before(entry.expiresAt) {
+		cp := cloneSiteForIngest(entry.site)
+		r.siteCacheMu.RUnlock()
+		return cp, nil
+	}
+	r.siteCacheMu.RUnlock()
+
+	var s model.Site
+	if err := r.db.Preload("Tenant").First(&s, id).Error; err != nil {
+		return nil, err
+	}
+	return r.cacheSiteEntry("", &s), nil
+}
+
+// GetCachedSiteByCodeForIngest resolves a tenant site by normalized/raw code using short-TTL RAM cache.
+func (r *TenantRepository) GetCachedSiteByCodeForIngest(tenantID uint, code string) (*model.Site, error) {
+	clean := model.NormalizeSlugCode(code)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	key := fmt.Sprintf("code:%d:%s", tenantID, strings.ToLower(clean))
+	if cached, ok := r.getCachedSiteByLookup(key); ok {
+		return cached, nil
+	}
+	var s model.Site
+	if err := r.db.Preload("Tenant").Where("tenant_id = ? AND LOWER(code) = LOWER(?)", tenantID, clean).First(&s).Error; err != nil {
+		return nil, err
+	}
+	return r.cacheSiteEntry(key, &s), nil
+}
+
+// GetCachedSiteByCodeGlobalForIngest resolves an enabled site across tenants by code using short-TTL RAM cache.
+func (r *TenantRepository) GetCachedSiteByCodeGlobalForIngest(code string) (*model.Site, error) {
+	clean := model.NormalizeSlugCode(code)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	key := "gcode:" + strings.ToLower(clean)
+	if cached, ok := r.getCachedSiteByLookup(key); ok {
+		return cached, nil
+	}
+	var s model.Site
+	if err := r.db.Preload("Tenant").Where("enabled = ? AND LOWER(code) = LOWER(?)", true, clean).Order("id ASC").First(&s).Error; err != nil {
+		return nil, err
+	}
+	return r.cacheSiteEntry(key, &s), nil
+}
+
+// GetCachedSiteByLegacyStationIDGlobalForIngest resolves an enabled site across tenants by legacy station_id using short-TTL RAM cache.
+func (r *TenantRepository) GetCachedSiteByLegacyStationIDGlobalForIngest(legacyStationID string) (*model.Site, error) {
+	clean := strings.TrimSpace(legacyStationID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	key := "glegacy:" + strings.ToLower(clean)
+	if cached, ok := r.getCachedSiteByLookup(key); ok {
+		return cached, nil
+	}
+	var s model.Site
+	if err := r.db.Preload("Tenant").Where("enabled = ? AND LOWER(legacy_station_id) = LOWER(?)", true, clean).Order("id ASC").First(&s).Error; err != nil {
+		return nil, err
+	}
+	return r.cacheSiteEntry(key, &s), nil
+}
+
+// GetCachedSiteByLegacyStationIDForIngest resolves a site within a tenant by legacy station_id using short-TTL RAM cache.
+func (r *TenantRepository) GetCachedSiteByLegacyStationIDForIngest(tenantID uint, legacyStationID string) (*model.Site, error) {
+	clean := strings.TrimSpace(legacyStationID)
+	if clean == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	key := fmt.Sprintf("legacy:%d:%s", tenantID, strings.ToLower(clean))
+	if cached, ok := r.getCachedSiteByLookup(key); ok {
+		return cached, nil
+	}
+	var s model.Site
+	if err := r.db.Preload("Tenant").Where("tenant_id = ? AND LOWER(legacy_station_id) = LOWER(?)", tenantID, clean).Order("id ASC").First(&s).Error; err != nil {
+		return nil, err
+	}
+	return r.cacheSiteEntry(key, &s), nil
+}
+
+// GetCachedDefaultSiteForTenantForIngest resolves a tenant's default site using short-TTL RAM cache.
+func (r *TenantRepository) GetCachedDefaultSiteForTenantForIngest(tenantID uint) (*model.Site, error) {
+	key := fmt.Sprintf("default:%d", tenantID)
+	if cached, ok := r.getCachedSiteByLookup(key); ok {
+		return cached, nil
+	}
+	var s model.Site
+	if err := r.db.Preload("Tenant").Where("tenant_id = ?", tenantID).Order("id ASC").First(&s).Error; err != nil {
+		return nil, err
+	}
+	return r.cacheSiteEntry(key, &s), nil
 }
 
 func (r *TenantRepository) GetDB() *gorm.DB {
@@ -66,15 +244,21 @@ func (r *TenantRepository) GetTenantByCode(code string) (*model.Tenant, error) {
 }
 
 func (r *TenantRepository) CreateTenant(t *model.Tenant) error {
-	return r.db.Create(t).Error
+	err := r.db.Create(t).Error
+	r.InvalidateSiteIngestCache()
+	return err
 }
 
 func (r *TenantRepository) UpdateTenant(t *model.Tenant) error {
-	return r.db.Save(t).Error
+	err := r.db.Save(t).Error
+	r.InvalidateSiteIngestCache()
+	return err
 }
 
 func (r *TenantRepository) DeleteTenant(id uint) error {
-	return r.db.Delete(&model.Tenant{}, id).Error
+	err := r.db.Delete(&model.Tenant{}, id).Error
+	r.InvalidateSiteIngestCache()
+	return err
 }
 
 func (r *TenantRepository) CountSitesByTenant(tenantID uint) (int64, error) {
@@ -205,15 +389,21 @@ func (r *TenantRepository) GetDefaultSiteForTenant(tenantID uint) (*model.Site, 
 }
 
 func (r *TenantRepository) CreateSite(s *model.Site) error {
-	return r.db.Create(s).Error
+	err := r.db.Create(s).Error
+	r.InvalidateSiteIngestCache()
+	return err
 }
 
 func (r *TenantRepository) UpdateSite(s *model.Site) error {
-	return r.db.Save(s).Error
+	err := r.db.Save(s).Error
+	r.InvalidateSiteIngestCache()
+	return err
 }
 
 func (r *TenantRepository) DeleteSite(id uint) error {
-	return r.db.Delete(&model.Site{}, id).Error
+	err := r.db.Delete(&model.Site{}, id).Error
+	r.InvalidateSiteIngestCache()
+	return err
 }
 
 func (r *TenantRepository) CountDevicesBySite(siteID uint) (int64, error) {

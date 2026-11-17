@@ -236,8 +236,9 @@ func RunMigrations(db *gorm.DB) error {
 		_ = db.Exec("DELETE FROM ispu_calculation_results WHERE calculation_mode = 'REGULATORY' AND (MINUTE(period_end) != 0 OR SECOND(period_end) != 0)").Error
 	}
 
-	// 1e. Automatically ensure 120s AggregationDefinition exists for all mapped ISPU parameters
-	if db.Migrator().HasTable(&model.ISPUParameterMapping{}) && db.Migrator().HasTable(&model.AggregationDefinition{}) {
+	// 1e. Automatically ensure 120s AggregationDefinition exists for all mapped ISPU parameters (Edge Mode only; Cloud Mode receives pre-aggregated Edge payloads)
+	isCloudCfg := config.Get() != nil && config.Get().IsCloudMode()
+	if !isCloudCfg && db.Migrator().HasTable(&model.ISPUParameterMapping{}) && db.Migrator().HasTable(&model.AggregationDefinition{}) {
 		var ispuMappings []model.ISPUParameterMapping
 		if err := db.Where("enabled = ?", true).Find(&ispuMappings).Error; err == nil {
 			for _, m := range ispuMappings {

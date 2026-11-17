@@ -539,17 +539,26 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		}
 	}
 
-	intervalSec := s.resolveAggregationIntervalSec(ctx, deviceID)
+	isCloudMode := config.Get() != nil && config.Get().IsCloudMode()
+	intervalSec := 120
+	if !isCloudMode {
+		intervalSec = s.resolveAggregationIntervalSec(ctx, deviceID)
+	}
 	loc, locErr := time.LoadLocation("Asia/Jakarta")
 	if locErr != nil {
 		loc = time.FixedZone("WIB", 7*3600)
 	}
 
-	alignedEnd := targetEnd.UTC().Truncate(time.Duration(intervalSec) * time.Second)
+	alignedEnd := targetEnd.UTC()
+	if !isCloudMode || targetEnd.Second() != 0 {
+		alignedEnd = targetEnd.UTC().Truncate(time.Duration(intervalSec) * time.Second)
+	}
 	if alignedEnd.IsZero() {
 		alignedEnd = targetEnd.UTC()
 	}
 	opStart := alignedEnd.Add(-time.Duration(intervalSec) * time.Second)
+	_ = opStart
+	_ = loc
 	regStart := alignedEnd.Add(-24 * time.Hour)
 	expected24hBuckets := int(math.Max(1, math.Floor(86400.0/float64(intervalSec))))
 
@@ -582,41 +591,66 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		}
 		pid := *m.ParameterID
 
-		// 1. Operational input: latest completed aggregation bucket (within 2h lookback) or recent RawData
+		// 1. Operational input: Edge reads completed AggregationResult; Cloud reads latest Edge-aggregated reading directly
 		var opVal *float64
 		var opSamples int
-		var latestAgg model.AggregationResult
-		aggLookback := alignedEnd.Add(-2 * time.Hour)
-		if err := s.db.WithContext(ctx).
-			Where("parameter_id = ? AND period_end > ? AND period_end <= ? AND quality != ?",
-				pid, aggLookback, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
-			Order("period_end DESC").
-			First(&latestAgg).Error; err == nil {
-			if latestAgg.AvgValue != nil {
-				opVal = latestAgg.AvgValue
-			} else if latestAgg.Value != nil {
-				opVal = latestAgg.Value
-			}
-			if opVal != nil && !math.IsNaN(*opVal) && !math.IsInf(*opVal, 0) {
-				opSamples = 1
+		if !isCloudMode {
+			var latestAgg model.AggregationResult
+			aggLookback := alignedEnd.Add(-2 * time.Hour)
+			if err := s.db.WithContext(ctx).
+				Where("parameter_id = ? AND period_end > ? AND period_end <= ? AND quality != ?",
+					pid, aggLookback, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
+				Order("period_end DESC").
+				First(&latestAgg).Error; err == nil {
+				if latestAgg.AvgValue != nil {
+					opVal = latestAgg.AvgValue
+				} else if latestAgg.Value != nil {
+					opVal = latestAgg.Value
+				}
+				if opVal != nil && !math.IsNaN(*opVal) && !math.IsInf(*opVal, 0) {
+					opSamples = 1
+				}
 			}
 		}
 
 		if opSamples == 0 {
-			var rawAvg *float64
-			var rawCnt int64
-			rawSince := targetEnd.UTC().Add(-30 * time.Minute)
-			rawUntil := targetEnd.UTC().Add(1 * time.Minute)
-			rawOpQ := s.db.WithContext(ctx).Model(&model.RawData{}).
-				Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
-					pid, rawSince, rawUntil, model.QualityBad)
-			if m.DeviceID > 0 {
-				rawOpQ = rawOpQ.Where("device_id = ?", m.DeviceID)
-			}
-			_ = rawOpQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCnt, &rawAvg)
-			if rawCnt > 0 && rawAvg != nil && !math.IsNaN(*rawAvg) && !math.IsInf(*rawAvg, 0) {
-				opVal = rawAvg
-				opSamples = 1
+			if isCloudMode {
+				var latestRaw model.RawData
+				rawSince := targetEnd.UTC().Add(-2 * time.Hour)
+				rawUntil := targetEnd.UTC().Add(2 * time.Minute)
+				rawQ := s.db.WithContext(ctx).
+					Select("id, value, processed_value, received_at").
+					Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+						pid, rawSince, rawUntil, model.QualityBad)
+				if m.DeviceID > 0 {
+					rawQ = rawQ.Where("device_id = ?", m.DeviceID)
+				}
+				if err := rawQ.Order("received_at DESC").First(&latestRaw).Error; err == nil && latestRaw.ID > 0 {
+					v := latestRaw.ProcessedValue
+					if v == 0 && latestRaw.Value != 0 {
+						v = latestRaw.Value
+					}
+					if !math.IsNaN(v) && !math.IsInf(v, 0) {
+						opVal = &v
+						opSamples = 1
+					}
+				}
+			} else {
+				var rawAvg *float64
+				var rawCnt int64
+				rawSince := targetEnd.UTC().Add(-30 * time.Minute)
+				rawUntil := targetEnd.UTC().Add(1 * time.Minute)
+				rawOpQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+					Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+						pid, rawSince, rawUntil, model.QualityBad)
+				if m.DeviceID > 0 {
+					rawOpQ = rawOpQ.Where("device_id = ?", m.DeviceID)
+				}
+				_ = rawOpQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCnt, &rawAvg)
+				if rawCnt > 0 && rawAvg != nil && !math.IsNaN(*rawAvg) && !math.IsInf(*rawAvg, 0) {
+					opVal = rawAvg
+					opSamples = 1
+				}
 			}
 			if opSamples == 0 {
 				var p model.Parameter
@@ -647,25 +681,27 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 			MinCompleteness:  0,
 		})
 
-		// 2. Regulatory 24h input: 24-hour mean across completed aggregation buckets
-		var regAggs []model.AggregationResult
-		_ = s.db.WithContext(ctx).
-			Where("parameter_id = ? AND period_end > ? AND period_end <= ? AND quality != ?",
-				pid, regStart, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
-			Find(&regAggs)
-
+		// 2. Regulatory 24h input: Edge uses completed AggregationResult; Cloud computes 24h mean directly from Edge-aggregated RawData
 		var regSum float64
 		var regValid int
-		for _, a := range regAggs {
-			var v *float64
-			if a.AvgValue != nil {
-				v = a.AvgValue
-			} else if a.Value != nil {
-				v = a.Value
-			}
-			if v != nil && !math.IsNaN(*v) && !math.IsInf(*v, 0) {
-				regSum += *v
-				regValid++
+		if !isCloudMode {
+			var regAggs []model.AggregationResult
+			_ = s.db.WithContext(ctx).
+				Where("parameter_id = ? AND period_end > ? AND period_end <= ? AND quality != ?",
+					pid, regStart, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
+				Find(&regAggs)
+
+			for _, a := range regAggs {
+				var v *float64
+				if a.AvgValue != nil {
+					v = a.AvgValue
+				} else if a.Value != nil {
+					v = a.Value
+				}
+				if v != nil && !math.IsNaN(*v) && !math.IsInf(*v, 0) {
+					regSum += *v
+					regValid++
+				}
 			}
 		}
 
@@ -673,6 +709,47 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		expSamples := expected24hBuckets
 		if regValid > 0 {
 			regMeasured = regSum / float64(regValid)
+		} else if isCloudMode {
+			var rawRows []struct {
+				Val float64
+				Rec time.Time
+			}
+			rawUntil24 := targetEnd.UTC().Add(2 * time.Minute)
+			raw24Q := s.db.WithContext(ctx).Model(&model.RawData{}).
+				Select("COALESCE(NULLIF(processed_value, 0), value) AS val, received_at AS rec").
+				Where("parameter_id = ? AND received_at > ? AND received_at <= ? AND quality != ?",
+					pid, regStart, rawUntil24, model.QualityBad)
+			if m.DeviceID > 0 {
+				raw24Q = raw24Q.Where("device_id = ?", m.DeviceID)
+			}
+			_ = raw24Q.Order("received_at ASC").Find(&rawRows).Error
+			hoursSeen := make(map[int]bool)
+			usable := 0
+			var sum24 float64
+			for _, rr := range rawRows {
+				if math.IsNaN(rr.Val) || math.IsInf(rr.Val, 0) {
+					continue
+				}
+				hDiff := int(alignedEnd.Sub(rr.Rec).Hours())
+				if hDiff < 0 {
+					hDiff = 0
+				}
+				if hDiff >= 24 {
+					hDiff = 23
+				}
+				hoursSeen[hDiff] = true
+				sum24 += rr.Val
+				usable++
+			}
+			if usable > 0 {
+				regMeasured = sum24 / float64(usable)
+				regValid = len(hoursSeen)
+				expSamples = 24
+			} else if opSamples > 0 && opVal != nil {
+				regMeasured = *opVal
+				regValid = 1
+				expSamples = 24
+			}
 		} else if opSamples > 0 && opVal != nil {
 			// Fallback to recent RawData 24h average using indexed received_at (idx_raw_dev_param_rec / idx_raw_param_rec)
 			var rawAvg24 *float64

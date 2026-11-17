@@ -56,7 +56,7 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 		var deviceID uint
 
 		for _, item := range batch {
-			if item == nil {
+			if item == nil || item.SkipParameterLiveSync {
 				continue
 			}
 			deviceID = item.DeviceID
@@ -85,6 +85,9 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 				"current_quality_flags":   item.QualityFlags,
 				"current_raw_hex":         item.RawHex,
 				"last_updated":            &item.ReceivedAt,
+			}
+			if item.UncalibratedValue != nil {
+				updates["current_uncalibrated_value"] = item.UncalibratedValue
 			}
 			// Only update current_received_at and current_device_timestamp for valid telemetry
 			// to prevent failed polling attempts from resetting the last valid data timestamp!

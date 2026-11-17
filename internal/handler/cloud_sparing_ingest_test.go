@@ -1,9 +1,11 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -201,23 +203,25 @@ func TestCloudMode_Sparing30x2HourlyIngestFormatsAndAggregationRecalc(t *testing
 		t.Fatalf("expected ph CurrentValue=7.29 (slot :58), got %v", phParam.CurrentValue)
 	}
 
-	// Verify all 30 x 2-minute buckets AND 1 x 1-hour bucket were automatically recalculated for pH!
-	var ph2mCount int64
-	env.DB.Model(&model.AggregationResult{}).
-		Where("device_id = ? AND parameter_id = ? AND interval_seconds = 120 AND period_start >= ? AND period_end <= ?",
+	// Flush async post-ingest queue and verify all 30 Edge-aggregated 2-minute slots are persisted directly in raw_data
+	// while Cloud Mode strictly skips redundant AggregationResult double-aggregation!
+	_ = env.IngestSvc.FlushPostIngest(context.Background())
+
+	var phIngestRows int64
+	env.DB.Model(&model.RawData{}).
+		Where("device_id = ? AND parameter_id = ? AND received_at >= ? AND received_at < ?",
 			devID, phParam.ID, hourAnchorLocal.UTC(), hourAnchorLocal.Add(time.Hour).UTC()).
-		Count(&ph2mCount)
-	if ph2mCount != 30 {
-		t.Fatalf("expected 30 recalculated 2-minute buckets for ph, got %d", ph2mCount)
+		Count(&phIngestRows)
+	if phIngestRows != 30 {
+		t.Fatalf("expected 30 Edge-aggregated 2-minute slots stored directly in raw_data for ph, got %d", phIngestRows)
 	}
 
-	var ph1hCount int64
+	var redundantAggCount int64
 	env.DB.Model(&model.AggregationResult{}).
-		Where("device_id = ? AND parameter_id = ? AND interval_seconds = 3600 AND period_start = ?",
-			devID, phParam.ID, hourAnchorLocal.UTC()).
-		Count(&ph1hCount)
-	if ph1hCount != 1 {
-		t.Fatalf("expected 1 recalculated 1-hour bucket for ph, got %d", ph1hCount)
+		Where("device_id = ? AND parameter_id = ?", devID, phParam.ID).
+		Count(&redundantAggCount)
+	if redundantAggCount != 0 {
+		t.Fatalf("expected Cloud Mode to skip redundant AggregationResult double-aggregation (0 rows), got %d", redundantAggCount)
 	}
 
 	// =========================================================================
@@ -789,5 +793,264 @@ func TestCloudMode_LegacyTokenPreservation_ReplaceAndGlobalMultiTenant(t *testin
 	wBlockedB := doJSONReq(t, env.Router, "POST", "/api/v1/ticks/create_multi", sharedMasterLegacyToken, nil, payloadGlobalB)
 	if wBlockedB.Code != http.StatusForbidden {
 		t.Fatalf("expected HTTP 403 when suspended Tenant B pushes via global token, got %d: %s", wBlockedB.Code, wBlockedB.Body.String())
+	}
+}
+
+func TestCloudMode_DirectIngestToISPUAndWQMS_ZeroAggregation_30TenantBurst(t *testing.T) {
+	env := setupMultiTenantTestEnv(t)
+
+	if g := config.Get(); g != nil {
+		g.CloudMode = true
+		g.MonitoringDomain = "CLOUD"
+		g.SensorPollingEnabled = false
+	}
+
+	if !env.AggSvc.IsPaused() {
+		t.Fatalf("expected AggregationService.IsPaused() == true in Cloud Mode")
+	}
+
+	wib := time.FixedZone("WIB", 7*3600)
+	bucketTS := time.Now().In(wib).Truncate(30 * time.Minute)
+	tsISO := bucketTS.Format(time.RFC3339)
+
+	// 1. Provision 30 Tenants (29 AQMS + 1 ONLIMO/WQMS) to simulate a simultaneous :00/:30 thundering-herd Cloud burst
+	type stationFixture struct {
+		tenantID uint
+		siteID   uint
+		devID    uint
+		siteCode string
+		devCode  string
+		domain   string
+		token    string
+	}
+	const totalStations = 30
+	fixtures := make([]stationFixture, 0, totalStations)
+
+	for i := 1; i <= totalStations; i++ {
+		domain := "AQMS"
+		if i == totalStations {
+			domain = "ONLIMO"
+		}
+		tCode := fmt.Sprintf("cloud-burst-t%02d", i)
+		sCode := fmt.Sprintf("sta-burst-%02d", i)
+		dCode := fmt.Sprintf("DEV-BURST-%02d", i)
+
+		wT := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
+			"name":           fmt.Sprintf("Tenant Burst %02d", i),
+			"code":           tCode,
+			"default_domain": domain,
+			"status":         "ACTIVE",
+		})
+		if wT.Code != http.StatusCreated && wT.Code != http.StatusOK {
+			t.Fatalf("create tenant %d failed (%d): %s", i, wT.Code, wT.Body.String())
+		}
+		var tr struct {
+			Data model.Tenant `json:"data"`
+		}
+		_ = json.Unmarshal(wT.Body.Bytes(), &tr)
+		tid := tr.Data.ID
+
+		wS := doJSONReq(t, env.Router, "POST", "/api/sites", env.SuperAdminToken, nil, map[string]interface{}{
+			"tenant_id":         tid,
+			"name":              fmt.Sprintf("Stasiun Burst %02d", i),
+			"code":              sCode,
+			"monitoring_domain": domain,
+			"timezone":          "Asia/Jakarta",
+			"enabled":           true,
+		})
+		if wS.Code != http.StatusCreated && wS.Code != http.StatusOK {
+			t.Fatalf("create site %d failed (%d): %s", i, wS.Code, wS.Body.String())
+		}
+		var sr struct {
+			Data model.Site `json:"data"`
+		}
+		_ = json.Unmarshal(wS.Body.Bytes(), &sr)
+		sid := sr.Data.ID
+
+		hdrs := map[string]string{
+			"X-Tenant-ID": fmt.Sprintf("%d", tid),
+			"X-Site-ID":   fmt.Sprintf("%d", sid),
+		}
+		wD := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, hdrs, map[string]interface{}{
+			"tenant_id":   tid,
+			"site_id":     sid,
+			"device_code": dCode,
+			"device_name": fmt.Sprintf("Logger Burst %02d", i),
+			"device_type": "EDGE_PUSH",
+			"timezone":    "Asia/Jakarta",
+			"status":      "ACTIVE",
+			"enabled":     true,
+		})
+		if wD.Code != http.StatusCreated && wD.Code != http.StatusOK {
+			t.Fatalf("create device %d failed (%d): %s", i, wD.Code, wD.Body.String())
+		}
+		var dr struct {
+			Data model.Device `json:"data"`
+		}
+		_ = json.Unmarshal(wD.Body.Bytes(), &dr)
+		did := dr.Data.ID
+
+		var pCodes []struct {
+			code string
+			unit string
+		}
+		if domain == "AQMS" {
+			pCodes = []struct {
+				code string
+				unit string
+			}{
+				{"pm2.5", "ug/m3"},
+				{"pm10", "ug/m3"},
+				{"so2", "ug/m3"},
+				{"no2", "ug/m3"},
+				{"o3", "ug/m3"},
+				{"co", "ug/m3"},
+				{"hc", "ug/m3"},
+				{"temperature", "C"},
+			}
+		} else {
+			pCodes = []struct {
+				code string
+				unit string
+			}{
+				{"ph", "-"},
+				{"do", "mg/L"},
+				{"bod", "mg/L"},
+				{"cod", "mg/L"},
+				{"tss", "mg/L"},
+				{"no3", "mg/L"},
+			}
+		}
+		for _, pc := range pCodes {
+			wP := doJSONReq(t, env.Router, "POST", fmt.Sprintf("/api/devices/%d/parameters", did), env.SuperAdminToken, hdrs, map[string]interface{}{
+				"parameter_code": pc.code,
+				"parameter_name": pc.code,
+				"unit":           pc.unit,
+				"data_type":      "FLOAT64",
+				"precision":      2,
+				"enabled":        true,
+			})
+			if wP.Code != http.StatusCreated && wP.Code != http.StatusOK {
+				t.Fatalf("create param %s failed (%d): %s", pc.code, wP.Code, wP.Body.String())
+			}
+		}
+
+		wK := doJSONReq(t, env.Router, "POST", "/api/ingest-keys", env.SuperAdminToken, nil, map[string]interface{}{
+			"tenant_id": tid,
+			"site_id":   sid,
+			"name":      fmt.Sprintf("Burst Key %02d", i),
+		})
+		if wK.Code != http.StatusCreated && wK.Code != http.StatusOK {
+			t.Fatalf("create key %d failed (%d): %s", i, wK.Code, wK.Body.String())
+		}
+		var kr struct {
+			Data struct {
+				PlainKey string `json:"plain_key"`
+			} `json:"data"`
+		}
+		_ = json.Unmarshal(wK.Body.Bytes(), &kr)
+
+		fixtures = append(fixtures, stationFixture{
+			tenantID: tid,
+			siteID:   sid,
+			devID:    did,
+			siteCode: sCode,
+			devCode:  dCode,
+			domain:   domain,
+			token:    kr.Data.PlainKey,
+		})
+	}
+
+	// 2. Fire all 30 stations concurrently at the exact same instant (simulating 12:00:00 simultaneous Cloud push)
+	var wg sync.WaitGroup
+	errCh := make(chan error, totalStations)
+	startBurst := time.Now()
+
+	for idx, fx := range fixtures {
+		wg.Add(1)
+		go func(i int, f stationFixture) {
+			defer wg.Done()
+			var vals map[string]interface{}
+			if f.domain == "AQMS" {
+				vals = map[string]interface{}{
+					"pm2.5":       25.0 + float64(i),
+					"pm10":        48.0 + float64(i),
+					"so2":         12.5,
+					"no2":         18.0,
+					"o3":          32.0,
+					"co":          420.0,
+					"hc":          5.2,
+					"temperature": 29.4,
+				}
+			} else {
+				vals = map[string]interface{}{
+					"ph":  7.25,
+					"do":  6.40,
+					"bod": 2.10,
+					"cod": 14.50,
+					"tss": 28.00,
+					"no3": 3.20,
+				}
+			}
+			w := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", f.token, nil, map[string]interface{}{
+				"logger_type": f.domain,
+				"site_code":   f.siteCode,
+				"device_code": f.devCode,
+				"timestamp":   tsISO,
+				"values":      vals,
+			})
+			if w.Code != http.StatusOK {
+				errCh <- fmt.Errorf("station %d (%s) HTTP %d: %s", i, f.siteCode, w.Code, w.Body.String())
+			}
+		}(idx+1, fx)
+	}
+	wg.Wait()
+	close(errCh)
+	burstElapsed := time.Since(startBurst)
+
+	for e := range errCh {
+		t.Fatalf("concurrent burst failure: %v", e)
+	}
+	if burstElapsed > 3*time.Second {
+		t.Fatalf("expected 30-tenant simultaneous HTTP burst to complete well under 3s, took %v", burstElapsed)
+	}
+
+	// 3. Flush post-ingest pipeline and wait briefly for async ISPU (300ms coalesce) & WQMS (500ms coalesce) workers
+	_ = env.IngestSvc.FlushPostIngest(context.Background())
+
+	aqmsStation := fixtures[0]
+	wqmsStation := fixtures[len(fixtures)-1]
+
+	deadline := time.Now().Add(4 * time.Second)
+	var ispuOpCount, ispuRegCount, wqmsCount int64
+	for time.Now().Before(deadline) {
+		env.DB.Model(&model.ISPUCalculationResult{}).
+			Where("tenant_id = ? AND site_id = ? AND calculation_mode = ?", aqmsStation.tenantID, aqmsStation.siteID, model.CalculationModeOperational).
+			Count(&ispuOpCount)
+		env.DB.Model(&model.ISPUCalculationResult{}).
+			Where("tenant_id = ? AND site_id = ? AND calculation_mode = ?", aqmsStation.tenantID, aqmsStation.siteID, model.CalculationModeRegulatory).
+			Count(&ispuRegCount)
+		env.DB.Model(&model.WQMSCalculationResult{}).
+			Where("tenant_id = ? AND site_id = ?", wqmsStation.tenantID, wqmsStation.siteID).
+			Count(&wqmsCount)
+		if ispuOpCount > 0 && ispuRegCount > 0 && wqmsCount > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if ispuOpCount == 0 || ispuRegCount == 0 {
+		t.Fatalf("expected Cloud Mode direct-from-ingest ISPU Operational & Regulatory results (op=%d, reg=%d)", ispuOpCount, ispuRegCount)
+	}
+	if wqmsCount == 0 {
+		t.Fatalf("expected Cloud Mode direct-from-ingest WQMS IP/IKA calculation result, got %d", wqmsCount)
+	}
+
+	// 4. Verify ZERO AggregationDefinition or AggregationResult rows were created across all 30 Cloud tenants!
+	var aggResTotal, aggDefAutoTotal int64
+	env.DB.Model(&model.AggregationResult{}).Where("tenant_id >= ?", aqmsStation.tenantID).Count(&aggResTotal)
+	env.DB.Model(&model.AggregationDefinition{}).Where("tenant_id >= ?", aqmsStation.tenantID).Count(&aggDefAutoTotal)
+	if aggResTotal != 0 || aggDefAutoTotal != 0 {
+		t.Fatalf("expected ZERO AggregationDefinitions (%d) and ZERO AggregationResults (%d) in Cloud Mode", aggDefAutoTotal, aggResTotal)
 	}
 }

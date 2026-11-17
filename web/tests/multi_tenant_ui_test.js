@@ -256,4 +256,10 @@ assert(tenantsViewCode.includes('canViewAllTenants') && tenantsViewCode.includes
 assert(accessControlCode.includes('isRoleIdCustomerService') && accessControlCode.includes('canManageUsers'), 'AccessControlView must treat CUSTOMER_SERVICE as global role for SUPERADMIN and enforce read-only UI for CUSTOMER_SERVICE');
 assert(integrationViewCode.includes('!this.isAdmin && !this.isEngineer && !this.isCustomerService'), 'IntegrationView must not misclassify CUSTOMER_SERVICE as OPERATOR');
 
+// 22. Cloud Mode Direct-Ingest Architecture: Hide Redundant Double-Aggregation Tabs in Cloud Mode
+const telemetryAnalysisCode = fs.readFileSync(path.join(srcDir, 'views', 'TelemetryAnalysisView.vue'), 'utf8');
+assert(/v-if="!isCloudMode"\s+@click="setMode\('AGGREGATED'\)"/.test(telemetryAnalysisCode), 'TelemetryAnalysisView must hide AGGREGATED tab in Cloud mode because Historical already holds Edge-aggregated data');
+assert(telemetryAnalysisCode.includes("if (this.isCloudMode && this.activeMode === 'AGGREGATED')"), 'TelemetryAnalysisView must redirect ?mode=AGGREGATED to HISTORICAL in Cloud mode');
+assert(/v-if="!isCloudMode"\s+@click="switchTab\('aggregation'\)"/.test(deviceDetailViewCode), 'DeviceDetailView must hide Aggregation tab in Cloud mode');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

@@ -208,6 +208,7 @@
         <span>{{ $t('deviceDetail.rawTelemetry') }}</span>
       </button>
       <button
+        v-if="!isCloudMode"
         @click="switchTab('aggregation')"
         :class="activeTab === 'aggregation' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
@@ -4273,6 +4274,10 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isCloudMode() {
+      const st = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(st.cloud_mode || String(st.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     isOperator() {
       return this.userRole === 'OPERATOR';
     },
@@ -4986,7 +4991,7 @@ export default {
           this.fetchHistory();
         } else if (this.activeTab === 'raw') {
           this.fetchRawTelemetry();
-        } else if (this.activeTab === 'aggregation') {
+        } else if (this.activeTab === 'aggregation' && !this.isCloudMode) {
           this.fetchAggregationDefinitions();
           this.fetchAggregationResults();
           this.startAggregationPolling();

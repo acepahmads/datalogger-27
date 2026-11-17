@@ -125,6 +125,14 @@ func main() {
 	telemetryCfg.BatchSize = cfg.QueueBatchSize
 	telemetryCfg.QueueSyncMode = cfg.QueueSyncMode
 	telemetryCfg.QueueDiskWarnPercent = cfg.QueueDiskWarnPercent
+	if cfg.IsCloudMode() {
+		if telemetryCfg.BufferSize < 50000 {
+			telemetryCfg.BufferSize = 50000
+		}
+		if telemetryCfg.BatchSize <= 50 {
+			telemetryCfg.BatchSize = 250
+		}
+	}
 
 	telemetryService := service.NewTelemetryService(telemetryRepo, hub, telemetryCfg)
 	defer telemetryService.Stop()
@@ -297,6 +305,7 @@ func main() {
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	categoryHandler.SetTenantService(tenantService)
 	ingestService := service.NewIngestService(tenantService, deviceRepo, categoryRepo, telemetryService)
+	defer ingestService.Stop()
 	ingestService.SetHub(hub)
 	ingestHandler := handler.NewIngestHandler(ingestService)
 	commTraceHandler := handler.NewCommTraceHandler(commTracer, deviceService)
@@ -366,6 +375,9 @@ func main() {
 		_ = outboundService.HandleBucketCompleted(ctx, deviceID, bucketEnd)
 	})
 	ingestService.SetOnDeviceWindowIngested(func(deviceID uint, paramIDs []uint, minTS, maxTS time.Time) {
+		if config.Get() != nil && config.Get().IsCloudMode() {
+			return
+		}
 		ctx := context.Background()
 		endTS := maxTS.Add(1 * time.Second)
 		_, completedEnds, err := aggService.RecalculateRangeForDevice(ctx, deviceID, paramIDs, minTS, endTS, false)
@@ -971,6 +983,7 @@ func main() {
 
 	// 1. Stop all active polling workers and cancel pending reconnects
 	pollingEngine.Stop()
+	ingestService.Stop()
 
 	// 2. Stop aggregation worker safely
 	aggService.StopWorker()

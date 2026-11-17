@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"datalogger/internal/aggregation"
+	"datalogger/internal/config"
 	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
@@ -178,8 +179,12 @@ func (s *AggregationService) clearActiveBucketSignatureForDef(defID uint) {
 	s.activeBucketSigMu.Unlock()
 }
 
-// IsPaused returns true when background aggregation is paused or global database restore mode is active.
+// IsPaused returns true when background aggregation is paused, global database restore mode is active,
+// or the platform is running in Cloud Receiver mode (where incoming payloads are already Edge-aggregated).
 func (s *AggregationService) IsPaused() bool {
+	if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+		return true
+	}
 	return atomic.LoadInt32(&s.paused) == 1 || database.IsRestoreMode()
 }
 
@@ -1080,38 +1085,40 @@ func (s *AggregationService) GetDownsampledHistory(
 		intervalSec = 300
 	}
 
-	filter := repository.AggregationResultFilter{
-		DeviceID:    deviceID,
-		ParameterID: paramID,
-		StartTime:   &startTime,
-		EndTime:     &endTime,
-		Page:        1,
-		PageSize:    1000,
-	}
-
-	aggResults, _, err := s.repo.GetResultsByFilter(ctx, filter)
-	if err == nil && len(aggResults) > 0 {
-		points := make([]DownsampledPoint, len(aggResults))
-		for i, ar := range aggResults {
-			points[i] = DownsampledPoint{
-				Timestamp:   ar.PeriodStart,
-				Value:       ar.Value,
-				MinValue:    ar.MinValue,
-				MaxValue:    ar.MaxValue,
-				AvgValue:    ar.AvgValue,
-				SampleCount: ar.SampleCount,
-				Quality:     string(ar.Quality),
-			}
-		}
-		return &DownsampledHistoryResponse{
+	if cfg := config.Get(); cfg == nil || !cfg.IsCloudMode() {
+		filter := repository.AggregationResultFilter{
 			DeviceID:    deviceID,
 			ParameterID: paramID,
-			Resolution:  resolution,
-			StartTime:   startTime,
-			EndTime:     endTime,
-			TotalPoints: len(points),
-			Points:      points,
-		}, nil
+			StartTime:   &startTime,
+			EndTime:     &endTime,
+			Page:        1,
+			PageSize:    1000,
+		}
+
+		aggResults, _, err := s.repo.GetResultsByFilter(ctx, filter)
+		if err == nil && len(aggResults) > 0 {
+			points := make([]DownsampledPoint, len(aggResults))
+			for i, ar := range aggResults {
+				points[i] = DownsampledPoint{
+					Timestamp:   ar.PeriodStart,
+					Value:       ar.Value,
+					MinValue:    ar.MinValue,
+					MaxValue:    ar.MaxValue,
+					AvgValue:    ar.AvgValue,
+					SampleCount: ar.SampleCount,
+					Quality:     string(ar.Quality),
+				}
+			}
+			return &DownsampledHistoryResponse{
+				DeviceID:    deviceID,
+				ParameterID: paramID,
+				Resolution:  resolution,
+				StartTime:   startTime,
+				EndTime:     endTime,
+				TotalPoints: len(points),
+				Points:      points,
+			}, nil
+		}
 	}
 
 	// 3. Fallback: Aggregate on-the-fly from raw_data if no pre-calculated rollups exist
@@ -1322,6 +1329,9 @@ func (s *AggregationService) RecalculateRangeForDevice(
 	cleanupEmptyBuckets bool,
 ) (int, []time.Time, error) {
 	if deviceID == 0 || endTime.Before(startTime) {
+		return 0, nil, nil
+	}
+	if !cleanupEmptyBuckets && config.Get() != nil && config.Get().IsCloudMode() {
 		return 0, nil, nil
 	}
 

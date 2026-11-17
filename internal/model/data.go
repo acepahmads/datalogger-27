@@ -96,8 +96,9 @@ type RawData struct {
 	Timestamp       time.Time  `gorm:"index" json:"timestamp"` // Backward compatibility alias
 
 	// Superadmin-only transient markers (never stored in raw_data columns; populated strictly for SUPERADMIN API responses)
-	IsInjected       bool   `gorm:"-" json:"is_injected,omitempty"`
-	InjectionBatchID string `gorm:"-" json:"injection_batch_id,omitempty"`
+	IsInjected            bool   `gorm:"-" json:"is_injected,omitempty"`
+	InjectionBatchID      string `gorm:"-" json:"injection_batch_id,omitempty"`
+	SkipParameterLiveSync bool   `gorm:"-" json:"skip_param_sync,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 }

@@ -331,25 +331,39 @@ func (s *ISPUService) ReconcilePendingCalculations(ctx context.Context) (int, er
 			loc = time.FixedZone("WIB", 7*3600)
 		}
 
-		var aggDef model.AggregationDefinition
+		isCloud := config.Get() != nil && config.Get().IsCloudMode()
 		intervalSec := 120
-		if err := s.db.WithContext(ctx).
-			Where("device_id = ? AND enabled = ?", deviceID, true).
-			Order("interval_seconds ASC").
-			First(&aggDef).Error; err == nil && aggDef.IntervalSeconds > 0 {
-			intervalSec = aggDef.IntervalSeconds
+		if !isCloud {
+			var aggDef model.AggregationDefinition
+			if err := s.db.WithContext(ctx).
+				Where("device_id = ? AND enabled = ?", deviceID, true).
+				Order("interval_seconds ASC").
+				First(&aggDef).Error; err == nil && aggDef.IntervalSeconds > 0 {
+				intervalSec = aggDef.IntervalSeconds
+			}
 		}
 
 		twoHoursAgo := time.Now().UTC().Add(-2 * time.Hour)
 		var completedPeriods []time.Time
-		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
-			Distinct("period_end").
-			Where("device_id = ? AND period_end >= ? AND quality != ?", deviceID, twoHoursAgo, model.QualityBad).
-			Order("period_end ASC").
-			Pluck("period_end", &completedPeriods)
+		if isCloud {
+			s.db.WithContext(ctx).Model(&model.RawData{}).
+				Distinct("received_at").
+				Where("device_id = ? AND received_at >= ? AND quality != ?", deviceID, twoHoursAgo, model.QualityBad).
+				Order("received_at ASC").
+				Pluck("received_at", &completedPeriods)
+		} else {
+			s.db.WithContext(ctx).Model(&model.AggregationResult{}).
+				Distinct("period_end").
+				Where("device_id = ? AND period_end >= ? AND quality != ?", deviceID, twoHoursAgo, model.QualityBad).
+				Order("period_end ASC").
+				Pluck("period_end", &completedPeriods)
+		}
 
 		for _, pEnd := range completedPeriods {
-			alignedEnd := s.AlignToAggregationInterval(pEnd, intervalSec, loc)
+			alignedEnd := pEnd.In(loc)
+			if !isCloud || alignedEnd.Second() != 0 {
+				alignedEnd = s.AlignToAggregationInterval(pEnd, intervalSec, loc)
+			}
 			isHourly := alignedEnd.In(loc).Minute() == 0 && alignedEnd.In(loc).Second() == 0
 
 			var opCount int64
@@ -456,43 +470,67 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		loc = time.FixedZone("WIB", 7*3600)
 	}
 
-	// 1. Determine active aggregation definitions and interval for this device/station
+	isCloudMode := config.Get() != nil && config.Get().IsCloudMode()
+
+	// 1. Determine active aggregation definitions and interval for this device/station (Edge Mode only; Cloud Mode receives pre-aggregated Edge payloads directly)
 	var intervalSec int = 120
 	aggFunction := "AVG"
 	var aggDefs []model.AggregationDefinition
-	aggQuery := s.db.WithContext(ctx).Where("tenant_id = ? AND enabled = ?", tenantID, true)
-	if deviceID > 0 {
-		aggQuery = aggQuery.Where("device_id = ?", deviceID)
-	}
-	if err := aggQuery.Order("interval_seconds ASC").Find(&aggDefs).Error; err == nil && len(aggDefs) > 0 {
-		intervalSec = aggDefs[0].IntervalSeconds
-		if aggDefs[0].Function != "" {
-			aggFunction = string(aggDefs[0].Function)
+	if !isCloudMode {
+		aggQuery := s.db.WithContext(ctx).Where("tenant_id = ? AND enabled = ?", tenantID, true)
+		if deviceID > 0 {
+			aggQuery = aggQuery.Where("device_id = ?", deviceID)
 		}
-	}
-	if intervalSec <= 0 {
-		intervalSec = 120
+		if err := aggQuery.Order("interval_seconds ASC").Find(&aggDefs).Error; err == nil && len(aggDefs) > 0 {
+			intervalSec = aggDefs[0].IntervalSeconds
+			if aggDefs[0].Function != "" {
+				aggFunction = string(aggDefs[0].Function)
+			}
+		}
+		if intervalSec <= 0 {
+			intervalSec = 120
+		}
 	}
 
 	// 2. Anchor targetEnd in station local time
 	refTime := targetEnd.In(loc)
 	if targetEnd.IsZero() {
-		var latestAgg model.AggregationResult
-		aggQ := s.db.WithContext(ctx).Where("tenant_id = ?", tenantID)
-		if deviceID > 0 {
-			aggQ = aggQ.Where("device_id = ?", deviceID)
-		} else if siteID > 0 {
-			aggQ = aggQ.Where("site_id = ?", siteID)
-		}
-		if err := aggQ.Order("period_end DESC").First(&latestAgg).Error; err == nil && !latestAgg.PeriodEnd.IsZero() {
-			refTime = latestAgg.PeriodEnd.In(loc)
+		if isCloudMode {
+			var latestRaw model.RawData
+			rawQ := s.db.WithContext(ctx).Select("received_at").Where("tenant_id = ? AND quality != ?", tenantID, model.QualityBad)
+			if deviceID > 0 {
+				rawQ = rawQ.Where("device_id = ?", deviceID)
+			} else if siteID > 0 {
+				rawQ = rawQ.Where("site_id = ?", siteID)
+			}
+			if err := rawQ.Order("received_at DESC").First(&latestRaw).Error; err == nil && !latestRaw.ReceivedAt.IsZero() {
+				refTime = latestRaw.ReceivedAt.In(loc)
+			} else {
+				refTime = time.Now().In(loc)
+			}
 		} else {
-			refTime = time.Now().In(loc)
+			var latestAgg model.AggregationResult
+			aggQ := s.db.WithContext(ctx).Where("tenant_id = ?", tenantID)
+			if deviceID > 0 {
+				aggQ = aggQ.Where("device_id = ?", deviceID)
+			} else if siteID > 0 {
+				aggQ = aggQ.Where("site_id = ?", siteID)
+			}
+			if err := aggQ.Order("period_end DESC").First(&latestAgg).Error; err == nil && !latestAgg.PeriodEnd.IsZero() {
+				refTime = latestAgg.PeriodEnd.In(loc)
+			} else {
+				refTime = time.Now().In(loc)
+			}
 		}
 	}
 
-	// 3. Align periodEnd to the exact aggregation interval boundary
-	periodEnd := s.AlignToAggregationInterval(refTime, intervalSec, loc)
+	// 3. Align periodEnd to exact bucket boundary (preserve exact minute-aligned Edge bucket timestamps in Cloud Mode)
+	periodEnd := refTime
+	if !isCloudMode || refTime.Second() != 0 {
+		periodEnd = s.AlignToAggregationInterval(refTime, intervalSec, loc)
+	} else {
+		periodEnd = time.Date(refTime.Year(), refTime.Month(), refTime.Day(), refTime.Hour(), refTime.Minute(), 0, 0, loc)
+	}
 	regPeriodStart := periodEnd.Add(-24 * time.Hour)
 	opPeriodStart := periodEnd.Add(-time.Duration(intervalSec) * time.Second)
 	sourceBucketIdent := periodEnd.In(loc).Format("20060102150405")
@@ -542,72 +580,131 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			mDeviceID = m.Parameter.DeviceID
 		}
 
-		// --- Mode A: Operational (Aggregation-driven for latest bucket) ---
+		// --- Mode A: Operational (Edge: Aggregation-driven; Cloud: Direct from Edge-aggregated ingest reading) ---
 		var opAgg model.AggregationResult
 		hasOpAgg := false
 		alignBuffer := time.Duration(intervalSec) * time.Second
-		opAggQ := s.db.WithContext(ctx).
-			Where("parameter_id = ? AND period_end >= ? AND period_end <= ? AND quality != ?",
-				m.ParameterID, opPeriodStart.Add(-alignBuffer).UTC(), periodEnd.Add(alignBuffer).UTC(), model.QualityBad)
-		if mDeviceID > 0 {
-			opAggQ = opAggQ.Where("device_id = ?", mDeviceID)
-		}
-		if err := opAggQ.
-			Order("period_end DESC").
-			First(&opAgg).Error; err == nil && opAgg.ID > 0 {
-			hasOpAgg = true
+		if !isCloudMode {
+			opAggQ := s.db.WithContext(ctx).
+				Where("parameter_id = ? AND period_end >= ? AND period_end <= ? AND quality != ?",
+					m.ParameterID, opPeriodStart.Add(-alignBuffer).UTC(), periodEnd.Add(alignBuffer).UTC(), model.QualityBad)
+			if mDeviceID > 0 {
+				opAggQ = opAggQ.Where("device_id = ?", mDeviceID)
+			}
+			if err := opAggQ.
+				Order("period_end DESC").
+				First(&opAgg).Error; err == nil && opAgg.ID > 0 {
+				hasOpAgg = true
+			}
 		}
 
 		if !hasOpAgg {
-			// Fallback: Query raw_data for the bucket using indexed received_at (idx_raw_dev_param_rec / idx_raw_param_rec)
-			var rawAvg *float64
-			var rawCount int64
-			rawEnd := periodEnd.Add(alignBuffer).UTC()
-			if refTime.After(periodEnd) {
-				rawEnd = refTime.Add(1 * time.Minute).UTC()
-			}
-			rawBucketQ := s.db.WithContext(ctx).Model(&model.RawData{}).
-				Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
-					m.ParameterID, opPeriodStart.UTC(), rawEnd, model.QualityBad)
-			if mDeviceID > 0 {
-				rawBucketQ = rawBucketQ.Where("device_id = ?", mDeviceID)
-			}
-			_ = rawBucketQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCount, &rawAvg)
-
-			// For Cloud / Edge Push or on-demand calculation where interval may exceed 2m, look back 30m or check Parameter.CurrentValue
-			if rawCount == 0 && (reason == "EDGE_PUSH" || reason == "ON_DEMAND_INITIAL" || reason == "MANUAL_RECALCULATE" || reason == "MAPPING_UPDATED" || (config.Get() != nil && config.Get().IsCloudMode())) {
-				lookbackStart := periodEnd.Add(-30 * time.Minute).UTC()
-				rawLookbackQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+			if isCloudMode {
+				// Direct Cloud Operational evaluation: take the latest Edge-pushed bucket value at/before periodEnd (up to 60m lookback)
+				rawEnd := periodEnd.Add(2 * time.Minute).UTC()
+				if refTime.After(periodEnd) {
+					rawEnd = refTime.Add(1 * time.Minute).UTC()
+				}
+				lookbackStart := periodEnd.Add(-60 * time.Minute).UTC()
+				var latestRaw model.RawData
+				rawLatestQ := s.db.WithContext(ctx).
+					Select("id, value, processed_value, received_at").
 					Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
 						m.ParameterID, lookbackStart, rawEnd, model.QualityBad)
 				if mDeviceID > 0 {
-					rawLookbackQ = rawLookbackQ.Where("device_id = ?", mDeviceID)
+					rawLatestQ = rawLatestQ.Where("device_id = ?", mDeviceID)
 				}
-				_ = rawLookbackQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCount, &rawAvg)
-
-				if rawCount == 0 {
+				if err := rawLatestQ.Order("received_at DESC").First(&latestRaw).Error; err == nil && latestRaw.ID > 0 {
+					v := latestRaw.ProcessedValue
+					if v == 0 && latestRaw.Value != 0 {
+						v = latestRaw.Value
+					}
+					recEnd := latestRaw.ReceivedAt.UTC()
+					if recEnd.IsZero() {
+						recEnd = periodEnd.UTC()
+					}
+					hasOpAgg = true
+					opAgg = model.AggregationResult{
+						TenantID:        tenantID,
+						SiteID:          siteID,
+						DeviceID:        mDeviceID,
+						ParameterID:     m.ParameterID,
+						PeriodStart:     recEnd.Add(-time.Duration(intervalSec) * time.Second),
+						PeriodEnd:       recEnd,
+						IntervalSeconds: intervalSec,
+						Value:           &v,
+						Quality:         model.QualityGood,
+						Identifier:      recEnd.In(loc).Format("20060102150405"),
+					}
+				} else {
 					var p model.Parameter
 					if err := s.db.WithContext(ctx).First(&p, m.ParameterID).Error; err == nil && p.Enabled && p.CurrentValue != nil && !math.IsNaN(*p.CurrentValue) && !math.IsInf(*p.CurrentValue, 0) {
 						v := *p.CurrentValue
-						rawAvg = &v
-						rawCount = 1
+						hasOpAgg = true
+						opAgg = model.AggregationResult{
+							TenantID:        tenantID,
+							SiteID:          siteID,
+							DeviceID:        mDeviceID,
+							ParameterID:     m.ParameterID,
+							PeriodStart:     opPeriodStart.UTC(),
+							PeriodEnd:       periodEnd.UTC(),
+							IntervalSeconds: intervalSec,
+							Value:           &v,
+							Quality:         model.QualityGood,
+							Identifier:      sourceBucketIdent,
+						}
 					}
 				}
-			}
+			} else {
+				// Edge Fallback: Query raw_data for the bucket using indexed received_at (idx_raw_dev_param_rec / idx_raw_param_rec)
+				var rawAvg *float64
+				var rawCount int64
+				rawEnd := periodEnd.Add(alignBuffer).UTC()
+				if refTime.After(periodEnd) {
+					rawEnd = refTime.Add(1 * time.Minute).UTC()
+				}
+				rawBucketQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+					Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+						m.ParameterID, opPeriodStart.UTC(), rawEnd, model.QualityBad)
+				if mDeviceID > 0 {
+					rawBucketQ = rawBucketQ.Where("device_id = ?", mDeviceID)
+				}
+				_ = rawBucketQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCount, &rawAvg)
 
-			if rawCount > 0 && rawAvg != nil {
-				hasOpAgg = true
-				opAgg = model.AggregationResult{
-					TenantID:        tenantID,
-					SiteID:          siteID,
-					DeviceID:        mDeviceID,
-					ParameterID:     m.ParameterID,
-					PeriodStart:     opPeriodStart.UTC(),
-					PeriodEnd:       periodEnd.UTC(),
-					IntervalSeconds: intervalSec,
-					Value:           rawAvg,
-					Quality:         model.QualityGood,
-					Identifier:      sourceBucketIdent,
+				if rawCount == 0 && (reason == "EDGE_PUSH" || reason == "ON_DEMAND_INITIAL" || reason == "MANUAL_RECALCULATE" || reason == "MAPPING_UPDATED") {
+					lookbackStart := periodEnd.Add(-30 * time.Minute).UTC()
+					rawLookbackQ := s.db.WithContext(ctx).Model(&model.RawData{}).
+						Where("parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+							m.ParameterID, lookbackStart, rawEnd, model.QualityBad)
+					if mDeviceID > 0 {
+						rawLookbackQ = rawLookbackQ.Where("device_id = ?", mDeviceID)
+					}
+					_ = rawLookbackQ.Select("COUNT(*), AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawCount, &rawAvg)
+
+					if rawCount == 0 {
+						var p model.Parameter
+						if err := s.db.WithContext(ctx).First(&p, m.ParameterID).Error; err == nil && p.Enabled && p.CurrentValue != nil && !math.IsNaN(*p.CurrentValue) && !math.IsInf(*p.CurrentValue, 0) {
+							v := *p.CurrentValue
+							rawAvg = &v
+							rawCount = 1
+						}
+					}
+				}
+
+				if rawCount > 0 && rawAvg != nil {
+					hasOpAgg = true
+					opAgg = model.AggregationResult{
+						TenantID:        tenantID,
+						SiteID:          siteID,
+						DeviceID:        mDeviceID,
+						ParameterID:     m.ParameterID,
+						PeriodStart:     opPeriodStart.UTC(),
+						PeriodEnd:       periodEnd.UTC(),
+						IntervalSeconds: intervalSec,
+						Value:           rawAvg,
+						Quality:         model.QualityGood,
+						Identifier:      sourceBucketIdent,
+					}
 				}
 			}
 		}
@@ -742,14 +839,16 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			Rec   time.Time
 			Ident string
 		}
-		regAggQ := s.db.WithContext(ctx).Model(&model.AggregationResult{}).
-			Select("COALESCE(avg_value, value) AS val, period_end AS rec, identifier AS ident").
-			Where("parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
-				m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad)
-		if mDeviceID > 0 {
-			regAggQ = regAggQ.Where("device_id = ?", mDeviceID)
+		if !isCloudMode {
+			regAggQ := s.db.WithContext(ctx).Model(&model.AggregationResult{}).
+				Select("COALESCE(avg_value, value) AS val, period_end AS rec, identifier AS ident").
+				Where("parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
+					m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad)
+			if mDeviceID > 0 {
+				regAggQ = regAggQ.Where("device_id = ?", mDeviceID)
+			}
+			regAggQ.Order("period_end ASC").Find(&aggStats)
 		}
-		regAggQ.Order("period_end ASC").Find(&aggStats)
 
 		var regOut ParameterCalculationOutput
 		if len(aggStats) > 0 {
@@ -953,8 +1052,22 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			}
 
 			if len(rawStats) > 0 {
+				var maxBpXa float64 = 45000
+				if bps, ok := OfficialBreakpoints[m.PollutantCode]; ok && len(bps) > 0 {
+					maxBpXa = bps[len(bps)-1].Xa
+				}
+				maxPlausibleLimit := maxBpXa * 20.0
+				if maxPlausibleLimit < 100000.0 {
+					maxPlausibleLimit = 100000.0
+				}
+				if maxPlausibleLimit > 1e8 {
+					maxPlausibleLimit = 1e8
+				}
+
 				hoursWithData := make(map[int]bool)
 				var totalSum float64
+				usableCount := 0
+				excludedOutlierCount := 0
 				allBuckets := make([]model.ISPUOutlierBucket, 0, len(rawStats))
 
 				for _, rs := range rawStats {
@@ -965,6 +1078,17 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 					if recTime.IsZero() {
 						recTime = paramRegEnd.UTC()
 					}
+					normVal, _, _ := s.calculator.NormalizeConcentration(rs.Val, m.SourceUnit, m.ConversionRule, m.ConversionFactor)
+					ident := recTime.In(loc).Format("20060102150405")
+
+					isExcluded := false
+					excludeReason := ""
+					if rs.Val < 0 || normVal > maxPlausibleLimit || math.IsNaN(rs.Val) || math.IsInf(rs.Val, 0) {
+						isExcluded = true
+						excludeReason = fmt.Sprintf("Implausible value (%.2e %s) exceeds regulatory plausibility ceiling (%.1f)", rs.Val, m.SourceUnit, maxPlausibleLimit)
+						excludedOutlierCount++
+					}
+
 					hoursDiff := int(paramRegEnd.Sub(recTime).Hours())
 					if hoursDiff < 0 {
 						hoursDiff = 0
@@ -972,23 +1096,31 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 					if hoursDiff >= 24 {
 						hoursDiff = 23
 					}
-					hoursWithData[hoursDiff] = true
-					totalSum += rs.Val
-					normVal, _, _ := s.calculator.NormalizeConcentration(rs.Val, m.SourceUnit, m.ConversionRule, m.ConversionFactor)
-					ident := recTime.In(loc).Format("20060102150405")
+					if !isExcluded {
+						hoursWithData[hoursDiff] = true
+						totalSum += rs.Val
+						usableCount++
+					}
 					allBuckets = append(allBuckets, model.ISPUOutlierBucket{
 						Timestamp:     recTime,
 						Identifier:    ident,
 						RawValue:      rs.Val,
 						NormalizedVal: normVal,
+						IsExcluded:    isExcluded,
+						ExcludeReason: excludeReason,
 					})
+				}
+
+				rawMean := 0.0
+				if usableCount > 0 {
+					rawMean = totalSum / float64(usableCount)
 				}
 
 				regInput := ParameterCalculationInput{
 					PollutantCode:    m.PollutantCode,
 					ParameterID:      m.ParameterID,
 					SourceUnit:       m.SourceUnit,
-					RawConcentration: totalSum / float64(len(rawStats)),
+					RawConcentration: rawMean,
 					ConversionFactor: m.ConversionFactor,
 					ConversionRule:   m.ConversionRule,
 					ValidSamples:     len(hoursWithData),
@@ -1021,11 +1153,6 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 					topSpikes := make([]model.ISPUOutlierBucket, topCount)
 					copy(topSpikes, allBuckets[:topCount])
 
-					var maxBpXa float64 = 45000
-					if bps, ok := OfficialBreakpoints[m.PollutantCode]; ok && len(bps) > 0 {
-						maxBpXa = bps[len(bps)-1].Xa
-					}
-
 					isAnomaly := false
 					var anomalyReason string
 					if peakConc > maxBpXa {
@@ -1044,21 +1171,22 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 					regOut.MinConcentration = minConc
 
 					auditDetails := model.ISPUAuditDetails{
-						PollutantCode:        m.PollutantCode,
-						ParameterID:          m.ParameterID,
-						PeakConcentration:    peakConc,
-						PeakTimestamp:        peakTime,
-						PeakBucketIdentifier: peakIdent,
-						MinConcentration:     minConc,
-						MinTimestamp:         minTime,
-						AvgConcentration:     regOut.NormalizedConcentration,
-						IsAnomaly:            isAnomaly,
-						AnomalyReason:        anomalyReason,
-						RegulatoryXa:         maxBpXa,
-						SourceUnit:           m.SourceUnit,
-						NormalizedUnit:       regOut.NormalizedUnit,
-						TotalBuckets:         len(rawStats),
-						TopSpikes:            topSpikes,
+						PollutantCode:         m.PollutantCode,
+						ParameterID:           m.ParameterID,
+						PeakConcentration:     peakConc,
+						PeakTimestamp:         peakTime,
+						PeakBucketIdentifier:  peakIdent,
+						MinConcentration:      minConc,
+						MinTimestamp:          minTime,
+						AvgConcentration:      regOut.NormalizedConcentration,
+						IsAnomaly:             isAnomaly || excludedOutlierCount > 0,
+						AnomalyReason:         anomalyReason,
+						RegulatoryXa:          maxBpXa,
+						SourceUnit:            m.SourceUnit,
+						NormalizedUnit:        regOut.NormalizedUnit,
+						TotalBuckets:          len(rawStats),
+						ExcludedOutliersCount: excludedOutlierCount,
+						TopSpikes:             topSpikes,
 					}
 					if b, err := json.Marshal(auditDetails); err == nil {
 						regOut.DetailsJSON = string(b)
@@ -1374,6 +1502,29 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 		if _, err := s.CalculateStationWindowWithReason(ctx, deviceID, targetHour, "BACKFILL"); err == nil {
 			processed++
 		}
+	}
+
+	isCloudMode := config.Get() != nil && config.Get().IsCloudMode()
+	if isCloudMode {
+		recentStart := now.Add(-2 * time.Hour).UTC()
+		var recentTimes []time.Time
+		rq := s.db.WithContext(ctx).Model(&model.RawData{}).
+			Distinct("received_at").
+			Where("tenant_id = ? AND received_at >= ? AND quality != ?", tenantID, recentStart, model.QualityBad)
+		if deviceID > 0 {
+			rq = rq.Where("device_id = ?", deviceID)
+		} else if siteID > 0 {
+			rq = rq.Where("site_id = ?", siteID)
+		}
+		_ = rq.Order("received_at ASC").Pluck("received_at", &recentTimes).Error
+		for _, rt := range recentTimes {
+			if _, err := s.CalculateStationWindowWithReason(ctx, deviceID, rt.In(loc), "BACKFILL_OPERATIONAL"); err == nil {
+				processed++
+			}
+		}
+		logger.Info("ISPU trend backfill completed in Cloud Mode for station %d [%s]: %d windows generated",
+			deviceID, dev.DeviceCode, processed)
+		return processed, nil
 	}
 
 	// 2. Fetch active aggregation interval for this station (e.g. 120s = 2m even minutes)
@@ -2121,30 +2272,32 @@ func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParame
 		return err
 	}
 
-	// Ensure 120s aggregation definition exists for this parameter
-	var aggDefCount int64
-	s.db.WithContext(ctx).Model(&model.AggregationDefinition{}).
-		Where("device_id = ? AND parameter_id = ?", mapping.DeviceID, mapping.ParameterID).
-		Count(&aggDefCount)
-	if aggDefCount == 0 {
-		var p model.Parameter
-		if err := s.db.WithContext(ctx).First(&p, mapping.ParameterID).Error; err == nil {
-			_ = s.db.WithContext(ctx).Create(&model.AggregationDefinition{
-				TenantID:           mapping.TenantID,
-				Name:               fmt.Sprintf("ISPU Rollup 2m - %s", p.ParameterName),
-				Code:               fmt.Sprintf("AGG_%d_%s_120S", mapping.DeviceID, mapping.PollutantCode),
-				SourceType:         model.SourceCustomerProcessed,
-				DeviceID:           mapping.DeviceID,
-				ParameterID:        mapping.ParameterID,
-				Function:           model.FunctionAvg,
-				IntervalSeconds:    120,
-				Timezone:           "Asia/Jakarta",
-				Enabled:            true,
-				QualityPolicy:      "STANDARD",
-				IdentifierFormat:   "YYYYMMDDHHmmss",
-				DestinationType:    "INTERNAL",
-				GracePeriodSeconds: 5,
-			}).Error
+	// Ensure 120s aggregation definition exists for this parameter (Edge Mode only; Cloud Mode calculates directly from Edge-aggregated payloads)
+	if cfg := config.Get(); cfg == nil || !cfg.IsCloudMode() {
+		var aggDefCount int64
+		s.db.WithContext(ctx).Model(&model.AggregationDefinition{}).
+			Where("device_id = ? AND parameter_id = ?", mapping.DeviceID, mapping.ParameterID).
+			Count(&aggDefCount)
+		if aggDefCount == 0 {
+			var p model.Parameter
+			if err := s.db.WithContext(ctx).First(&p, mapping.ParameterID).Error; err == nil {
+				_ = s.db.WithContext(ctx).Create(&model.AggregationDefinition{
+					TenantID:           mapping.TenantID,
+					Name:               fmt.Sprintf("ISPU Rollup 2m - %s", p.ParameterName),
+					Code:               fmt.Sprintf("AGG_%d_%s_120S", mapping.DeviceID, mapping.PollutantCode),
+					SourceType:         model.SourceCustomerProcessed,
+					DeviceID:           mapping.DeviceID,
+					ParameterID:        mapping.ParameterID,
+					Function:           model.FunctionAvg,
+					IntervalSeconds:    120,
+					Timezone:           "Asia/Jakarta",
+					Enabled:            true,
+					QualityPolicy:      "STANDARD",
+					IdentifierFormat:   "YYYYMMDDHHmmss",
+					DestinationType:    "INTERNAL",
+					GracePeriodSeconds: 5,
+				}).Error
+			}
 		}
 	}
 

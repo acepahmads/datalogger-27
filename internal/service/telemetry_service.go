@@ -49,9 +49,10 @@ type TelemetryIngestPayload struct {
 	Sequence        uint64
 	DeviceTimestamp *time.Time
 	ReceivedAt      time.Time
-	ErrorMessage    string
-	Parameter       *model.Parameter
-	ReadError       error
+	ErrorMessage          string
+	Parameter             *model.Parameter
+	ReadError             error
+	SkipParameterLiveSync bool
 }
 
 // LatestTelemetry holds instantaneous cached values for fast lookup
@@ -733,8 +734,9 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		DeviceTimestamp:   p.DeviceTimestamp,
 		ReceivedAt:        recAt,
 		ProcessedAt:       &valResult.ProcessedAt,
-		StoredAt:          now,
-		Timestamp:         recAt,
+		StoredAt:              now,
+		Timestamp:             recAt,
+		SkipParameterLiveSync: p.SkipParameterLiveSync,
 	}
 
 	latest := &LatestTelemetry{
