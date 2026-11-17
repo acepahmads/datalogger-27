@@ -339,19 +339,20 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 		return 0
 	}
 
-	// Bulk-load latest ISPU & WQMS/IKA environmental index evaluations across all sites (zero N+1 queries)
+	// Bulk-load latest ISPU & WQMS/IKA environmental index evaluations across all sites (zero N+1 queries).
+	// Order by period_end DESC first so historical backlog replays (e.g. Oct 22 calculated today) never overshadow today's latest bucket.
 	latestISPUBySite := make(map[uint]model.ISPUCalculationResult)
 	if db.Migrator().HasTable(&model.ISPUCalculationResult{}) {
 		var ispuRows []model.ISPUCalculationResult
 		_ = db.Preload("ParameterResults").
-			Where("calculated_at >= ? AND overall_category <> ?", now.Add(-48*time.Hour), string(model.CategoryUnavailable)).
-			Order("calculated_at DESC, id DESC").
+			Where("(period_end >= ? OR calculated_at >= ?) AND overall_category <> ?", now.Add(-48*time.Hour), now.Add(-48*time.Hour), string(model.CategoryUnavailable)).
+			Order("period_end DESC, calculated_at DESC, id DESC").
 			Limit(500).
 			Find(&ispuRows).Error
 		for _, r := range ispuRows {
 			sid := resolveResultSiteID(r.TenantID, r.SiteID, r.DeviceID)
 			if sid > 0 {
-				if _, exists := latestISPUBySite[sid]; !exists {
+				if existing, exists := latestISPUBySite[sid]; !exists || r.PeriodEnd.After(existing.PeriodEnd) {
 					latestISPUBySite[sid] = r
 				}
 			}
@@ -377,14 +378,14 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 	if db.Migrator().HasTable(&model.WQMSCalculationResult{}) {
 		var wqmsRows []model.WQMSCalculationResult
 		_ = db.Preload("ParameterResults").
-			Where("calculated_at >= ? AND overall_category <> ?", now.Add(-48*time.Hour), string(model.WQMSCategoryUnavailable)).
-			Order("calculated_at DESC, id DESC").
+			Where("(period_end >= ? OR calculated_at >= ?) AND overall_category <> ?", now.Add(-48*time.Hour), now.Add(-48*time.Hour), string(model.WQMSCategoryUnavailable)).
+			Order("period_end DESC, calculated_at DESC, id DESC").
 			Limit(500).
 			Find(&wqmsRows).Error
 		for _, r := range wqmsRows {
 			sid := resolveResultSiteID(r.TenantID, r.SiteID, r.DeviceID)
 			if sid > 0 {
-				if _, exists := latestWQMSBySite[sid]; !exists {
+				if existing, exists := latestWQMSBySite[sid]; !exists || r.PeriodEnd.After(existing.PeriodEnd) {
 					latestWQMSBySite[sid] = r
 				}
 			}
@@ -902,10 +903,14 @@ func buildFleetSiteISPUSummary(
 			}
 		}
 		calcAt := r.CalculatedAt.UTC()
-		metrics := make([]FleetEnvParamMetric, 0, len(r.ParameterResults))
+		metricByCode := make(map[string]FleetEnvParamMetric, 7)
 		var domConc float64
 		domUnit := "µg/m³"
 		for _, pr := range r.ParameterResults {
+			codeStr := strings.TrimSpace(string(pr.PollutantCode))
+			if codeStr == "" {
+				continue
+			}
 			subIdx := pr.CalculatedISPU
 			conc := pr.NormalizedConcentration
 			pCat := pr.Category
@@ -924,16 +929,87 @@ func buildFleetSiteISPUSummary(
 				domConc = roundTo(conc, 2)
 				domUnit = u
 			}
-			metrics = append(metrics, FleetEnvParamMetric{
-				Code:          string(pr.PollutantCode),
+			cand := FleetEnvParamMetric{
+				Code:          codeStr,
 				Concentration: roundTo(conc, 2),
 				Unit:          u,
 				SubIndex:      math.Round(subIdx),
 				Category:      string(pCat),
-			})
+			}
+			// Deduplicate any historical duplicate child rows per pollutant_code, preferring valid / higher sub-index
+			if prev, exists := metricByCode[codeStr]; !exists ||
+				(prev.Category == string(model.CategoryUnavailable) && cand.Category != string(model.CategoryUnavailable)) ||
+				cand.SubIndex > prev.SubIndex {
+				metricByCode[codeStr] = cand
+			}
+		}
+
+		// Enrich any missing or unavailable official AQMS pollutants from live device parameters on this site
+		// (e.g. if parameters like PM10, SO2, CO, HC were registered after initial auto-mapping)
+		if calc != nil && len(metricByCode) < 7 {
+			for _, dev := range siteDevs {
+				if isDeviceAdminDisabled(dev) {
+					continue
+				}
+				for i := range dev.Parameters {
+					p := &dev.Parameters[i]
+					val, okVal := resolveLiveParamValue(p)
+					if !okVal || val < 0 {
+						continue
+					}
+					pCode := p.ParameterCode
+					if pCode == "" {
+						pCode = p.Code
+					}
+					pName := p.ParameterName
+					if pName == "" {
+						pName = p.Name
+					}
+					poll, unit, factor := DetectOfficialPollutant(pCode, pName, p.Unit)
+					if poll == "" {
+						continue
+					}
+					codeKey := string(poll)
+					if prev, exists := metricByCode[codeKey]; exists && prev.Category != "" && prev.Category != string(model.CategoryUnavailable) {
+						continue
+					}
+					eval := calc.CalculateParameter(ParameterCalculationInput{
+						PollutantCode:    poll,
+						ParameterID:      p.ID,
+						RawConcentration: val,
+						SourceUnit:       unit,
+						ConversionFactor: factor,
+						ValidSamples:     1,
+						ExpectedSamples:  1,
+						MinCompleteness:  75.0,
+					})
+					if !eval.IsEligible || eval.ErrorMessage != "" {
+						continue
+					}
+					u := eval.NormalizedUnit
+					if u == "" {
+						u = "µg/m³"
+					}
+					metricByCode[codeKey] = FleetEnvParamMetric{
+						Code:          codeKey,
+						Concentration: roundTo(eval.NormalizedConcentration, 2),
+						Unit:          u,
+						SubIndex:      float64(eval.DisplayISPU),
+						Category:      string(eval.Category),
+					}
+				}
+			}
+		}
+
+		metrics := make([]FleetEnvParamMetric, 0, len(metricByCode))
+		for _, m := range metricByCode {
+			metrics = append(metrics, m)
 		}
 		sort.SliceStable(metrics, func(i, j int) bool {
-			return metrics[i].SubIndex > metrics[j].SubIndex
+			if metrics[i].SubIndex != metrics[j].SubIndex {
+				return metrics[i].SubIndex > metrics[j].SubIndex
+			}
+			return metrics[i].Code < metrics[j].Code
 		})
 		return &FleetSiteISPUSummary{
 			Available:           true,
@@ -1075,17 +1151,31 @@ func buildFleetSiteWQMSSummary(
 			ika = calc.ComputeIKASummary(cats, wc, 30, string(r.CalculationMode))
 		}
 		calcAt := r.CalculatedAt.UTC()
-		metrics := make([]FleetEnvParamMetric, 0, len(r.ParameterResults))
+		wqByCode := make(map[string]FleetEnvParamMetric, len(r.ParameterResults))
 		for _, pr := range r.ParameterResults {
-			metrics = append(metrics, FleetEnvParamMetric{
-				Code:          string(pr.ParamCode),
+			codeStr := strings.TrimSpace(string(pr.ParamCode))
+			if codeStr == "" {
+				continue
+			}
+			cand := FleetEnvParamMetric{
+				Code:          codeStr,
 				Concentration: roundTo(pr.NormalizedMeasured, 2),
 				Unit:          pr.NormalizedUnit,
 				SubIndex:      roundTo(pr.AdjustedRatio, 2),
-			})
+			}
+			if prev, exists := wqByCode[codeStr]; !exists || cand.SubIndex > prev.SubIndex {
+				wqByCode[codeStr] = cand
+			}
+		}
+		metrics := make([]FleetEnvParamMetric, 0, len(wqByCode))
+		for _, m := range wqByCode {
+			metrics = append(metrics, m)
 		}
 		sort.SliceStable(metrics, func(i, j int) bool {
-			return metrics[i].SubIndex > metrics[j].SubIndex
+			if metrics[i].SubIndex != metrics[j].SubIndex {
+				return metrics[i].SubIndex > metrics[j].SubIndex
+			}
+			return metrics[i].Code < metrics[j].Code
 		})
 		return &FleetSiteWQMSSummary{
 			Available:         true,

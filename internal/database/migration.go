@@ -90,6 +90,7 @@ func RunMigrations(db *gorm.DB) error {
 	// (ispu_calculation_results, wqms_calculation_results, wqms_parameter_mappings) where device_id = 0
 	// represents a unified multi-device station and must never fail with MariaDB Error 1452.
 	dropUnifiedStationDeviceForeignKeys(db)
+	cleanupDuplicateIndexParameterResults(db)
 
 	// 1b. Ensure zero_value_alarm_policy and sensor calibration columns are initialized and backfilled
 	if db.Migrator().HasTable(&model.Parameter{}) {
@@ -4371,6 +4372,51 @@ func dropUnifiedStationDeviceForeignKeys(db *gorm.DB) {
 		dropSQL := fmt.Sprintf("ALTER TABLE `%s` DROP FOREIGN KEY `%s`", r.TableName, r.ConstraintName)
 		if dErr := db.Exec(dropSQL).Error; dErr == nil {
 			logger.Info("Dropped legacy unified-station foreign key %s on %s (allows device_id = 0)", r.ConstraintName, r.TableName)
+		}
+	}
+}
+
+// cleanupDuplicateIndexParameterResults removes historical duplicate child rows per (calculation_result_id, pollutant_code / param_code)
+// keeping only the latest MAX(id) row so ISPU & WQMS breakdowns never contain duplicate parameters.
+func cleanupDuplicateIndexParameterResults(db *gorm.DB) {
+	if db == nil || db.Dialector == nil {
+		return
+	}
+	isMySQL := db.Dialector.Name() == "mysql"
+	if db.Migrator().HasTable(&model.ISPUParameterResult{}) {
+		if isMySQL {
+			_ = db.Exec(`
+				DELETE r1 FROM ispu_parameter_results r1
+				INNER JOIN ispu_parameter_results r2
+				  ON r1.calculation_result_id = r2.calculation_result_id
+				 AND r1.pollutant_code = r2.pollutant_code
+				 AND r1.id < r2.id
+			`).Error
+		} else {
+			_ = db.Exec(`
+				DELETE FROM ispu_parameter_results
+				WHERE id NOT IN (
+					SELECT MAX(id) FROM ispu_parameter_results GROUP BY calculation_result_id, pollutant_code
+				)
+			`).Error
+		}
+	}
+	if db.Migrator().HasTable(&model.WQMSParameterResult{}) {
+		if isMySQL {
+			_ = db.Exec(`
+				DELETE r1 FROM wqms_parameter_results r1
+				INNER JOIN wqms_parameter_results r2
+				  ON r1.calculation_result_id = r2.calculation_result_id
+				 AND r1.param_code = r2.param_code
+				 AND r1.id < r2.id
+			`).Error
+		} else {
+			_ = db.Exec(`
+				DELETE FROM wqms_parameter_results
+				WHERE id NOT IN (
+					SELECT MAX(id) FROM wqms_parameter_results GROUP BY calculation_result_id, param_code
+				)
+			`).Error
 		}
 	}
 }

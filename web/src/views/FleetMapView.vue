@@ -664,6 +664,7 @@
         <transition name="fade">
           <div
             v-if="selectedSite && isDesktopViewport"
+            :key="'desk-site-card-' + selectedSite.site_id"
             id="fleet-desktop-site-card"
             class="hidden md:flex flex-col absolute top-3 left-3 z-[500] w-[325px] lg:w-[350px] max-h-[calc(100%-24px)] rounded-2xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700/90 shadow-2xl overflow-hidden"
           >
@@ -764,10 +765,10 @@
                   <span class="font-mono text-4xs opacity-75">Permen LHK 14/2020</span>
                 </div>
               </div>
-              <div v-if="selectedSite.ispu.parameters && selectedSite.ispu.parameters.length > 0" class="space-y-1 pt-0.5">
+              <div v-if="selectedSiteIspuParams.length > 0" class="space-y-1 pt-0.5">
                 <div
-                  v-for="pm in selectedSite.ispu.parameters.slice(0, 5)"
-                  :key="'ispu-p-' + pm.code"
+                  v-for="pm in selectedSiteIspuParams"
+                  :key="'ispu-p-' + selectedSite.site_id + '-' + pm.code"
                   class="flex items-center gap-2 text-3xs"
                 >
                   <span class="w-10 font-mono font-bold text-slate-600 dark:text-slate-300">{{ pm.code }}</span>
@@ -778,7 +779,7 @@
                       :style="{ width: Math.min(100, Math.max(6, (Number(pm.sub_index || 0) / 300) * 100)) + '%' }"
                     ></div>
                   </div>
-                  <span class="w-8 text-right font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">{{ Math.round(pm.sub_index || 0) }}</span>
+                  <span class="w-8 text-right font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">{{ pm.category === 'TIDAK_TERSEDIA' ? '--' : Math.round(pm.sub_index || 0) }}</span>
                 </div>
               </div>
             </div>
@@ -813,10 +814,10 @@
                   </div>
                 </div>
               </div>
-              <div v-if="selectedSite.wqms.parameters && selectedSite.wqms.parameters.length > 0" class="flex items-center gap-1 flex-wrap pt-0.5">
+              <div v-if="selectedSiteWqmsParams.length > 0" class="flex items-center gap-1 flex-wrap pt-0.5">
                 <span
-                  v-for="wp in selectedSite.wqms.parameters.slice(0, 6)"
-                  :key="'wq-p-' + wp.code"
+                  v-for="wp in selectedSiteWqmsParams"
+                  :key="'wq-p-' + selectedSite.site_id + '-' + wp.code"
                   class="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-4xs font-mono text-slate-700 dark:text-slate-200"
                 >
                   <strong>{{ wp.code }}</strong> {{ wp.concentration }}{{ wp.unit && wp.unit !== 'pH' ? ' ' + wp.unit : '' }}
@@ -918,6 +919,7 @@
         <transition name="fade">
           <div
             v-if="selectedSite && !isDesktopViewport && mobileViewMode === 'map'"
+            :key="'mob-site-card-' + selectedSite.site_id"
             id="fleet-mobile-bottom-card"
             class="flex md:hidden flex-col absolute inset-x-2 bottom-2 z-[500] rounded-2xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden"
           >
@@ -1875,6 +1877,38 @@ export default {
     selectedSite() {
       if (!this.selectedSiteId) return null;
       return (this.sites || []).find(s => Number(s.site_id) === Number(this.selectedSiteId)) || null;
+    },
+    selectedSiteIspuParams() {
+      const site = this.selectedSite;
+      if (!site || !site.ispu || !Array.isArray(site.ispu.parameters)) return [];
+      const byCode = new Map();
+      for (const pm of site.ispu.parameters) {
+        if (!pm || !pm.code) continue;
+        const code = String(pm.code).trim().toUpperCase();
+        if (!code) continue;
+        const prev = byCode.get(code);
+        if (!prev || Number(pm.sub_index || 0) > Number(prev.sub_index || 0)) {
+          byCode.set(code, { ...pm, code });
+        }
+      }
+      return Array.from(byCode.values())
+        .sort((a, b) => Number(b.sub_index || 0) - Number(a.sub_index || 0))
+        .slice(0, 7);
+    },
+    selectedSiteWqmsParams() {
+      const site = this.selectedSite;
+      if (!site || !site.wqms || !Array.isArray(site.wqms.parameters)) return [];
+      const byCode = new Map();
+      for (const wp of site.wqms.parameters) {
+        if (!wp || !wp.code) continue;
+        const code = String(wp.code).trim().toUpperCase();
+        if (!code) continue;
+        const prev = byCode.get(code);
+        if (!prev || Number(wp.sub_index || 0) > Number(prev.sub_index || 0)) {
+          byCode.set(code, { ...wp, code });
+        }
+      }
+      return Array.from(byCode.values()).slice(0, 8);
     },
     gpsPickerLat() {
       return isValidStationCoordinate(this.gpsForm.latitude, this.gpsForm.longitude)

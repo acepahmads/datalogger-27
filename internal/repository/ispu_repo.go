@@ -102,6 +102,25 @@ func (r *ISPURepository) UpsertCalculationResult(ctx context.Context, res *model
 	})
 }
 
+func dedupeISPUParameterResults(items []model.ISPUParameterResult) []model.ISPUParameterResult {
+	if len(items) <= 1 {
+		return items
+	}
+	idxByCode := make(map[model.ISPUParameter]int, len(items))
+	out := make([]model.ISPUParameterResult, 0, len(items))
+	for _, it := range items {
+		if idx, exists := idxByCode[it.PollutantCode]; exists {
+			if it.ID > out[idx].ID || it.CalculatedISPU > out[idx].CalculatedISPU {
+				out[idx] = it
+			}
+		} else {
+			idxByCode[it.PollutantCode] = len(out)
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
 // GetLatestByDeviceID retrieves the latest calculation result for a device, preloading relations.
 // Mode can be "REGULATORY", "OPERATIONAL", or empty/ALL.
 func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint, mode string) (*model.ISPUCalculationResult, error) {
@@ -126,6 +145,7 @@ func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint,
 	if err != nil {
 		return nil, err
 	}
+	res.ParameterResults = dedupeISPUParameterResults(res.ParameterResults)
 	return &res, nil
 }
 
@@ -140,6 +160,7 @@ func (r *ISPURepository) GetByID(ctx context.Context, id uint) (*model.ISPUCalcu
 	if err != nil {
 		return nil, err
 	}
+	res.ParameterResults = dedupeISPUParameterResults(res.ParameterResults)
 	return &res, nil
 }
 
