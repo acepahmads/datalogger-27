@@ -59,6 +59,36 @@ func extractRawIngestKey(c *gin.Context) string {
 	return ""
 }
 
+// ingestAPIResponse includes both standard APIResponse fields ("success": true/false)
+// and legacy CBI Edge Datalogger status ("status": 1 on success, "status": 0 on error)
+// so both datalogger-27 and legacy Go sendDataPortal (responseDataPortal.Status == 1) acknowledge cleanly.
+type ingestAPIResponse struct {
+	Status  int         `json:"status"`
+	Success bool        `json:"success"`
+	Message string      `json:"message,omitempty"`
+	Data    interface{} `json:"data,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+func writeIngestSuccess(c *gin.Context, msg string, data interface{}) {
+	c.JSON(http.StatusOK, ingestAPIResponse{
+		Status:  1,
+		Success: true,
+		Message: msg,
+		Data:    data,
+	})
+}
+
+func writeIngestFail(c *gin.Context, statusCode int, msg string, details interface{}) {
+	c.JSON(statusCode, ingestAPIResponse{
+		Status:  0,
+		Success: false,
+		Message: msg,
+		Error:   msg,
+		Data:    details,
+	})
+}
+
 func writeIngestError(c *gin.Context, err error) {
 	var httpErr *service.IngestHTTPError
 	if errors.As(err, &httpErr) && httpErr != nil {
@@ -66,25 +96,20 @@ func writeIngestError(c *gin.Context, err error) {
 		if code < 400 || code > 599 {
 			code = http.StatusBadRequest
 		}
-		c.JSON(code, response.APIResponse{
-			Success: false,
-			Message: httpErr.Message,
-			Error:   httpErr.Message,
-			Data:    httpErr.Details,
-		})
+		writeIngestFail(c, code, httpErr.Message, httpErr.Details)
 		return
 	}
 
 	lower := strings.ToLower(err.Error())
 	switch {
 	case strings.Contains(lower, "missing") || strings.Contains(lower, "invalid or disabled"):
-		response.Unauthorized(c, err.Error())
+		writeIngestFail(c, http.StatusUnauthorized, err.Error(), nil)
 	case strings.Contains(lower, "suspended") || strings.Contains(lower, "locked to station"):
-		response.Forbidden(c, err.Error())
+		writeIngestFail(c, http.StatusForbidden, err.Error(), nil)
 	case strings.Contains(lower, "not registered"):
-		response.NotFound(c, err.Error())
+		writeIngestFail(c, http.StatusNotFound, err.Error(), nil)
 	default:
-		response.BadRequest(c, err.Error())
+		writeIngestFail(c, http.StatusBadRequest, err.Error(), nil)
 	}
 }
 
@@ -93,13 +118,13 @@ func writeIngestError(c *gin.Context, err error) {
 func (h *IngestHandler) IngestTelemetry(c *gin.Context) {
 	rawKey := extractRawIngestKey(c)
 	if rawKey == "" {
-		response.Unauthorized(c, "Missing Bearer token (provide 'Authorization: Bearer dlg_live_...' header)")
+		writeIngestFail(c, http.StatusUnauthorized, "Missing Bearer token (provide 'Authorization: Bearer dlg_live_...' header)", nil)
 		return
 	}
 
 	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 4*1024*1024))
 	if err != nil || len(bodyBytes) == 0 {
-		response.BadRequest(c, "Empty or unreadable telemetry JSON body")
+		writeIngestFail(c, http.StatusBadRequest, "Empty or unreadable telemetry JSON body", nil)
 		return
 	}
 
@@ -109,26 +134,26 @@ func (h *IngestHandler) IngestTelemetry(c *gin.Context) {
 		return
 	}
 
-	response.Message(c, "Telemetry ingested successfully", res)
+	writeIngestSuccess(c, "Telemetry ingested successfully", res)
 }
 
 // IngestMQTT handles POST /api/v1/ingest/mqtt and POST /api/ingest/mqtt for MQTT broker webhooks & bridges
 // when the administrator enables MQTT ingestion (mqtt_ingest_enabled = true).
 func (h *IngestHandler) IngestMQTT(c *gin.Context) {
 	if !config.Get().MQTTIngestEnabled {
-		response.Forbidden(c, "MQTT telemetry ingestion module is currently disabled by administrator")
+		writeIngestFail(c, http.StatusForbidden, "MQTT telemetry ingestion module is currently disabled by administrator", nil)
 		return
 	}
 
 	rawKey := extractRawIngestKey(c)
 	if rawKey == "" {
-		response.Unauthorized(c, "Missing Bearer token for MQTT ingestion (provide 'Authorization: Bearer dlg_live_...' or 'X-MQTT-Token')")
+		writeIngestFail(c, http.StatusUnauthorized, "Missing Bearer token for MQTT ingestion (provide 'Authorization: Bearer dlg_live_...' or 'X-MQTT-Token')", nil)
 		return
 	}
 
 	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 4*1024*1024))
 	if err != nil || len(bodyBytes) == 0 {
-		response.BadRequest(c, "Empty or unreadable MQTT telemetry JSON payload")
+		writeIngestFail(c, http.StatusBadRequest, "Empty or unreadable MQTT telemetry JSON payload", nil)
 		return
 	}
 
@@ -138,7 +163,7 @@ func (h *IngestHandler) IngestMQTT(c *gin.Context) {
 		return
 	}
 
-	response.Message(c, "MQTT telemetry ingested successfully", res)
+	writeIngestSuccess(c, "MQTT telemetry ingested successfully", res)
 }
 
 // GetPayloadTemplate handles GET /api/ingest-keys/payload-template to generate standardized

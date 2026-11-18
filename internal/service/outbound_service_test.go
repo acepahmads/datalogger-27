@@ -1335,5 +1335,64 @@ func TestOutboundService_CBIHourlyBundled30x2DeliveryAndAutoSync(t *testing.T) {
 	}
 }
 
+func TestOutboundService_HybridStatus1AndSuccessTrueResponse(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+	ctx := context.Background()
+
+	db.Create(&model.Device{
+		ID:         1,
+		DeviceCode: "AQMS-TEST-01",
+		DeviceName: "AQMS Test",
+		Enabled:    true,
+		Status:     model.DeviceStatusActive,
+	})
+	db.Create(&model.Parameter{ID: 1, DeviceID: 1, ParameterCode: "pm2.5", ParameterName: "PM2.5", Enabled: true})
+
+	var returnFail atomic.Bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if returnFail.Load() {
+			_, _ = w.Write([]byte(`{"status":0,"success":false,"message":"Invalid token","error":"Invalid token"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":1,"success":true,"message":"Telemetry ingested successfully","data":{"accepted":true}}`))
+	}))
+	defer ts.Close()
+
+	dest := &model.OutputDestination{
+		Name:      "Cloud Hybrid Receiver",
+		Type:      model.DestREST,
+		Endpoint:  ts.URL + "/api/v1/ingest/telemetry",
+		AuthType:  "BEARER_TOKEN",
+		AuthToken: "dlg_live_test",
+		Enabled:   true,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	okRes, err := svc.TestPayload(ctx, dest.ID)
+	if err != nil {
+		t.Fatalf("TestPayload unexpected err: %v", err)
+	}
+	if !okRes.Success {
+		t.Fatalf("expected status=1 + success=true to succeed, got err=%q", okRes.ErrorMessage)
+	}
+
+	returnFail.Store(true)
+	failRes, err := svc.TestPayload(ctx, dest.ID)
+	if err != nil {
+		t.Fatalf("TestPayload unexpected err: %v", err)
+	}
+	if failRes.Success || !strings.Contains(failRes.ErrorMessage, "Invalid token") {
+		t.Fatalf("expected status=0 + success=false to be rejected with 'Invalid token', got success=%v err=%q", failRes.Success, failRes.ErrorMessage)
+	}
+}
+
 
 

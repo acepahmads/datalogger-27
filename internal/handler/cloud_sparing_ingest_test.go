@@ -513,9 +513,16 @@ func TestCloudMode_LegacyCBICreateMultiTickAndFormatSwitch(t *testing.T) {
 		t.Fatalf("POST /api/v1/ticks/create_multi failed (%d): %s", wLegacy.Code, wLegacy.Body.String())
 	}
 	var legacyResp struct {
-		Data service.EdgeIngestResponse `json:"data"`
+		Status  int                        `json:"status"`
+		Success bool                       `json:"success"`
+		Message string                     `json:"message"`
+		Data    service.EdgeIngestResponse `json:"data"`
 	}
 	_ = json.Unmarshal(wLegacy.Body.Bytes(), &legacyResp)
+	if legacyResp.Status != 1 || !legacyResp.Success {
+		t.Fatalf("expected legacy Go sendDataPortal compatible status=1 and success=true, got status=%d success=%v body=%s",
+			legacyResp.Status, legacyResp.Success, wLegacy.Body.String())
+	}
 	if legacyResp.Data.SiteCode != "aqms-stasiun-202" || legacyResp.Data.DeviceCode != "AQMS-MOD-199" {
 		t.Fatalf("expected routing to aqms-stasiun-202 / AQMS-MOD-199 via station_id:202 & module_id:199, got %s / %s",
 			legacyResp.Data.SiteCode, legacyResp.Data.DeviceCode)
@@ -581,9 +588,28 @@ func TestCloudMode_LegacyCBICreateMultiTickAndFormatSwitch(t *testing.T) {
 	if wRejectLegacy.Code != http.StatusBadRequest {
 		t.Fatalf("expected HTTP 400 when pushing CBI_LEGACY to STANDARD_V1 token, got %d: %s", wRejectLegacy.Code, wRejectLegacy.Body.String())
 	}
+	var rejPortal struct {
+		Status  int    `json:"status"`
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(wRejectLegacy.Body.Bytes(), &rejPortal)
+	if rejPortal.Status != 0 || rejPortal.Success || rejPortal.Message == "" {
+		t.Fatalf("expected status=0, success=false, and non-empty message on ingest error, got %+v", rejPortal)
+	}
+
 	wAcceptStd := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", customBearer, nil, stdPayload)
 	if wAcceptStd.Code != http.StatusOK {
 		t.Fatalf("expected HTTP 200 when pushing STANDARD_V1 to STANDARD_V1 token, got %d: %s", wAcceptStd.Code, wAcceptStd.Body.String())
+	}
+	var okPortal struct {
+		Status  int    `json:"status"`
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(wAcceptStd.Body.Bytes(), &okPortal)
+	if okPortal.Status != 1 || !okPortal.Success {
+		t.Fatalf("expected status=1 and success=true on STANDARD_V1 ingest success, got %+v", okPortal)
 	}
 
 	// 5c. Live-switch Token to AUTO -> BOTH formats succeed!
