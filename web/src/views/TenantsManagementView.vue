@@ -1619,14 +1619,45 @@
 import axios from 'axios';
 import StationMapViewer from '../components/StationMapViewer.vue';
 
+const VALID_TENANT_MGMT_TABS = ['tenants', 'sites', 'ingest'];
+const TENANT_MGMT_LAST_TAB_STORAGE_KEY = 'dl_tenants_mgmt_active_tab';
+
+function readStoredTenantsMgmtTab() {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const saved = String(window.sessionStorage.getItem(TENANT_MGMT_LAST_TAB_STORAGE_KEY) || '');
+      if (VALID_TENANT_MGMT_TABS.includes(saved)) return saved;
+    }
+  } catch (_) {
+    // ignore storage access errors
+  }
+  return '';
+}
+
+function writeStoredTenantsMgmtTab(tab) {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage && VALID_TENANT_MGMT_TABS.includes(tab)) {
+      window.sessionStorage.setItem(TENANT_MGMT_LAST_TAB_STORAGE_KEY, tab);
+    }
+  } catch (_) {
+    // ignore storage access errors
+  }
+}
+
 export default {
   name: 'TenantsManagementView',
   components: {
     StationMapViewer,
   },
   data() {
+    const queryTab = this.$route && this.$route.query && this.$route.query.tab
+      ? String(this.$route.query.tab)
+      : '';
+    const initialTab = VALID_TENANT_MGMT_TABS.includes(queryTab)
+      ? queryTab
+      : (readStoredTenantsMgmtTab() || 'tenants');
     return {
-      activeTab: 'tenants',
+      activeTab: initialTab,
       toastMessage: '',
       toastType: 'success',
       tenantSearch: '',
@@ -2123,6 +2154,28 @@ export default {
       return jsonPretty;
     },
   },
+  watch: {
+    activeTab(nextTab) {
+      const normalized = String(nextTab || '');
+      if (!VALID_TENANT_MGMT_TABS.includes(normalized)) return;
+      writeStoredTenantsMgmtTab(normalized);
+      if (this.$router && this.$route) {
+        const currentQueryTab = this.$route.query && this.$route.query.tab ? String(this.$route.query.tab) : '';
+        if (currentQueryTab !== normalized) {
+          this.$router.replace({
+            query: { ...(this.$route.query || {}), tab: normalized },
+          }).catch(() => {});
+        }
+      }
+    },
+    '$route.query.tab'(nextQueryTab) {
+      const normalized = nextQueryTab ? String(nextQueryTab) : '';
+      if (VALID_TENANT_MGMT_TABS.includes(normalized) && this.activeTab !== normalized) {
+        this.activeTab = normalized;
+        writeStoredTenantsMgmtTab(normalized);
+      }
+    },
+  },
   mounted() {
     if (this.isEngineer && !this.isCloudMode) {
       this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
@@ -2130,10 +2183,11 @@ export default {
     }
     if (this.$route && this.$route.query && this.$route.query.tab) {
       const t = String(this.$route.query.tab);
-      if (['tenants', 'sites', 'ingest'].includes(t)) {
+      if (VALID_TENANT_MGMT_TABS.includes(t)) {
         this.activeTab = t;
       }
     }
+    writeStoredTenantsMgmtTab(this.activeTab);
     this.loadAll();
   },
   methods: {

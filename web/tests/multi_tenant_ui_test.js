@@ -262,4 +262,9 @@ assert(/v-if="!isCloudMode"\s+@click="setMode\('AGGREGATED'\)"/.test(telemetryAn
 assert(telemetryAnalysisCode.includes("if (this.isCloudMode && this.activeMode === 'AGGREGATED')"), 'TelemetryAnalysisView must redirect ?mode=AGGREGATED to HISTORICAL in Cloud mode');
 assert(/v-if="!isCloudMode"\s+@click="switchTab\('aggregation'\)"/.test(deviceDetailViewCode), 'DeviceDetailView must hide Aggregation tab in Cloud mode');
 
+// 23. TenantsManagementView Tab Persistence Across Tenant/Station Context Switches
+assert(tenantsViewCode.includes('TENANT_MGMT_LAST_TAB_STORAGE_KEY'), 'TenantsManagementView must persist last selected tab in sessionStorage');
+assert(tenantsViewCode.includes('readStoredTenantsMgmtTab') && tenantsViewCode.includes('writeStoredTenantsMgmtTab'), 'TenantsManagementView must restore and save activeTab across remounts');
+assert(tenantsViewCode.includes("'$route.query.tab'"), 'TenantsManagementView must watch $route.query.tab changes');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');
