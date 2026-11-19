@@ -2,7 +2,7 @@
   <header class="relative bg-white/95 dark:bg-[#0B0F19]/95 border-b border-slate-200 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 px-2 sm:px-4 py-1.5 flex items-center justify-between gap-1 sm:gap-1.5 sticky top-0 z-40 select-none transition-colors duration-150">
     <!-- Backdrop Blur Layer (Isolated sibling so header does not form a containing block for modals) -->
     <div class="absolute inset-0 backdrop-blur-md -z-10 pointer-events-none"></div>
-    <!-- Left: Mobile Hamburger, Logo & Workspace Switcher -->
+    <!-- Left: Sidebar Toggle / Mobile Hamburger, Logo & Workspace Switcher -->
     <div class="flex items-center gap-1 sm:gap-2.5 min-w-0 flex-1">
       <!-- Mobile Hamburger Menu Trigger (< 768px) -->
       <button
@@ -12,6 +12,23 @@
         class="md:hidden w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/70 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center flex-shrink-0 cursor-pointer transition-colors shadow-xs"
         aria-label="Open Navigation Menu"
         title="Menu Navigasi"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      <!-- Desktop Sidebar Toggle Button (Far-Left, >= 768px) -->
+      <button
+        type="button"
+        id="btn-sidebar-autohide-toggle"
+        @click.stop="toggleSidebarAutoHide"
+        class="hidden md:flex relative w-7 h-7 rounded-lg border transition-colors items-center justify-center shadow-xs flex-shrink-0 cursor-pointer"
+        :class="sidebarAutoHide
+          ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30'
+          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-slate-700/60'"
+        :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
+        aria-label="Toggle Sidebar Auto-Hide"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -133,23 +150,6 @@
 
     <!-- Right: Controls & User -->
     <div class="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-      <!-- 0. Sidebar Auto-Hide Setup Icon Button (Desktop >= 768px only) -->
-      <button
-        type="button"
-        id="btn-sidebar-autohide-toggle"
-        @click.stop="toggleSidebarAutoHide"
-        class="hidden md:flex relative w-7 h-7 rounded-lg border transition-colors items-center justify-center shadow-xs cursor-pointer"
-        :class="sidebarAutoHide
-          ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30'
-          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-slate-700/60'"
-        :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
-        aria-label="Toggle Sidebar Auto-Hide"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
-
       <!-- 1. Operator Console / Dashboard Operator Quick Icon Button (Tablet/Desktop >= 640px; mobile uses Drawer) -->
       <router-link
         v-if="showOperatorConsoleConfig && !isOperator && !((isAdmin || isCustomerService || isEngineer) && isCloudMode)"
