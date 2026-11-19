@@ -3105,6 +3105,17 @@
                       <span class="s-name" :title="param.param_name || param.param_code">
                         {{ param.param_name || param.param_code }}
                       </span>
+                      <span
+                        v-if="getLinkedActuatorForParam(param)"
+                        class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold border flex-shrink-0"
+                        :class="getLinkedActuatorForParam(param).current_state === 'ON'
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
+                          : 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/30'"
+                        :title="'Status Actuator: ' + getLinkedActuatorForParam(param).actuator_name + ' (' + (getLinkedActuatorForParam(param).current_state || 'OFF') + ') — Klik kanan untuk Test / Edit Actuator'"
+                      >
+                        <span>⚡</span>
+                        <span>{{ getLinkedActuatorForParam(param).current_state === 'ON' ? 'ON' : 'ACT' }}</span>
+                      </span>
                     </div>
 
                     <div class="s-head-right">
@@ -3358,6 +3369,17 @@
                           ></span>
                           <span class="bt-name" :title="param.param_name || param.param_code">
                             {{ param.param_name || param.param_code }}
+                          </span>
+                          <span
+                            v-if="getLinkedActuatorForParam(param)"
+                            class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold border flex-shrink-0"
+                            :class="getLinkedActuatorForParam(param).current_state === 'ON'
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
+                              : 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/30'"
+                            :title="'Status Actuator: ' + getLinkedActuatorForParam(param).actuator_name + ' (' + (getLinkedActuatorForParam(param).current_state || 'OFF') + ') — Klik kanan untuk Test / Edit Actuator'"
+                          >
+                            <span>⚡</span>
+                            <span>{{ getLinkedActuatorForParam(param).current_state === 'ON' ? 'ON' : 'ACT' }}</span>
                           </span>
                           <span v-if="!col.isCategoryTable && !isCompactScreen && getParamCategory(param)" class="s-cat flex-shrink-0">
                             {{ getParamCategoryShortLabel(param) }}
@@ -6508,7 +6530,7 @@
     <!-- Custom Floating Context Menu for Parameter Cards (Right-Click) -->
     <div
       v-if="paramContextMenu.visible && paramContextMenu.param"
-      class="param-context-menu fixed z-50 min-w-[240px] rounded-xl bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-[#20354B] shadow-2xl overflow-hidden font-sans text-xs animate-fade-in divide-y divide-slate-100 dark:divide-[#152538]"
+      class="param-context-menu fixed z-50 min-w-[250px] max-w-[290px] max-h-[85vh] overflow-y-auto rounded-xl bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-[#20354B] shadow-2xl font-sans text-xs animate-fade-in divide-y divide-slate-100 dark:divide-[#152538]"
       :style="{ top: paramContextMenu.y + 'px', left: paramContextMenu.x + 'px' }"
       @click.stop
     >
@@ -6527,6 +6549,17 @@
           </div>
           <div class="text-4xs font-mono text-cyan-600 dark:text-cyan-400 truncate mt-0.5">
             {{ paramContextMenu.param.device_code }} · {{ paramContextMenu.param.param_code }}
+          </div>
+          <div
+            v-if="contextMenuLinkedActuator"
+            class="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-md text-4xs font-mono font-bold border max-w-full"
+            :class="contextMenuLinkedActuator.current_state === 'ON'
+              ? 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+              : 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/30'"
+          >
+            <span>⚡</span>
+            <span class="truncate">{{ contextMenuLinkedActuator.actuator_name }}</span>
+            <span>· {{ contextMenuLinkedActuator.current_state || 'OFF' }}</span>
           </div>
         </div>
       </div>
@@ -6639,6 +6672,65 @@
             <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5">Riwayat & audit log telemetri</div>
           </div>
         </button>
+
+        <!-- 5. Download Data (Filter Rentang Waktu) -->
+        <button
+          id="ctx-btn-download-param-data"
+          type="button"
+          @click="handleContextDownloadData"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-teal-50 dark:hover:bg-teal-500/10 hover:text-teal-700 dark:hover:text-teal-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-teal-500/15 text-teal-600 dark:text-teal-400 group-hover:bg-teal-500/25 flex-shrink-0">
+            <OperatorDashboardIcon name="download" :size="14" />
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">Download Data</div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5">Unduh CSV / Excel / JSON dengan filter waktu</div>
+          </div>
+        </button>
+      </div>
+
+      <!-- Linked Actuator Actions (Shown when parameter is an Actuator Feedback Status Parameter & role is non-Operator) -->
+      <div v-if="contextMenuLinkedActuator && canManageLinkedActuator" class="py-1 bg-amber-50/40 dark:bg-amber-950/15">
+        <div class="px-3.5 pt-1 pb-1 text-4xs font-mono font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+          Actuator · {{ contextMenuLinkedActuator.actuator_code || contextMenuLinkedActuator.actuator_name }}
+        </div>
+
+        <!-- A1. Test Actuator (Write ON/OFF Modbus Diagnostic) -->
+        <button
+          id="ctx-btn-test-actuator"
+          type="button"
+          @click="handleContextTestActuator"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-amber-100/70 dark:hover:bg-amber-500/15 hover:text-amber-700 dark:hover:text-amber-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500/30 flex-shrink-0">
+            <OperatorDashboardIcon name="lightning" :size="14" />
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">Test Actuator</div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              Uji perintah ON/OFF · {{ contextMenuLinkedActuator.actuator_name }}
+            </div>
+          </div>
+        </button>
+
+        <!-- A2. Edit Actuator Configuration -->
+        <button
+          id="ctx-btn-edit-actuator"
+          type="button"
+          @click="handleContextEditActuator"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-500/25 flex-shrink-0">
+            <OperatorDashboardIcon name="edit" :size="14" />
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">Edit Actuator</div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              Ubah register, watchdog &amp; feedback actuator
+            </div>
+          </div>
+        </button>
       </div>
     </div>
 
@@ -6682,6 +6774,35 @@
       :device="historyTarget.device"
       :parameter="historyTarget.parameter"
       @close="isHistoryModalOpen = false"
+    />
+
+    <!-- 4B. Download Data Parameter Modal (Time Range Filter + CSV/XLS/JSON) -->
+    <ParameterDataDownloadModal
+      :is-open="isParamDownloadModalOpen"
+      :device="paramDownloadTarget.device"
+      :parameter="paramDownloadTarget.parameter"
+      @close="isParamDownloadModalOpen = false"
+    />
+
+    <!-- 4C. Test Actuator Write Modal (Triggered from Right-Click on Actuator Feedback Status Parameter) -->
+    <ActuatorTestWriteModal
+      :is-open="isActuatorTestModalOpen"
+      :actuator="actuatorTestTarget.actuator"
+      :device-id="actuatorTestTarget.deviceId"
+      @close="isActuatorTestModalOpen = false"
+      @tested="fetchOperatorActuators(true)"
+    />
+
+    <!-- 4D. Edit Actuator Modal (Non-Operator Roles Only, Triggered from Right-Click on Actuator Feedback Status Parameter) -->
+    <ActuatorModal
+      :is-open="isActuatorEditModalOpen"
+      :actuator="actuatorEditTarget.actuator"
+      :device-id="actuatorEditTarget.deviceId || 0"
+      :device-code="actuatorEditTarget.deviceCode"
+      :device-slave-id="actuatorEditTarget.deviceSlaveId"
+      :parameters="actuatorEditTarget.parameters"
+      @close="isActuatorEditModalOpen = false"
+      @saved="onActuatorModalSaved"
     />
 
     <!-- 5. Configurable Multi-Panel Monitoring Layout Modal -->
@@ -6800,9 +6921,13 @@
 </template>
 
 <script>
+import axios from 'axios';
 import OperatorCommandCenterView from './OperatorCommandCenterView.vue';
 import BentoISPUHeroCard from '../components/BentoISPUHeroCard.vue';
 import BentoWQMSIndexBar from '../components/BentoWQMSIndexBar.vue';
+import ParameterDataDownloadModal from '../components/ParameterDataDownloadModal.vue';
+import ActuatorModal from '../components/actuators/ActuatorModal.vue';
+import ActuatorTestWriteModal from '../components/actuators/ActuatorTestWriteModal.vue';
 import audioAlert from '../utils/audioAlert';
 import {
   getStoredAlarmPreferences,
@@ -6838,6 +6963,9 @@ export default {
     ...OperatorCommandCenterView.components,
     BentoISPUHeroCard,
     BentoWQMSIndexBar,
+    ParameterDataDownloadModal,
+    ActuatorModal,
+    ActuatorTestWriteModal,
   },
   data() {
     let autoGrid = true;
@@ -6929,6 +7057,24 @@ export default {
       showAdvancedGpsRegisterMap: false,
       lastModbusAutoSyncMs: 0,
       mobileTrendSheetOpen: false,
+      isParamDownloadModalOpen: false,
+      paramDownloadTarget: {
+        device: {},
+        parameter: null,
+      },
+      isActuatorTestModalOpen: false,
+      actuatorTestTarget: {
+        actuator: null,
+        deviceId: null,
+      },
+      isActuatorEditModalOpen: false,
+      actuatorEditTarget: {
+        actuator: null,
+        deviceId: null,
+        deviceCode: '',
+        deviceSlaveId: 1,
+        parameters: [],
+      },
     };
   },
   computed: {
@@ -7057,6 +7203,28 @@ export default {
         : (getterRole || '');
       const normalized = String(rawRole).trim().toUpperCase();
       return Boolean(normalized && normalized !== 'OPERATOR');
+    },
+    actuatorByFeedbackParamMap() {
+      const map = {};
+      const list = Array.isArray(this.operatorActuators) ? this.operatorActuators : [];
+      for (const act of list) {
+        const fbId = Number(
+          (act && act.feedback_parameter_id) ||
+          (act && act.feedback_parameter && act.feedback_parameter.id) ||
+          0
+        );
+        if (fbId > 0 && !map[fbId]) {
+          map[fbId] = act;
+        }
+      }
+      return map;
+    },
+    contextMenuLinkedActuator() {
+      const param = this.paramContextMenu && this.paramContextMenu.param;
+      return this.getLinkedActuatorForParam(param);
+    },
+    canManageLinkedActuator() {
+      return Boolean(this.isNonOperator && this.canEditConfig);
     },
     bentoToolbarPopoverMaxHeight() {
       const vh = this.bentoViewportHeight || 900;
@@ -7931,6 +8099,7 @@ export default {
   },
   mounted() {
     this.initAudioPreferences();
+    this.fetchOperatorActuators(true);
     if (this.stationTypeMode === 'AUTO_GPS') {
       this.refreshAutoGpsPlaceName(false);
     }
@@ -8393,6 +8562,107 @@ export default {
         parameter: this.enrichParamForViewModal(raw),
       };
       this.isViewConfigModalOpen = true;
+    },
+    async fetchOperatorActuators(silent) {
+      if (!silent) this.loadingActuators = true;
+      try {
+        const res = await axios.get('/api/actuators');
+        this.operatorActuators = (res.data && res.data.data) || [];
+      } catch (err) {
+        // non-blocking
+      } finally {
+        this.loadingActuators = false;
+      }
+    },
+    getLinkedActuatorForParam(param) {
+      if (!param) return null;
+      const pid = Number(param.param_id || param.id || 0);
+      if (!pid) return null;
+      return (this.actuatorByFeedbackParamMap && this.actuatorByFeedbackParamMap[pid]) || null;
+    },
+    openParamContextMenu(event, param) {
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.openParamContextMenu) {
+        OperatorCommandCenterView.methods.openParamContextMenu.call(this, event, param);
+      }
+      if (!param || !this.paramContextMenu || !this.paramContextMenu.visible) return;
+      if (typeof window !== 'undefined') {
+        const linked = this.getLinkedActuatorForParam(param);
+        const menuWidth = 280;
+        const menuHeight = (linked && this.canManageLinkedActuator) ? 465 : 350;
+        const clientX = event && event.clientX ? event.clientX : window.innerWidth / 2;
+        const clientY = event && event.clientY ? event.clientY : window.innerHeight / 2;
+        this.paramContextMenu.x = Math.max(12, Math.min(clientX, window.innerWidth - menuWidth - 12));
+        this.paramContextMenu.y = Math.max(12, Math.min(clientY, window.innerHeight - menuHeight - 12));
+      }
+    },
+    handleContextDownloadData() {
+      const { device, fullParam, param } = this.paramContextMenu || {};
+      this.closeParamContextMenu();
+      if (!param) return;
+      const raw = (this.bentoRawParamMap && this.bentoRawParamMap[param.param_id || param.id]) || fullParam || param;
+      this.paramDownloadTarget = {
+        device: device || { id: param.device_id, device_code: param.device_code },
+        parameter: {
+          ...raw,
+          id: raw.id || param.param_id,
+          param_id: param.param_id || raw.id,
+          device_id: param.device_id || (device && device.id),
+          device_code: param.device_code || (device && device.device_code),
+          parameter_code: raw.parameter_code || param.param_code,
+          parameter_name: raw.parameter_name || param.param_name,
+          unit: raw.unit !== undefined ? raw.unit : param.unit,
+        },
+      };
+      this.isParamDownloadModalOpen = true;
+    },
+    handleContextTestActuator() {
+      if (!this.canManageLinkedActuator) return;
+      const linked = this.contextMenuLinkedActuator;
+      this.closeParamContextMenu();
+      if (!linked) return;
+      this.actuatorTestTarget = {
+        actuator: linked,
+        deviceId: linked.device_id || (linked.device && linked.device.id) || null,
+      };
+      this.isActuatorTestModalOpen = true;
+    },
+    handleContextEditActuator() {
+      if (!this.canManageLinkedActuator) return;
+      const linked = this.contextMenuLinkedActuator;
+      const { device } = this.paramContextMenu || {};
+      this.closeParamContextMenu();
+      if (!linked) return;
+      const devId = Number(linked.device_id || (linked.device && linked.device.id) || (device && device.id) || 0);
+      const matchedDev = (this.devicesList || []).find(d => Number(d.id) === devId) || linked.device || device || {};
+      const devParams = Array.isArray(matchedDev.parameters) && matchedDev.parameters.length > 0
+        ? matchedDev.parameters
+        : (this.allParameters || [])
+            .filter(p => Number(p.device_id) === devId)
+            .map(p => ({
+              id: p.param_id || p.id,
+              parameter_name: p.param_name || p.parameter_name || p.param_code,
+              parameter_code: p.param_code || p.parameter_code || '',
+            }));
+      const slaveId = Number(
+        (matchedDev.connection && (matchedDev.connection.slave_id || matchedDev.connection.unit_id)) ||
+        matchedDev.slave_id ||
+        linked.slave_id ||
+        1
+      );
+      this.actuatorEditTarget = {
+        actuator: { ...linked },
+        deviceId: devId,
+        deviceCode: matchedDev.device_code || matchedDev.code || '',
+        deviceSlaveId: slaveId,
+        parameters: devParams,
+      };
+      this.$nextTick(() => {
+        this.isActuatorEditModalOpen = true;
+      });
+    },
+    async onActuatorModalSaved() {
+      this.isActuatorEditModalOpen = false;
+      await this.fetchOperatorActuators(true);
     },
     openBentoQuickLimitEdit(param) {
       if (!param) return;
