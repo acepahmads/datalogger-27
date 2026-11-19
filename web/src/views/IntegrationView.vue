@@ -1576,28 +1576,67 @@
         <!-- Column 2: Live Preview Card -->
         <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
           <div>
-            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
               <div class="flex items-center space-x-2">
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
                 <span class="text-xs font-bold uppercase tracking-wider text-emerald-500">
                   Live Serialized JSON Preview
                 </span>
               </div>
-              <button
-                @click="copyToClipboard(previewJSON)"
-                class="px-2.5 py-1 rounded-md text-3xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition"
-              >
-                📋 Copy JSON
-              </button>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <!-- 2-Mode Preview Switch: Raw Wire JSON vs Human-Readable Datetime -->
+                <div
+                  class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-3xs font-semibold"
+                  role="group"
+                  aria-label="Preview datetime display mode"
+                >
+                  <button
+                    id="btn-preview-mode-raw"
+                    type="button"
+                    @click="previewDisplayMode = 'raw'"
+                    class="px-2 py-0.5 rounded-md transition cursor-pointer"
+                    :class="previewDisplayMode === 'raw'
+                      ? 'bg-emerald-600 text-white btn-text shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'"
+                    title="Tampilkan payload JSON asli (UNIX Epoch / Wire format)"
+                  >
+                    Raw JSON
+                  </button>
+                  <button
+                    id="btn-preview-mode-human"
+                    type="button"
+                    @click="previewDisplayMode = 'human'"
+                    class="px-2 py-0.5 rounded-md transition cursor-pointer"
+                    :class="previewDisplayMode === 'human'
+                      ? 'bg-cyan-600 text-white btn-text shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'"
+                    title="Tampilkan datetime dalam format tanggal & jam yang mudah dibaca manusia (hanya untuk preview)"
+                  >
+                    🕒 Waktu Terbaca
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  @click="copyToClipboard(previewJSON)"
+                  class="px-2.5 py-1 rounded-md text-3xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  title="Salin payload JSON asli yang dikirim ke server tujuan"
+                >
+                  📋 Copy JSON
+                </button>
+              </div>
             </div>
 
             <!-- Code block -->
-            <pre class="mt-3 p-3.5 rounded-lg bg-slate-950 text-emerald-400 font-mono text-2xs overflow-x-auto max-h-[500px] border border-slate-800 shadow-inner leading-relaxed select-all">{{ previewJSON || '// Generating live preview from real aggregation data...' }}</pre>
+            <pre class="mt-3 p-3.5 rounded-lg bg-slate-950 text-emerald-400 font-mono text-2xs overflow-x-auto max-h-[500px] border border-slate-800 shadow-inner leading-relaxed select-all">{{ displayedPreviewJSON || '// Generating live preview from real aggregation data...' }}</pre>
           </div>
 
-          <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-3xs text-slate-400 flex items-center justify-between">
-            <span>● Matches actual serialized bytes dispatched by OutboundService</span>
-            <span class="font-mono">UTF-8 JSON</span>
+          <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-3xs text-slate-400 flex items-center justify-between gap-2">
+            <span v-if="previewDisplayMode === 'human'" class="text-cyan-600 dark:text-cyan-400 font-medium">
+              🕒 Mode Waktu Terbaca (khusus preview — pengiriman asli ke server tetap memakai format Raw JSON / UNIX Epoch)
+            </span>
+            <span v-else>● Matches actual serialized bytes dispatched by OutboundService</span>
+            <span class="font-mono flex-shrink-0">{{ previewDisplayMode === 'human' ? 'HUMAN PREVIEW' : 'UTF-8 JSON' }}</span>
           </div>
         </div>
       </div>
@@ -2420,12 +2459,69 @@ export default {
       loadingParameters: false,
       parameterMappings: [],
       previewJSON: '',
+      previewDisplayMode: 'raw',
       savingConfig: false,
       testingPayload: false,
       testResult: null,
     };
   },
   computed: {
+    displayedPreviewJSON() {
+      const raw = this.previewJSON || '';
+      if (!raw || this.previewDisplayMode !== 'human') {
+        return raw;
+      }
+      const cfgField = String((this.payloadConfig && this.payloadConfig.timestamp_field) || '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase();
+      const timeKeys = new Set([
+        'datetime',
+        'timestamp',
+        'waktu',
+        'created_at',
+        'updated_at',
+        'period_start',
+        'period_end',
+        'time',
+        'date',
+        'ts',
+        'epoch',
+      ]);
+      if (cfgField) timeKeys.add(cfgField);
+
+      // 1. Convert 10-digit (seconds) or 13-digit (milliseconds) UNIX Epoch values on datetime/timestamp fields
+      let transformed = raw.replace(
+        /("([^"]+)"\s*:\s*)(?:"?(\d{10}|\d{13})"?)(\s*[,}\r\n])/g,
+        (fullMatch, prefix, keyName, digits, suffix) => {
+          if (!timeKeys.has(String(keyName || '').toLowerCase())) {
+            return fullMatch;
+          }
+          const num = Number(digits);
+          if (!Number.isFinite(num)) return fullMatch;
+          const ms = digits.length === 10 ? num * 1000 : num;
+          const formatted = this.formatHumanPreviewTimestamp(new Date(ms));
+          if (!formatted) return fullMatch;
+          return `${prefix}"${formatted} (${digits})"${suffix}`;
+        }
+      );
+
+      // 2. Also format ISO-8601 timestamps into consistent readable local/configured timezone format
+      transformed = transformed.replace(
+        /("([^"]+)"\s*:\s*)"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))"(\s*[,}\r\n])/g,
+        (fullMatch, prefix, keyName, isoVal, suffix) => {
+          if (!timeKeys.has(String(keyName || '').toLowerCase())) {
+            return fullMatch;
+          }
+          const d = new Date(isoVal);
+          const formatted = this.formatHumanPreviewTimestamp(d);
+          if (!formatted) return fullMatch;
+          return `${prefix}"${formatted}"${suffix}`;
+        }
+      );
+
+      return transformed;
+    },
     isCustomSchemaActive() {
       return (
         this.payloadConfig.template_type === 'CUSTOM' ||
@@ -3602,6 +3698,37 @@ export default {
         this.triggerLivePreview();
       } catch (err) {
         alert('Sintaks JSON belum valid: ' + err.message);
+      }
+    },
+    formatHumanPreviewTimestamp(dateObj) {
+      if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return '';
+      const tz = String((this.payloadConfig && this.payloadConfig.timestamp_timezone) || '').trim();
+      const tzLabels = {
+        'Asia/Jakarta': 'WIB',
+        'Asia/Makassar': 'WITA',
+        'Asia/Jayapura': 'WIT',
+        UTC: 'UTC',
+      };
+      try {
+        const opts = {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        };
+        if (tz) opts.timeZone = tz;
+        const parts = new Intl.DateTimeFormat('en-GB', opts).formatToParts(dateObj);
+        const get = (t) => (parts.find(p => p.type === t) || {}).value || '';
+        const hh = get('hour') === '24' ? '00' : get('hour');
+        const base = `${get('year')}-${get('month')}-${get('day')} ${hh}:${get('minute')}:${get('second')}`;
+        const label = tzLabels[tz] || tz || '';
+        return label ? `${base} ${label}` : base;
+      } catch (_) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())} ${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}:${pad(dateObj.getSeconds())}`;
       }
     },
     async triggerLivePreview() {
