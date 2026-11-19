@@ -1,58 +1,60 @@
 <template>
-  <div class="space-y-4 p-3 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100 font-sans">
-    <!-- Header & Breadcrumb (Sticky Top Navigation) -->
-    <div class="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#0B0F19]/95 backdrop-blur-md pt-2 pb-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-      <div class="flex items-center space-x-3">
+  <div class="space-y-3 p-2.5 sm:p-4 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100 font-sans">
+    <!-- Header & Breadcrumb (Compact Sticky Top Navigation) -->
+    <div class="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#0B0F19]/95 backdrop-blur-md py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+      <div class="flex items-center space-x-2.5 min-w-0">
         <router-link
           :to="isSuperAdmin ? '/dashboard' : (isCustomerService ? '/monitoring/fleet-map' : ((!showOperatorConsole || isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator'))"
-          class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition"
+          class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition flex-shrink-0"
           :title="isSuperAdmin ? 'Back to Dashboard' : (isCustomerService ? 'Back to Fleet Map' : ((!showOperatorConsole || isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? 'Back to Dashboard Operator' : 'Back to Operator Console'))"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
         </router-link>
-        <div>
+        <div class="min-w-0">
           <div class="flex items-center space-x-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse flex-shrink-0"></span>
+            <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-white uppercase truncate">
               OUTBOUND INTEGRATION &amp; DELIVERY
             </h1>
-            <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+            <span class="hidden sm:inline-flex px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex-shrink-0">
               PHASE 8
             </span>
           </div>
-          <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p class="hidden lg:block text-3xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
             Aggregation-based outbound routing, configurable JSON payloads, offline buffering &amp; queue inspection.
           </p>
         </div>
       </div>
 
       <!-- Navigation Tabs (Setup & Queue) -->
-      <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-300 dark:border-slate-700/80 text-xs shadow-inner">
+      <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-0.5 rounded-xl border border-slate-300 dark:border-slate-700/80 text-2xs shadow-inner">
         <!-- TAB 1: DESTINATIONS SETUP -->
         <button
           v-if="!isOperator"
+          type="button"
           @click="selectTab('destinations')"
-          class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
+          class="px-2.5 py-1.5 rounded-lg transition font-semibold flex items-center space-x-1.5 cursor-pointer"
           :class="activeTab === 'destinations'
-            ? 'bg-cyan-500 text-white shadow-xs'
+            ? 'bg-cyan-600 text-white btn-text shadow-xs'
             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" stroke-width="2"/>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
           </svg>
-          <span>Destinations Setup ({{ destinations.length }})</span>
+          <span>Destinations ({{ destinations.length }})</span>
         </button>
 
         <!-- TAB 2: CONFIGURABLE JSON -->
         <button
           v-if="!isOperator"
+          type="button"
           @click="selectTab('config')"
-          class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
+          class="px-2.5 py-1.5 rounded-lg transition font-semibold flex items-center space-x-1.5 cursor-pointer"
           :class="activeTab === 'config'
-            ? 'bg-cyan-500 text-white shadow-xs'
+            ? 'bg-cyan-600 text-white btn-text shadow-xs'
             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,17 +65,18 @@
 
         <!-- TAB 3: DELIVERY QUEUE -->
         <button
+          type="button"
           @click="selectTab('queue')"
-          class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
+          class="px-2.5 py-1.5 rounded-lg transition font-semibold flex items-center space-x-1.5 cursor-pointer"
           :class="activeTab === 'queue'
-            ? 'bg-cyan-500 text-white shadow-xs'
+            ? 'bg-cyan-600 text-white btn-text shadow-xs'
             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
           <span>Delivery Queue</span>
-          <span v-if="summary.pending > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-4xs font-mono tabular-nums bg-amber-400 text-slate-900 font-bold">
+          <span v-if="summary.pending > 0" class="ml-0.5 px-1.5 py-0.2 rounded-full text-4xs font-mono tabular-nums bg-amber-400 text-slate-900 font-bold">
             {{ summary.pending }}
           </span>
         </button>
@@ -83,102 +86,128 @@
     <!-- ============================================================== -->
     <!-- TAB 1: DELIVERY QUEUE & INSPECTION                             -->
     <!-- ============================================================== -->
-    <div v-if="activeTab === 'queue'" class="space-y-4">
-      <!-- Summary Counts KPI Cards -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+    <div v-if="activeTab === 'queue'" class="space-y-2.5">
+      <!-- Compact Eye-Catching Clickable KPI Pill Strip (Half the height, 1-click status filter) -->
+      <div id="queue-kpi-compact-strip" class="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
         <!-- PENDING -->
-        <div class="p-3 rounded-xl border bg-amber-500/10 border-amber-500/30 text-amber-500">
-          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
-            <span>Pending</span>
-            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <button
+          type="button"
+          @click="filterStatus = (filterStatus === 'PENDING' ? 'ALL' : 'PENDING'); onQueueFilterChange()"
+          class="px-2.5 py-1.5 rounded-xl border text-left transition cursor-pointer flex items-center justify-between gap-1.5 bg-amber-500/8 hover:bg-amber-500/14 border-amber-500/25"
+          :class="filterStatus === 'PENDING' ? 'ring-2 ring-amber-400/70 border-amber-400' : ''"
+          title="Filter: Awaiting dispatch"
+        >
+          <div class="min-w-0 leading-tight">
+            <div class="text-4xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 truncate">Pending</div>
+            <div class="text-base font-extrabold font-mono tabular-nums text-amber-600 dark:text-amber-400 mt-0.5">{{ summary.pending || 0 }}</div>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-amber-600 dark:text-amber-400">
-            {{ summary.pending || 0 }}
-          </div>
-          <div class="text-4xs text-slate-500 mt-0.5">Awaiting dispatch</div>
-        </div>
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0"></span>
+        </button>
 
         <!-- SENDING -->
-        <div class="p-3 rounded-xl border bg-blue-500/10 border-blue-500/30 text-blue-500">
-          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
-            <span>Sending</span>
-            <span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
+        <button
+          type="button"
+          @click="filterStatus = (filterStatus === 'SENDING' ? 'ALL' : 'SENDING'); onQueueFilterChange()"
+          class="px-2.5 py-1.5 rounded-xl border text-left transition cursor-pointer flex items-center justify-between gap-1.5 bg-blue-500/8 hover:bg-blue-500/14 border-blue-500/25"
+          :class="filterStatus === 'SENDING' ? 'ring-2 ring-blue-400/70 border-blue-400' : ''"
+          title="Filter: In-flight transmission"
+        >
+          <div class="min-w-0 leading-tight">
+            <div class="text-4xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 truncate">Sending</div>
+            <div class="text-base font-extrabold font-mono tabular-nums text-blue-600 dark:text-blue-400 mt-0.5">{{ summary.sending || 0 }}</div>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-blue-600 dark:text-blue-400">
-            {{ summary.sending || 0 }}
-          </div>
-          <div class="text-4xs text-slate-500 mt-0.5">In-flight transmission</div>
-        </div>
+          <span class="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" :class="(summary.sending || 0) > 0 ? 'animate-ping' : 'opacity-60'"></span>
+        </button>
 
         <!-- DELIVERED -->
-        <div class="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-500">
-          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
-            <span>Delivered</span>
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <button
+          type="button"
+          @click="filterStatus = (filterStatus === 'DELIVERED' ? 'ALL' : 'DELIVERED'); onQueueFilterChange()"
+          class="px-2.5 py-1.5 rounded-xl border text-left transition cursor-pointer flex items-center justify-between gap-1.5 bg-emerald-500/8 hover:bg-emerald-500/14 border-emerald-500/25"
+          :class="filterStatus === 'DELIVERED' ? 'ring-2 ring-emerald-400/70 border-emerald-400' : ''"
+          title="Filter: HTTP 2xx / Socket OK"
+        >
+          <div class="min-w-0 leading-tight">
+            <div class="text-4xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate">Delivered</div>
+            <div class="text-base font-extrabold font-mono tabular-nums text-emerald-600 dark:text-emerald-400 mt-0.5">{{ summary.delivered || 0 }}</div>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-emerald-600 dark:text-emerald-400">
-            {{ summary.delivered || 0 }}
-          </div>
-          <div class="text-4xs text-slate-500 mt-0.5">HTTP 2xx / Socket OK</div>
-        </div>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
+        </button>
 
         <!-- ACKNOWLEDGED -->
-        <div class="p-3 rounded-xl border bg-purple-500/10 border-purple-500/30 text-purple-500">
-          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
-            <span>Acknowledged</span>
-            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+        <button
+          type="button"
+          @click="filterStatus = (filterStatus === 'ACKNOWLEDGED' ? 'ALL' : 'ACKNOWLEDGED'); onQueueFilterChange()"
+          class="px-2.5 py-1.5 rounded-xl border text-left transition cursor-pointer flex items-center justify-between gap-1.5 bg-purple-500/10 hover:bg-purple-500/16 border-purple-500/30"
+          :class="filterStatus === 'ACKNOWLEDGED' ? 'ring-2 ring-purple-400/70 border-purple-400' : ''"
+          title="Filter: Upstream receipt confirmed"
+        >
+          <div class="min-w-0 leading-tight">
+            <div class="text-4xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 truncate">Ack</div>
+            <div class="text-base font-extrabold font-mono tabular-nums text-purple-600 dark:text-purple-400 mt-0.5">{{ summary.acknowledged || 0 }}</div>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-purple-600 dark:text-purple-400">
-            {{ summary.acknowledged || 0 }}
-          </div>
-          <div class="text-4xs text-slate-500 mt-0.5">Upstream receipt confirmed</div>
-        </div>
+          <span class="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0"></span>
+        </button>
 
         <!-- RETRYING -->
-        <div class="p-3 rounded-xl border bg-orange-500/10 border-orange-500/30 text-orange-500">
-          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
-            <span>Retrying</span>
-            <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+        <button
+          type="button"
+          @click="filterStatus = (filterStatus === 'RETRYING' ? 'ALL' : 'RETRYING'); onQueueFilterChange()"
+          class="px-2.5 py-1.5 rounded-xl border text-left transition cursor-pointer flex items-center justify-between gap-1.5 bg-orange-500/8 hover:bg-orange-500/14 border-orange-500/25"
+          :class="filterStatus === 'RETRYING' ? 'ring-2 ring-orange-400/70 border-orange-400' : ''"
+          title="Filter: Backoff & jitter active"
+        >
+          <div class="min-w-0 leading-tight">
+            <div class="text-4xs font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 truncate">Retrying</div>
+            <div class="text-base font-extrabold font-mono tabular-nums text-orange-600 dark:text-orange-400 mt-0.5">{{ summary.retrying || 0 }}</div>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-orange-600 dark:text-orange-400">
-            {{ summary.retrying || 0 }}
-          </div>
-          <div class="text-4xs text-slate-500 mt-0.5">Backoff & jitter active</div>
-        </div>
+          <span class="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0"></span>
+        </button>
 
         <!-- FAILED -->
-        <div class="p-3 rounded-xl border bg-rose-500/10 border-rose-500/30 text-rose-500">
-          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
-            <span>Failed</span>
-            <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+        <button
+          type="button"
+          @click="filterStatus = (filterStatus === 'FAILED' ? 'ALL' : 'FAILED'); onQueueFilterChange()"
+          class="px-2.5 py-1.5 rounded-xl border text-left transition cursor-pointer flex items-center justify-between gap-1.5 bg-rose-500/10 hover:bg-rose-500/16 border-rose-500/30"
+          :class="filterStatus === 'FAILED' ? 'ring-2 ring-rose-400/70 border-rose-400' : ''"
+          title="Filter: Permanent / exhausted"
+        >
+          <div class="min-w-0 leading-tight">
+            <div class="text-4xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 truncate">Failed</div>
+            <div class="text-base font-extrabold font-mono tabular-nums text-rose-600 dark:text-rose-400 mt-0.5">{{ summary.failed || 0 }}</div>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-rose-600 dark:text-rose-400">
-            {{ summary.failed || 0 }}
-          </div>
-          <div class="text-4xs text-slate-500 mt-0.5">Permanent / exhausted</div>
-        </div>
+          <span class="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0"></span>
+        </button>
 
         <!-- TOTAL -->
-        <div class="p-3 rounded-xl border bg-slate-500/10 border-slate-500/30 text-slate-500 dark:text-slate-400">
-          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
-            <span>Total Batches</span>
-            <span>Σ</span>
+        <button
+          type="button"
+          @click="filterStatus = 'ALL'; onQueueFilterChange()"
+          class="col-span-2 sm:col-span-1 px-2.5 py-1.5 rounded-xl border text-left transition cursor-pointer flex items-center justify-between gap-1.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 border-slate-200 dark:border-slate-700/80"
+          :class="filterStatus === 'ALL' ? 'ring-2 ring-cyan-500/50 border-cyan-500/60' : ''"
+          title="Tampilkan seluruh batch"
+        >
+          <div class="min-w-0 leading-tight">
+            <div class="text-4xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">Total</div>
+            <div class="text-base font-extrabold font-mono tabular-nums text-slate-900 dark:text-white mt-0.5">{{ summary.total || 0 }}</div>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-slate-900 dark:text-white">
-            {{ summary.total || 0 }}
-          </div>
-          <div class="text-4xs text-slate-500 mt-0.5">Lifetime buffered</div>
-        </div>
+          <span class="text-xs font-mono font-bold text-slate-400 flex-shrink-0">Σ</span>
+        </button>
       </div>
 
-      <!-- Search, Filter & Refresh Bar -->
-      <div class="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
-        <div class="flex flex-wrap items-center gap-2">
-          <!-- Status Filter -->
-          <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <span class="text-3xs text-slate-500">Status:</span>
-            <select v-model="filterStatus" @change="onQueueFilterChange" class="bg-transparent font-bold focus:outline-hidden cursor-pointer">
-              <option value="ALL">ALL STATUSES</option>
+      <!-- Unified Queue Table Card with Integrated Compact Filter & Action Strip -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <!-- Integrated Compact Filter & Actions Toolbar -->
+        <div class="px-3 py-2 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0B0F19]/50 flex flex-wrap items-center justify-between gap-2 text-2xs">
+          <div class="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+            <!-- Status Filter -->
+            <select
+              v-model="filterStatus"
+              @change="onQueueFilterChange"
+              class="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-2xs text-slate-800 dark:text-slate-100 focus:outline-hidden cursor-pointer"
+              title="Filter Status Antrean"
+            >
+              <option value="ALL">Semua Status</option>
               <option value="PENDING">PENDING</option>
               <option value="SENDING">SENDING</option>
               <option value="DELIVERED">DELIVERED</option>
@@ -187,114 +216,109 @@
               <option value="FAILED">FAILED</option>
               <option value="CANCELLED">CANCELLED</option>
             </select>
-          </div>
 
-          <!-- Destination Filter -->
-          <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <span class="text-3xs text-slate-500">Destination:</span>
-            <select v-model="filterDestinationId" @change="onQueueFilterChange" class="bg-transparent font-bold focus:outline-hidden cursor-pointer">
-              <option :value="null">ALL DESTINATIONS</option>
+            <!-- Destination Filter -->
+            <select
+              v-model="filterDestinationId"
+              @change="onQueueFilterChange"
+              class="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-2xs text-slate-800 dark:text-slate-100 focus:outline-hidden cursor-pointer max-w-[190px]"
+              title="Filter Tujuan Pengiriman"
+            >
+              <option :value="null">Semua Destinasi</option>
               <option v-for="d in destinations" :key="d.id" :value="d.id">
                 {{ d.name }} ({{ d.type }})
               </option>
             </select>
-          </div>
 
-          <!-- Window Date Filter -->
-          <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <span class="text-3xs text-slate-500">Tanggal Data:</span>
-            <input
-              type="date"
-              v-model="filterWindowDate"
-              @change="onQueueFilterChange"
-              class="bg-transparent font-mono font-bold text-xs focus:outline-hidden cursor-pointer"
-            />
-            <button
-              v-if="filterWindowDate"
-              type="button"
-              @click="filterWindowDate = ''; onQueueFilterChange()"
-              class="text-slate-400 hover:text-rose-400 font-mono text-3xs px-1"
-              title="Reset filter tanggal data"
-            >
-              ✕
-            </button>
-          </div>
+            <!-- Window Date Filter -->
+            <div class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <input
+                type="date"
+                v-model="filterWindowDate"
+                @change="onQueueFilterChange"
+                class="bg-transparent font-mono font-semibold text-2xs text-slate-800 dark:text-slate-100 focus:outline-hidden cursor-pointer"
+                title="Filter Tanggal Window Data"
+              />
+              <button
+                v-if="filterWindowDate"
+                type="button"
+                @click="filterWindowDate = ''; onQueueFilterChange()"
+                class="text-slate-400 hover:text-rose-400 font-mono text-3xs px-0.5 cursor-pointer"
+                title="Reset filter tanggal data"
+              >
+                ✕
+              </button>
+            </div>
 
-          <!-- Search Input -->
-          <div class="relative">
+            <!-- Search Input -->
             <input
               v-model="searchQuery"
               @keyup.enter="onQueueFilterChange"
               type="text"
-              placeholder="Search Batch ID / Device / Key..."
-              class="w-48 sm:w-64 bg-slate-100 dark:bg-slate-800 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:border-cyan-500"
+              placeholder="Cari Batch ID / Device / Key..."
+              class="flex-1 min-w-[140px] max-w-[240px] bg-white dark:bg-slate-800 text-2xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:border-cyan-500"
             />
+          </div>
+
+          <!-- Compact Right Controls -->
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <!-- Purge Queue Button (Admin / Superadmin only) -->
+            <button
+              v-if="canManageQueue"
+              type="button"
+              @click="openPurgeModal"
+              class="px-2 py-1 rounded-lg border text-3xs font-bold flex items-center gap-1 transition bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30 cursor-pointer"
+              title="Bersihkan / Purge antrean pengiriman secara manual"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>Purge</span>
+            </button>
+
+            <!-- Auto Refresh Toggle -->
+            <button
+              type="button"
+              @click="autoRefresh = !autoRefresh"
+              class="px-2 py-1 rounded-lg border text-3xs font-mono font-bold flex items-center gap-1 transition cursor-pointer"
+              :class="autoRefresh
+                ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/40'
+                : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'"
+            >
+              <span class="w-1.5 h-1.5 rounded-full" :class="autoRefresh ? 'bg-cyan-400 animate-pulse' : 'bg-slate-400'"></span>
+              <span>LIVE 5s</span>
+            </button>
+
+            <!-- Refresh Button -->
+            <button
+              type="button"
+              @click="fetchQueue"
+              :disabled="loading"
+              class="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white btn-text text-3xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50"
+            >
+              <svg class="w-3 h-3" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
 
-        <div class="flex items-center space-x-2">
-          <!-- Purge Queue Button (Admin / Superadmin only) -->
-          <button
-            v-if="canManageQueue"
-            @click="openPurgeModal"
-            class="px-2.5 py-1.5 rounded-lg border text-3xs font-semibold flex items-center space-x-1.5 transition bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
-            title="Bersihkan / Purge antrean pengiriman secara manual"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            <span>Purge Antrean</span>
-          </button>
-
-          <!-- Auto Refresh Toggle -->
-          <button
-            @click="autoRefresh = !autoRefresh"
-            class="px-2.5 py-1.5 rounded-lg border text-3xs font-semibold flex items-center space-x-1.5 transition"
-            :class="autoRefresh
-              ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/50'
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'"
-          >
-            <span class="w-1.5 h-1.5 rounded-full" :class="autoRefresh ? 'bg-cyan-400 animate-pulse' : 'bg-slate-400'"></span>
-            <span>Auto Refresh (5s)</span>
-          </button>
-
-          <!-- Refresh Button -->
-          <button
-            @click="fetchQueue"
-            :disabled="loading"
-            class="px-3 py-1.5 rounded-lg bg-cyan-500 text-white hover:bg-cyan-600 transition flex items-center space-x-1.5 shadow-xs"
-          >
-            <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Refresh</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Queue Items Table -->
-      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+        <!-- Zero-Clip Compact Queue Table (4 Scannable Columns so Actions are ALWAYS Visible on Tablet) -->
         <div class="overflow-x-auto">
           <table class="w-full text-left text-2xs">
-            <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider font-semibold">
+            <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-4xs uppercase tracking-wider font-bold">
               <tr>
-                <th class="py-2.5 px-3">Batch ID / Key</th>
-                <th v-if="!isOperator" class="py-2.5 px-3">Devices</th>
-                <th class="py-2.5 px-3">Destination</th>
-                <th class="py-2.5 px-3">Waktu Pertama Kirim</th>
-                <th class="py-2.5 px-3">Window Data</th>
-                <th class="py-2.5 px-3 text-center">Interval</th>
-                <th class="py-2.5 px-3 text-center">Params</th>
-                <th class="py-2.5 px-3">Status</th>
-                <th class="py-2.5 px-3 text-center">Attempts</th>
-                <th class="py-2.5 px-3">Last Code / Error</th>
-                <th class="py-2.5 px-3 text-right">Actions</th>
+                <th class="py-2 px-3">Batch &amp; Destinasi</th>
+                <th class="py-2 px-2.5">Window &amp; Kirim</th>
+                <th class="py-2 px-2.5">Status &amp; Respon</th>
+                <th class="py-2 px-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
               <tr v-if="queueItems.length === 0">
-                <td :colspan="isOperator ? 10 : 11" class="py-12 text-center text-slate-400">
-                  <div class="text-sm font-medium">No outbound delivery queue items found</div>
+                <td colspan="4" class="py-10 text-center text-slate-400">
+                  <div class="text-xs font-semibold">No outbound delivery queue items found</div>
                   <div class="text-3xs text-slate-500 mt-1">
                     Aggregation batches are automatically enqueued when an aggregation window completes.
                   </div>
@@ -303,154 +327,150 @@
               <tr
                 v-for="item in queueItems"
                 :key="item.id"
-                class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition"
+                class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition"
               >
-                <!-- Batch ID -->
-                <td class="py-2.5 px-3 font-mono">
-                  <div class="font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
-                    <span>{{ item.batch_id }}</span>
-                    <span v-if="item.is_replay" class="px-1.5 py-0.2 rounded text-4xs font-sans bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                <!-- 1. Batch Identity + Destination + Device Chip -->
+                <td class="py-2 px-3 max-w-[300px]">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="font-bold font-mono text-2xs text-slate-900 dark:text-white truncate max-w-[230px]" :title="item.batch_id">
+                      {{ item.batch_id }}
+                    </span>
+                    <span v-if="item.is_replay" class="px-1.5 py-0.2 rounded text-4xs font-sans font-bold bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30">
                       REPLAY
                     </span>
                   </div>
-                  <div class="text-4xs text-slate-400 truncate max-w-[200px]" :title="item.idempotency_key">
-                    {{ item.idempotency_key }}
-                  </div>
-                </td>
-
-                <!-- Devices (Unified Multi-Device Support - Hidden for Operator) -->
-                <td v-if="!isOperator" class="py-2.5 px-3">
-                  <div v-if="item.device_count > 1 || (item.devices_summary && item.devices_summary.includes(','))">
-                    <span class="px-2 py-0.5 rounded-md font-bold bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 text-3xs" :title="item.devices_summary">
-                      {{ item.device_count || 2 }} Devices
+                  <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span class="text-3xs font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[160px]">
+                      {{ item.destination ? item.destination.name : ('Dest #' + item.destination_id) }}
                     </span>
-                    <div class="text-4xs text-slate-400 font-mono truncate max-w-[150px] mt-0.5" :title="item.devices_summary">
-                      {{ item.devices_summary }}
-                    </div>
-                  </div>
-                  <span v-else class="px-2 py-0.5 rounded-md font-semibold font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-3xs">
-                    {{ item.devices_summary || (item.device ? item.device.device_code : (item.device_id ? 'Station #' + item.device_id : 'All Devices')) }}
-                  </span>
-                </td>
-
-                <!-- Destination -->
-                <td class="py-2.5 px-3">
-                  <div class="font-semibold text-slate-800 dark:text-slate-200">
-                    {{ item.destination ? item.destination.name : ('Dest #' + item.destination_id) }}
-                  </div>
-                  <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="protocolBadgeClass(item.destination ? item.destination.type : 'REST')">
-                    {{ item.destination ? item.destination.type : 'REST_API' }}
-                  </span>
-                </td>
-
-                <!-- Waktu Pertama Kirim (Enqueued / Dispatched) -->
-                <td class="py-2.5 px-3 text-3xs font-mono tabular-nums whitespace-nowrap">
-                  <div class="font-semibold text-slate-800 dark:text-slate-200">{{ formatTime(item.created_at) }}</div>
-                  <div class="text-4xs text-slate-400">{{ formatDate(item.created_at) }}</div>
-                  <div v-if="item.attempts > 1 && item.last_attempt_at" class="text-4xs text-amber-500 font-medium mt-0.5" :title="'Terakhir dicoba: ' + formatTime(item.last_attempt_at)">
-                    Last: {{ formatTime(item.last_attempt_at) }}
+                    <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="protocolBadgeClass(item.destination ? item.destination.type : 'REST')">
+                      {{ item.destination ? item.destination.type : 'REST_API' }}
+                    </span>
+                    <template v-if="!isOperator">
+                      <span
+                        v-if="item.device_count > 1 || (item.devices_summary && item.devices_summary.includes(','))"
+                        class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30"
+                        :title="item.devices_summary"
+                      >
+                        {{ item.device_count || 2 }} Devices
+                      </span>
+                      <span
+                        v-else
+                        class="px-1.5 py-0.2 rounded text-4xs font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                      >
+                        {{ item.devices_summary || (item.device ? item.device.device_code : (item.device_id ? 'Station #' + item.device_id : 'All Devices')) }}
+                      </span>
+                    </template>
                   </div>
                 </td>
 
-                <!-- Window -->
-                <td class="py-2.5 px-3 text-3xs font-mono tabular-nums text-slate-500 whitespace-nowrap">
-                  <div class="font-semibold text-cyan-600 dark:text-cyan-400">{{ formatDate(item.period_start) }}</div>
-                  <div>{{ formatTime(item.period_start) }}</div>
-                  <div>→ {{ formatTime(item.period_end) }}</div>
+                <!-- 2. Window Data + Interval + Sent Time -->
+                <td class="py-2 px-2.5 text-3xs font-mono tabular-nums whitespace-nowrap">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ formatDate(item.period_start) }}</span>
+                    <span class="px-1.5 py-0.2 rounded-full text-4xs font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
+                      {{ formatQueueIntervalBadge(item) }}
+                    </span>
+                  </div>
+                  <div class="text-slate-700 dark:text-slate-300 mt-0.5">
+                    {{ formatTime(item.period_start) }} → {{ formatTime(item.period_end) }}
+                  </div>
+                  <div class="text-4xs text-slate-400 mt-0.5">
+                    Kirim: {{ formatTime(item.created_at) }}
+                    <span v-if="item.attempts > 1 && item.last_attempt_at" class="text-amber-500 ml-1" :title="'Terakhir dicoba: ' + formatTime(item.last_attempt_at)">
+                      · Last {{ formatTime(item.last_attempt_at) }}
+                    </span>
+                  </div>
                 </td>
 
-                <!-- Interval -->
-                <td class="py-2.5 px-3 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
-                    {{ formatQueueIntervalBadge(item) }}
-                  </span>
-                </td>
-
-                <!-- Params Count -->
-                <td class="py-2.5 px-3 text-center font-mono tabular-nums font-bold">
-                  {{ item.parameter_count }}
-                </td>
-
-                <!-- Status -->
-                <td class="py-2.5 px-3">
-                  <span class="px-2 py-0.5 rounded-md text-3xs font-bold" :class="statusBadgeClass(item.status)">
-                    {{ item.status }}
-                  </span>
-                  <div v-if="item.next_retry_at && item.status === 'RETRYING'" class="text-4xs font-mono tabular-nums text-orange-400 mt-0.5">
+                <!-- 3. Status + HTTP Code + Params/Attempts + Truncated Response/Error -->
+                <td class="py-2 px-2.5 max-w-[260px]">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="px-2 py-0.5 rounded-md text-4xs font-bold" :class="statusBadgeClass(item.status)">
+                      {{ item.status }}
+                    </span>
+                    <span v-if="item.last_http_code > 0" class="font-mono font-bold text-3xs" :class="httpCodeClass(item.last_http_code)">
+                      HTTP {{ item.last_http_code }}
+                    </span>
+                    <span class="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-4xs font-mono font-bold text-slate-600 dark:text-slate-300" title="Jumlah Parameter">
+                      {{ item.parameter_count }}p
+                    </span>
+                    <span
+                      class="px-1.5 py-0.2 rounded text-4xs font-mono"
+                      :class="item.attempts >= item.max_retries ? 'bg-rose-500/15 text-rose-500 font-bold' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'"
+                      title="Percobaan Kirim"
+                    >
+                      {{ item.attempts }}/{{ item.max_retries }}
+                    </span>
+                  </div>
+                  <div v-if="item.next_retry_at && item.status === 'RETRYING'" class="text-4xs font-mono text-orange-500 dark:text-orange-400 mt-0.5">
                     Retry at {{ formatTime(item.next_retry_at) }}
                   </div>
-                </td>
-
-                <!-- Attempts -->
-                <td class="py-2.5 px-3 text-center font-mono tabular-nums">
-                  <span :class="item.attempts >= item.max_retries ? 'text-rose-500 font-bold' : 'text-slate-600 dark:text-slate-300'">
-                    {{ item.attempts }} / {{ item.max_retries }}
-                  </span>
-                </td>
-
-                <!-- Last HTTP Code / Error -->
-                <td class="py-2.5 px-3 max-w-[200px]">
-                  <div v-if="item.last_http_code > 0" class="font-mono font-bold" :class="httpCodeClass(item.last_http_code)">
-                    HTTP {{ item.last_http_code }}
-                  </div>
-                  <div v-if="item.last_error" class="text-4xs font-mono text-rose-400 truncate" :title="item.last_error">
+                  <div v-if="item.last_error" class="text-4xs font-mono text-rose-500 dark:text-rose-400 truncate mt-0.5" :title="item.last_error">
                     {{ item.last_error }}
                   </div>
-                  <div v-else-if="item.last_response" class="text-4xs font-mono text-emerald-500 truncate" :title="item.last_response">
+                  <div v-else-if="item.last_response" class="text-4xs font-mono text-emerald-600 dark:text-emerald-400 truncate mt-0.5" :title="item.last_response">
                     {{ item.last_response }}
                   </div>
                 </td>
 
-                <!-- Actions -->
-                <td class="py-2.5 px-3 text-right space-x-1 whitespace-nowrap">
-                  <!-- Inspect Detail Modal -->
-                  <button
-                    @click="openInspectModal(item.id)"
-                    class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition text-3xs font-medium"
-                    title="Deep Inspect: Source Aggregations vs Serialized JSON vs Response"
-                  >
-                    Inspect
-                  </button>
+                <!-- 4. Always-Visible Compact Actions -->
+                <td class="py-2 px-3 text-right whitespace-nowrap">
+                  <div class="inline-flex items-center gap-1">
+                    <!-- Inspect Detail Modal -->
+                    <button
+                      type="button"
+                      @click="openInspectModal(item.id)"
+                      class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition text-3xs font-semibold cursor-pointer"
+                      title="Deep Inspect: Source Aggregations vs Serialized JSON vs Response"
+                    >
+                      Inspect
+                    </button>
 
-                  <!-- Retry (if Retrying or Failed) -->
-                  <button
-                    v-if="canManageQueue && (item.status === 'FAILED' || item.status === 'RETRYING')"
-                    @click="retryQueueItem(item.id)"
-                    class="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border border-amber-500/30 transition text-3xs font-semibold"
-                    title="Reset to PENDING for immediate retry"
-                  >
-                    Retry
-                  </button>
+                    <!-- Retry (if Retrying or Failed) -->
+                    <button
+                      v-if="canManageQueue && (item.status === 'FAILED' || item.status === 'RETRYING')"
+                      type="button"
+                      @click="retryQueueItem(item.id)"
+                      class="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition text-3xs font-bold cursor-pointer"
+                      title="Reset to PENDING for immediate retry"
+                    >
+                      Retry
+                    </button>
 
-                  <!-- Replay (Creates new delivery item) -->
-                  <button
-                    v-if="canManageQueue && item.status !== 'SENDING'"
-                    @click="replayQueueItem(item.id)"
-                    class="px-2 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30 transition text-3xs font-semibold"
-                    title="Replay / Re-enqueue as a brand new delivery batch"
-                  >
-                    Replay
-                  </button>
+                    <!-- Replay (Creates new delivery item) -->
+                    <button
+                      v-if="canManageQueue && item.status !== 'SENDING'"
+                      type="button"
+                      @click="replayQueueItem(item.id)"
+                      class="px-2 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-600 dark:text-purple-300 border border-purple-500/30 transition text-3xs font-bold cursor-pointer"
+                      title="Replay / Re-enqueue as a brand new delivery batch"
+                    >
+                      Replay
+                    </button>
 
-                  <!-- Cancel (if Pending or Retrying) -->
-                  <button
-                    v-if="canManageQueue && (item.status === 'PENDING' || item.status === 'RETRYING')"
-                    @click="cancelQueueItem(item.id)"
-                    class="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 transition text-3xs font-medium"
-                    title="Cancel pending delivery"
-                  >
-                    Cancel
-                  </button>
+                    <!-- Cancel (if Pending or Retrying) -->
+                    <button
+                      v-if="canManageQueue && (item.status === 'PENDING' || item.status === 'RETRYING')"
+                      type="button"
+                      @click="cancelQueueItem(item.id)"
+                      class="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition text-3xs font-semibold cursor-pointer"
+                      title="Cancel pending delivery"
+                    >
+                      Cancel
+                    </button>
 
-                  <!-- Delete (Manual item cleanup by Admin/Superadmin) -->
-                  <button
-                    v-if="canManageQueue"
-                    @click="deleteQueueItem(item.id)"
-                    class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 transition text-3xs font-semibold"
-                    title="Hapus permanen antrean ini dari database"
-                  >
-                    Delete
-                  </button>
+                    <!-- Delete (Manual item cleanup by Admin/Superadmin) -->
+                    <button
+                      v-if="canManageQueue"
+                      type="button"
+                      @click="deleteQueueItem(item.id)"
+                      class="px-1.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition text-3xs font-semibold cursor-pointer"
+                      title="Hapus permanen antrean ini dari database"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
