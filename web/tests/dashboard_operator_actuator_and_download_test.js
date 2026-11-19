@@ -18,13 +18,15 @@ assert(dashboardCode.includes('<ActuatorModal'), 'DashboardOperatorView must mou
 assert(dashboardCode.includes('id="ctx-btn-download-param-data"'), 'Context menu must include Download Data button');
 assert(dashboardCode.includes('@click="handleContextDownloadData"'), 'Download Data button must invoke handleContextDownloadData');
 
-// 3. Right-click context menu exposes Test Actuator and Edit Actuator for linked feedback status parameters (non-Operator roles only)
-assert(dashboardCode.includes('v-if="contextMenuLinkedActuator && canManageLinkedActuator"'), 'Actuator context menu actions must require linked feedback parameter AND non-Operator manage role');
+// 3. Right-click context menu exposes Test Actuator, Edit Actuator, and + Tambah Actuator for linked / STATUS parameters (non-Operator roles only)
+assert(dashboardCode.includes('v-if="canManageLinkedActuator && (contextMenuLinkedActuator || isContextMenuStatusParam)"'), 'Actuator context menu actions must appear on linked feedback parameters and STATUS parameters for non-Operator roles');
 assert(dashboardCode.includes('id="ctx-btn-test-actuator"'), 'Context menu must include Test Actuator button');
-assert(dashboardCode.includes('@click="handleContextTestActuator"'), 'Test Actuator button must invoke handleContextTestActuator');
+assert(dashboardCode.includes('@click="handleContextTestActuator(contextMenuEffectiveActuator)"'), 'Test Actuator button must invoke handleContextTestActuator');
 assert(dashboardCode.includes('id="ctx-btn-edit-actuator"'), 'Context menu must include Edit Actuator button');
-assert(dashboardCode.includes('@click="handleContextEditActuator"'), 'Edit Actuator button must invoke handleContextEditActuator');
+assert(dashboardCode.includes('@click="handleContextEditActuator(contextMenuEffectiveActuator)"'), 'Edit Actuator button must invoke handleContextEditActuator');
+assert(dashboardCode.includes('id="ctx-btn-add-actuator"') && dashboardCode.includes('@click="handleContextAddActuator"'), 'Context menu must include + Tambah Actuator shortcut for unlinked STATUS parameters');
 assert(dashboardCode.includes('canManageLinkedActuator() {') && dashboardCode.includes('this.isNonOperator && this.canEditConfig'), 'canManageLinkedActuator must enforce non-Operator + canEditConfig');
+assert(dashboardCode.includes('fetchActuatorsForDevice(deviceId)'), 'DashboardOperatorView must fetch per-device actuators so disabled/unlinked actuators are also detected');
 
 // 4. Actuator feedback parameter mapping & status pill on both card and table views
 assert(dashboardCode.includes('actuatorByFeedbackParamMap()'), 'DashboardOperatorView must build actuatorByFeedbackParamMap from feedback_parameter_id');

@@ -3108,10 +3108,14 @@
                       <span
                         v-if="getLinkedActuatorForParam(param)"
                         class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold border flex-shrink-0"
-                        :class="getLinkedActuatorForParam(param).current_state === 'ON'
-                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
-                          : 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/30'"
-                        :title="'Status Actuator: ' + getLinkedActuatorForParam(param).actuator_name + ' (' + (getLinkedActuatorForParam(param).current_state || 'OFF') + ') — Klik kanan untuk Test / Edit Actuator'"
+                        :class="[
+                          getLinkedActuatorForParam(param).current_state === 'ON'
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
+                            : 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/30',
+                          canManageLinkedActuator ? 'cursor-pointer hover:brightness-110' : ''
+                        ]"
+                        :title="'Status Actuator: ' + getLinkedActuatorForParam(param).actuator_name + ' (' + (getLinkedActuatorForParam(param).current_state || 'OFF') + ')' + (canManageLinkedActuator ? ' — Klik untuk Test Actuator, klik kanan untuk Edit' : '')"
+                        @click="canManageLinkedActuator ? ($event.stopPropagation(), openTestActuatorForParam(param)) : null"
                       >
                         <span>⚡</span>
                         <span>{{ getLinkedActuatorForParam(param).current_state === 'ON' ? 'ON' : 'ACT' }}</span>
@@ -3373,10 +3377,14 @@
                           <span
                             v-if="getLinkedActuatorForParam(param)"
                             class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold border flex-shrink-0"
-                            :class="getLinkedActuatorForParam(param).current_state === 'ON'
-                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
-                              : 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/30'"
-                            :title="'Status Actuator: ' + getLinkedActuatorForParam(param).actuator_name + ' (' + (getLinkedActuatorForParam(param).current_state || 'OFF') + ') — Klik kanan untuk Test / Edit Actuator'"
+                            :class="[
+                              getLinkedActuatorForParam(param).current_state === 'ON'
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
+                                : 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/30',
+                              canManageLinkedActuator ? 'cursor-pointer hover:brightness-110' : ''
+                            ]"
+                            :title="'Status Actuator: ' + getLinkedActuatorForParam(param).actuator_name + ' (' + (getLinkedActuatorForParam(param).current_state || 'OFF') + ')' + (canManageLinkedActuator ? ' — Klik untuk Test Actuator, klik kanan untuk Edit' : '')"
+                            @click="canManageLinkedActuator ? ($event.stopPropagation(), openTestActuatorForParam(param)) : null"
                           >
                             <span>⚡</span>
                             <span>{{ getLinkedActuatorForParam(param).current_state === 'ON' ? 'ON' : 'ACT' }}</span>
@@ -6690,17 +6698,25 @@
         </button>
       </div>
 
-      <!-- Linked Actuator Actions (Shown when parameter is an Actuator Feedback Status Parameter & role is non-Operator) -->
-      <div v-if="contextMenuLinkedActuator && canManageLinkedActuator" class="py-1 bg-amber-50/40 dark:bg-amber-950/15">
+      <!-- Linked / Status Parameter Actuator Actions (Non-Operator Roles Only) -->
+      <div
+        v-if="canManageLinkedActuator && (contextMenuLinkedActuator || isContextMenuStatusParam)"
+        class="py-1 bg-amber-50/40 dark:bg-amber-950/15"
+      >
         <div class="px-3.5 pt-1 pb-1 text-4xs font-mono font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-          Actuator · {{ contextMenuLinkedActuator.actuator_code || contextMenuLinkedActuator.actuator_name }}
+          {{ contextMenuLinkedActuator
+            ? ('Actuator · ' + (contextMenuLinkedActuator.actuator_code || contextMenuLinkedActuator.actuator_name))
+            : (contextMenuDeviceFallbackActuator
+              ? ('Actuator · ' + (contextMenuDeviceFallbackActuator.actuator_code || contextMenuDeviceFallbackActuator.actuator_name))
+              : 'Pintasan Actuator') }}
         </div>
 
         <!-- A1. Test Actuator (Write ON/OFF Modbus Diagnostic) -->
         <button
+          v-if="contextMenuEffectiveActuator"
           id="ctx-btn-test-actuator"
           type="button"
-          @click="handleContextTestActuator"
+          @click="handleContextTestActuator(contextMenuEffectiveActuator)"
           class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-amber-100/70 dark:hover:bg-amber-500/15 hover:text-amber-700 dark:hover:text-amber-300 text-slate-700 dark:text-slate-200 transition group"
         >
           <span class="p-1 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500/30 flex-shrink-0">
@@ -6709,25 +6725,47 @@
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-xs leading-none">Test Actuator</div>
             <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              Uji perintah ON/OFF · {{ contextMenuLinkedActuator.actuator_name }}
+              Uji perintah ON/OFF · {{ contextMenuEffectiveActuator.actuator_name }}
             </div>
           </div>
         </button>
 
         <!-- A2. Edit Actuator Configuration -->
         <button
+          v-if="contextMenuEffectiveActuator"
           id="ctx-btn-edit-actuator"
           type="button"
-          @click="handleContextEditActuator"
+          @click="handleContextEditActuator(contextMenuEffectiveActuator)"
           class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 text-slate-700 dark:text-slate-200 transition group"
         >
           <span class="p-1 rounded-md bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-500/25 flex-shrink-0">
             <OperatorDashboardIcon name="edit" :size="14" />
           </span>
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-xs leading-none">Edit Actuator</div>
+            <div class="font-semibold text-xs leading-none">
+              {{ contextMenuLinkedActuator ? 'Edit Actuator' : 'Edit & Tautkan Actuator' }}
+            </div>
             <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              Ubah register, watchdog &amp; feedback actuator
+              {{ contextMenuLinkedActuator ? 'Ubah register, watchdog & feedback actuator' : ('Tautkan ' + contextMenuEffectiveActuator.actuator_name + ' ke parameter status ini') }}
+            </div>
+          </div>
+        </button>
+
+        <!-- A3. Tambah Actuator Baru (Shown on STATUS param when not yet linked to a dedicated actuator) -->
+        <button
+          v-if="!contextMenuLinkedActuator && isContextMenuStatusParam"
+          id="ctx-btn-add-actuator"
+          type="button"
+          @click="handleContextAddActuator"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-500/15 hover:text-emerald-700 dark:hover:text-emerald-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500/25 flex-shrink-0">
+            <OperatorDashboardIcon name="lightning" :size="14" />
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">+ Tambah Actuator</div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              Buat &amp; tautkan actuator ke parameter status ini
             </div>
           </div>
         </button>
@@ -6797,6 +6835,7 @@
     <ActuatorModal
       :is-open="isActuatorEditModalOpen"
       :actuator="actuatorEditTarget.actuator"
+      :draft-actuator="actuatorEditTarget.draftActuator"
       :device-id="actuatorEditTarget.deviceId || 0"
       :device-code="actuatorEditTarget.deviceCode"
       :device-slave-id="actuatorEditTarget.deviceSlaveId"
@@ -7070,11 +7109,13 @@ export default {
       isActuatorEditModalOpen: false,
       actuatorEditTarget: {
         actuator: null,
+        draftActuator: null,
         deviceId: null,
         deviceCode: '',
         deviceSlaveId: 1,
         parameters: [],
       },
+      deviceActuatorsMap: {},
     };
   },
   computed: {
@@ -7204,9 +7245,28 @@ export default {
       const normalized = String(rawRole).trim().toUpperCase();
       return Boolean(normalized && normalized !== 'OPERATOR');
     },
+    allKnownActuators() {
+      const byId = {};
+      const merged = [];
+      const pushList = (arr) => {
+        if (!Array.isArray(arr)) return;
+        for (const act of arr) {
+          if (!act || !act.id) continue;
+          const key = Number(act.id);
+          if (!byId[key]) {
+            byId[key] = act;
+            merged.push(act);
+          }
+        }
+      };
+      pushList(this.operatorActuators);
+      const devMap = this.deviceActuatorsMap || {};
+      Object.keys(devMap).forEach((devId) => pushList(devMap[devId]));
+      return merged;
+    },
     actuatorByFeedbackParamMap() {
       const map = {};
-      const list = Array.isArray(this.operatorActuators) ? this.operatorActuators : [];
+      const list = this.allKnownActuators || [];
       for (const act of list) {
         const fbId = Number(
           (act && act.feedback_parameter_id) ||
@@ -7222,6 +7282,25 @@ export default {
     contextMenuLinkedActuator() {
       const param = this.paramContextMenu && this.paramContextMenu.param;
       return this.getLinkedActuatorForParam(param);
+    },
+    isContextMenuStatusParam() {
+      const param = this.paramContextMenu && this.paramContextMenu.param;
+      return Boolean(param && this.isDiscreteStatusParam(param));
+    },
+    contextMenuDeviceFallbackActuator() {
+      if (this.contextMenuLinkedActuator) return null;
+      const param = this.paramContextMenu && this.paramContextMenu.param;
+      if (!param || !this.isDiscreteStatusParam(param)) return null;
+      const devId = Number(param.device_id || 0);
+      if (!devId) return null;
+      const devActs = (this.allKnownActuators || []).filter(a => Number(a.device_id) === devId);
+      if (devActs.length === 0) return null;
+      // Prefer an actuator on the same device whose feedback_parameter_id is unset
+      const unlinked = devActs.find(a => !Number(a.feedback_parameter_id || (a.feedback_parameter && a.feedback_parameter.id) || 0));
+      return unlinked || null;
+    },
+    contextMenuEffectiveActuator() {
+      return this.contextMenuLinkedActuator || this.contextMenuDeviceFallbackActuator || null;
     },
     canManageLinkedActuator() {
       return Boolean(this.isNonOperator && this.canEditConfig);
@@ -8096,6 +8175,18 @@ export default {
         }
       }
     },
+    devicesList: {
+      immediate: true,
+      handler(nextDevices) {
+        if (!Array.isArray(nextDevices) || nextDevices.length === 0) return;
+        for (const dev of nextDevices) {
+          const devId = Number(dev && dev.id);
+          if (devId > 0 && !this.deviceActuatorsMap[devId]) {
+            this.fetchActuatorsForDevice(devId);
+          }
+        }
+      },
+    },
   },
   mounted() {
     this.initAudioPreferences();
@@ -8574,21 +8665,46 @@ export default {
         this.loadingActuators = false;
       }
     },
+    async fetchActuatorsForDevice(deviceId) {
+      const devId = Number(deviceId || 0);
+      if (!devId) return;
+      try {
+        const res = await axios.get(`/api/devices/${devId}/actuators`);
+        const list = (res.data && res.data.data) || [];
+        this.$set(this.deviceActuatorsMap, devId, Array.isArray(list) ? list : []);
+      } catch (err) {
+        // non-blocking
+      }
+    },
     getLinkedActuatorForParam(param) {
       if (!param) return null;
       const pid = Number(param.param_id || param.id || 0);
       if (!pid) return null;
       return (this.actuatorByFeedbackParamMap && this.actuatorByFeedbackParamMap[pid]) || null;
     },
+    openTestActuatorForParam(param) {
+      if (!this.canManageLinkedActuator) return;
+      const linked = this.getLinkedActuatorForParam(param);
+      if (!linked) return;
+      this.actuatorTestTarget = {
+        actuator: linked,
+        deviceId: linked.device_id || (linked.device && linked.device.id) || (param && param.device_id) || null,
+      };
+      this.isActuatorTestModalOpen = true;
+    },
     openParamContextMenu(event, param) {
       if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.openParamContextMenu) {
         OperatorCommandCenterView.methods.openParamContextMenu.call(this, event, param);
       }
       if (!param || !this.paramContextMenu || !this.paramContextMenu.visible) return;
+      if (param.device_id && !this.deviceActuatorsMap[Number(param.device_id)]) {
+        this.fetchActuatorsForDevice(param.device_id);
+      }
       if (typeof window !== 'undefined') {
         const linked = this.getLinkedActuatorForParam(param);
-        const menuWidth = 280;
-        const menuHeight = (linked && this.canManageLinkedActuator) ? 465 : 350;
+        const isStatus = this.isDiscreteStatusParam(param);
+        const menuWidth = 285;
+        const menuHeight = ((linked || isStatus) && this.canManageLinkedActuator) ? 495 : 360;
         const clientX = event && event.clientX ? event.clientX : window.innerWidth / 2;
         const clientY = event && event.clientY ? event.clientY : window.innerHeight / 2;
         this.paramContextMenu.x = Math.max(12, Math.min(clientX, window.innerWidth - menuWidth - 12));
@@ -8615,29 +8731,13 @@ export default {
       };
       this.isParamDownloadModalOpen = true;
     },
-    handleContextTestActuator() {
-      if (!this.canManageLinkedActuator) return;
-      const linked = this.contextMenuLinkedActuator;
-      this.closeParamContextMenu();
-      if (!linked) return;
-      this.actuatorTestTarget = {
-        actuator: linked,
-        deviceId: linked.device_id || (linked.device && linked.device.id) || null,
-      };
-      this.isActuatorTestModalOpen = true;
-    },
-    handleContextEditActuator() {
-      if (!this.canManageLinkedActuator) return;
-      const linked = this.contextMenuLinkedActuator;
-      const { device } = this.paramContextMenu || {};
-      this.closeParamContextMenu();
-      if (!linked) return;
-      const devId = Number(linked.device_id || (linked.device && linked.device.id) || (device && device.id) || 0);
-      const matchedDev = (this.devicesList || []).find(d => Number(d.id) === devId) || linked.device || device || {};
+    resolveDeviceActuatorModalContext(devId, fallbackDevice, fallbackSlaveId) {
+      const id = Number(devId || 0);
+      const matchedDev = (this.devicesList || []).find(d => Number(d.id) === id) || fallbackDevice || {};
       const devParams = Array.isArray(matchedDev.parameters) && matchedDev.parameters.length > 0
         ? matchedDev.parameters
         : (this.allParameters || [])
-            .filter(p => Number(p.device_id) === devId)
+            .filter(p => Number(p.device_id) === id)
             .map(p => ({
               id: p.param_id || p.id,
               parameter_name: p.param_name || p.parameter_name || p.param_code,
@@ -8646,23 +8746,85 @@ export default {
       const slaveId = Number(
         (matchedDev.connection && (matchedDev.connection.slave_id || matchedDev.connection.unit_id)) ||
         matchedDev.slave_id ||
-        linked.slave_id ||
+        fallbackSlaveId ||
         1
       );
-      this.actuatorEditTarget = {
-        actuator: { ...linked },
-        deviceId: devId,
+      return {
+        deviceId: id,
         deviceCode: matchedDev.device_code || matchedDev.code || '',
         deviceSlaveId: slaveId,
         parameters: devParams,
+      };
+    },
+    handleContextTestActuator(overrideAct) {
+      if (!this.canManageLinkedActuator) return;
+      const target = (overrideAct && overrideAct.id) ? overrideAct : this.contextMenuEffectiveActuator;
+      this.closeParamContextMenu();
+      if (!target) return;
+      this.actuatorTestTarget = {
+        actuator: target,
+        deviceId: target.device_id || (target.device && target.device.id) || null,
+      };
+      this.isActuatorTestModalOpen = true;
+    },
+    handleContextEditActuator(overrideAct) {
+      if (!this.canManageLinkedActuator) return;
+      const target = (overrideAct && overrideAct.id) ? overrideAct : this.contextMenuEffectiveActuator;
+      const { device, param } = this.paramContextMenu || {};
+      this.closeParamContextMenu();
+      if (!target) return;
+      const devId = Number(target.device_id || (target.device && target.device.id) || (device && device.id) || 0);
+      const ctx = this.resolveDeviceActuatorModalContext(devId, target.device || device, target.slave_id);
+      const editableAct = { ...target };
+      // If editing an unlinked device actuator from a STATUS parameter, pre-select this parameter as feedback target
+      if (!editableAct.feedback_parameter_id && param && (param.param_id || param.id)) {
+        editableAct.feedback_parameter_id = Number(param.param_id || param.id);
+      }
+      this.actuatorEditTarget = {
+        actuator: editableAct,
+        draftActuator: null,
+        ...ctx,
+      };
+      this.$nextTick(() => {
+        this.isActuatorEditModalOpen = true;
+      });
+    },
+    handleContextAddActuator() {
+      if (!this.canManageLinkedActuator) return;
+      const { device, param } = this.paramContextMenu || {};
+      this.closeParamContextMenu();
+      if (!param) return;
+      const devId = Number(param.device_id || (device && device.id) || 0);
+      if (!devId) return;
+      const ctx = this.resolveDeviceActuatorModalContext(devId, device, 1);
+      const paramId = Number(param.param_id || param.id || 0);
+      const rawCode = String(param.param_code || param.param_name || 'ACTUATOR')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'ACTUATOR_01';
+      this.actuatorEditTarget = {
+        actuator: null,
+        draftActuator: {
+          _from_status_shortcut: true,
+          actuator_code: rawCode,
+          actuator_name: param.param_name || param.param_code || 'Actuator',
+          feedback_parameter_id: paramId > 0 ? paramId : null,
+          feedback_parameter_code: param.param_code || '',
+          enabled: true,
+        },
+        ...ctx,
       };
       this.$nextTick(() => {
         this.isActuatorEditModalOpen = true;
       });
     },
     async onActuatorModalSaved() {
+      const savedDevId = this.actuatorEditTarget && this.actuatorEditTarget.deviceId;
       this.isActuatorEditModalOpen = false;
-      await this.fetchOperatorActuators(true);
+      await Promise.all([
+        this.fetchOperatorActuators(true),
+        savedDevId ? this.fetchActuatorsForDevice(savedDevId) : Promise.resolve(),
+      ]);
     },
     openBentoQuickLimitEdit(param) {
       if (!param) return;

@@ -446,7 +446,7 @@ export default {
       if (this.actuator && this.actuator.id) {
         this.form = { ...this.actuator };
       } else if (this.draftActuator) {
-        this.isFromPaste = true;
+        this.isFromPaste = !this.draftActuator._from_status_shortcut;
         this.pasteSourceInfo = this.draftActuator._paste_source || '';
         this.copiedSchedules = Array.isArray(this.draftActuator._copied_schedules)
           ? this.draftActuator._copied_schedules
