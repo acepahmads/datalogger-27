@@ -160,6 +160,35 @@
           </div>
         </div>
 
+        <!-- Center-Right (Tablet Landscape >= 900px): Inline 7-Pollutant Mini Vertical Bars -->
+        <div
+          id="bento-ispu-compact-minibars"
+          class="compact-mini-bars-strip"
+          aria-label="Ringkasan 7 Polutan ISPU"
+        >
+          <button
+            v-for="item in orderedBentoPollutants"
+            :key="'cm-bar-' + item.code"
+            type="button"
+            @click="selectDisplayParameter(item.code)"
+            class="cmb-col"
+            :class="{
+              'is-dom': isDominant(item.code),
+              'is-sel': selectedDisplayParam === item.code
+            }"
+            :title="getPollutantRowTitle(item)"
+          >
+            <div class="cmb-track">
+              <div
+                class="cmb-fill"
+                :style="{ height: Math.max(10, getBarWidthPct(item.code)) + '%', background: getBarFillColor(item.code) }"
+              ></div>
+              <span class="cmb-val">{{ getISPUValue(item.code) }}</span>
+            </div>
+            <span class="cmb-lbl">{{ item.pretty }}</span>
+          </button>
+        </div>
+
         <!-- Right: Click-to-Expand 7 Pollutants + Mappings / Trend / Full ISPU -->
         <div class="compact-right" :class="{ 'is-no-mappings': !canManageMapping }">
           <button
@@ -1126,6 +1155,99 @@ export default {
   gap: 5px;
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+.compact-mini-bars-strip {
+  display: none;
+  align-items: flex-end;
+  gap: 5px;
+  padding: 0 10px;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+  border-right: 1px solid rgba(148, 163, 184, 0.22);
+  flex-shrink: 0;
+}
+
+@media (min-width: 900px) {
+  .compact-mini-bars-strip {
+    display: flex;
+  }
+}
+
+.cmb-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  min-width: 30px;
+  transition: transform 0.14s ease;
+}
+
+.cmb-col:hover {
+  transform: translateY(-1px);
+}
+
+.cmb-track {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.is-day .cmb-track {
+  background: #EDF2F7;
+  border: 1px solid #DDE5EF;
+}
+.is-night .cmb-track {
+  background: #131E32;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.cmb-col.is-dom .cmb-track,
+.cmb-col.is-sel .cmb-track {
+  border-color: #0284C7;
+  box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.35);
+}
+
+.cmb-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.85;
+  transition: height 0.3s ease;
+}
+
+.cmb-val {
+  position: relative;
+  z-index: 1;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 3px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.is-day .cmb-val { color: #0F172A; text-shadow: 0 0 4px rgba(255, 255, 255, 0.85); }
+.is-night .cmb-val { color: #F8FAFC; text-shadow: 0 0 4px rgba(15, 23, 42, 0.9); }
+
+.cmb-lbl {
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.is-day .cmb-lbl { color: #64748B; }
+.is-night .cmb-lbl { color: #94A3B8; }
+.cmb-col.is-dom .cmb-lbl,
+.cmb-col.is-sel .cmb-lbl {
+  color: #0284C7;
+  font-weight: 800;
 }
 
 .expand-7-btn {

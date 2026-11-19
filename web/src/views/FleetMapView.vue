@@ -1,14 +1,16 @@
 <template>
   <div
     id="superadmin-fleet-map-view"
+    @click="showLayerPopover = false"
     class="flex flex-col flex-1 min-h-0 h-full w-full gap-2 select-none font-sans text-slate-800 dark:text-slate-100"
   >
     <!-- ===================================================================== -->
-    <!-- 1. DESKTOP COMMAND & KPI RIBBON (>= 768px; Clean 2-Row Zero-Clip)     -->
+    <!-- 1. DESKTOP COMMAND & KPI RIBBON (>= 1360px wide desktop; hidden on tablet floating glass mode) -->
     <!-- ===================================================================== -->
     <div
       id="fleet-desktop-command-ribbon"
       class="hidden md:flex flex-col gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0"
+      :class="{ '!hidden': isTabletFloatingMode }"
     >
       <!-- Row 1: Brand Title + KPI Status Filter Pills (Left) & Map Action Utilities (Right) -->
       <div class="w-full flex items-center justify-between gap-1.5 flex-wrap">
@@ -291,26 +293,10 @@
     <!-- ===================================================================== -->
     <div
       id="fleet-mobile-header"
-      class="flex md:hidden flex-col gap-1.5 p-2 rounded-xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0"
+      class="flex md:hidden flex-col gap-1.5 p-1.5 rounded-2xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex-shrink-0"
     >
-      <!-- Row 1: Horizontally Scrollable KPI Filter Chips (Online, Delayed, Offline...) -->
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 fleet-no-scrollbar">
-        <button
-          v-for="pill in kpiPills"
-          :key="'mob-' + pill.key"
-          type="button"
-          @click="setQuickFilter(pill.key)"
-          class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-2xs font-bold border whitespace-nowrap flex-shrink-0 cursor-pointer"
-          :class="quickFilter === pill.key ? pill.activeClass : pill.idleClass"
-        >
-          <span v-if="pill.dotClass" class="w-1.5 h-1.5 rounded-full" :class="pill.dotClass"></span>
-          <span>{{ pill.label }}</span>
-          <span class="font-mono text-3xs opacity-90">({{ pill.count }})</span>
-        </button>
-      </div>
-
-      <!-- Row 2 (Below KPI Pills): Search + Filter Drawer Button + Segmented Switcher (Peta | Daftar) -->
-      <div class="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+      <!-- Row 1: Search + Filter Drawer Button + Refresh + Segmented Switcher (Peta | Daftar) -->
+      <div class="flex items-center gap-1.5">
         <div class="relative flex-1 min-w-0">
           <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <circle cx="11" cy="11" r="8" />
@@ -319,8 +305,8 @@
           <input
             v-model.trim="searchQuery"
             type="text"
-            placeholder="Cari site / tenant..."
-            class="w-full h-8 pl-7 pr-6 rounded-lg text-xs bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-sky-500"
+            placeholder="Cari stasiun / tenant..."
+            class="w-full h-8 pl-7 pr-6 rounded-xl text-xs bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-sky-500"
           />
           <button
             v-if="searchQuery"
@@ -337,7 +323,7 @@
           id="btn-fleet-mobile-filter"
           type="button"
           @click="showMobileFilterSheet = true"
-          class="relative h-8 px-2.5 rounded-lg border text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer flex-shrink-0"
+          class="relative h-8 px-2.5 rounded-xl border text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer flex-shrink-0"
           :class="activeSecondaryFilterCount > 0
             ? 'bg-sky-600 text-white btn-text border-sky-600'
             : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80'"
@@ -354,7 +340,7 @@
           type="button"
           :disabled="loading"
           @click="fetchFleetOverview(true)"
-          class="h-8 w-8 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 flex items-center justify-center text-xs font-bold cursor-pointer flex-shrink-0"
+          class="h-8 w-8 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 flex items-center justify-center text-xs font-bold cursor-pointer flex-shrink-0"
           title="Segarkan Data"
         >
           <span :class="{ 'animate-spin': loading }">↻</span>
@@ -363,13 +349,13 @@
         <!-- Segmented View Switcher: Peta | Daftar -->
         <div
           id="fleet-mobile-view-switcher"
-          class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex-shrink-0"
+          class="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex-shrink-0"
         >
           <button
             type="button"
             id="btn-mobile-mode-map"
             @click="switchMobileView('map')"
-            class="px-2.5 py-1 rounded-md text-2xs font-bold transition cursor-pointer"
+            class="px-2.5 py-1 rounded-lg text-2xs font-bold transition cursor-pointer"
             :class="mobileViewMode === 'map'
               ? 'bg-sky-600 text-white btn-text shadow-xs'
               : 'text-slate-600 dark:text-slate-400'"
@@ -380,7 +366,7 @@
             type="button"
             id="btn-mobile-mode-list"
             @click="switchMobileView('list')"
-            class="px-2.5 py-1 rounded-md text-2xs font-bold transition cursor-pointer"
+            class="px-2.5 py-1 rounded-lg text-2xs font-bold transition cursor-pointer"
             :class="mobileViewMode === 'list'
               ? 'bg-sky-600 text-white btn-text shadow-xs'
               : 'text-slate-600 dark:text-slate-400'"
@@ -388,6 +374,22 @@
             📋 Daftar ({{ filteredSites.length }})
           </button>
         </div>
+      </div>
+
+      <!-- Row 2 (Only inline in Daftar mode; in Peta mode chips float directly on map!) -->
+      <div v-if="mobileViewMode === 'list'" class="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-1 border-t border-slate-100 dark:border-slate-800/80 fleet-no-scrollbar">
+        <button
+          v-for="pill in kpiPills"
+          :key="'mob-' + pill.key"
+          type="button"
+          @click="setQuickFilter(pill.key)"
+          class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-2xs font-bold border whitespace-nowrap flex-shrink-0 cursor-pointer"
+          :class="quickFilter === pill.key ? pill.activeClass : pill.idleClass"
+        >
+          <span v-if="pill.dotClass" class="w-1.5 h-1.5 rounded-full" :class="pill.dotClass"></span>
+          <span>{{ pill.label }}</span>
+          <span class="font-mono text-3xs opacity-90">{{ pill.count }}</span>
+        </button>
       </div>
     </div>
 
@@ -417,6 +419,258 @@
       >
         <!-- Leaflet Container -->
         <div ref="fleetMapCanvas" id="fleet-leaflet-map" class="w-full h-full z-10"></div>
+
+        <!-- =============================================================== -->
+        <!-- TABLET / COMPACT LANDSCAPE FLOATING GLASS HUD (Map-First UI)    -->
+        <!-- =============================================================== -->
+        <div
+          v-if="isTabletFloatingMode && !isMapFullscreen"
+          id="fleet-tablet-floating-hud"
+          class="hidden md:flex items-start justify-between gap-2 absolute top-2.5 inset-x-2.5 z-[470] pointer-events-none"
+        >
+          <!-- Left: Floating Glass Search + Filter Pill -->
+          <div class="pointer-events-auto flex items-center gap-1 p-1 rounded-full bg-white/90 dark:bg-[#0E1626]/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/80 shadow-lg max-w-[260px] lg:max-w-[300px]">
+            <div class="relative flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path stroke-linecap="round" d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                v-model.trim="searchQuery"
+                type="text"
+                placeholder="Cari site, tenant, kota..."
+                class="w-full h-7 pl-7 pr-5 rounded-full text-2xs bg-transparent text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
+              />
+              <button
+                v-if="searchQuery"
+                type="button"
+                @click="searchQuery = ''"
+                class="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-3xs cursor-pointer"
+                title="Hapus pencarian"
+              >
+                ✕
+              </button>
+            </div>
+            <button
+              id="btn-fleet-tablet-filter"
+              type="button"
+              @click="showMobileFilterSheet = true"
+              class="h-7 px-2.5 rounded-full text-2xs font-bold inline-flex items-center gap-1 border transition cursor-pointer flex-shrink-0"
+              :class="activeSecondaryFilterCount > 0
+                ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-xs'
+                : 'bg-slate-100/90 hover:bg-slate-200/80 dark:bg-slate-800/90 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700'"
+              title="Filter Tahun, Tenant, Domain & Alarm"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12m-9 7h6" />
+              </svg>
+              <span>Filter</span>
+              <span v-if="activeSecondaryFilterCount > 0" class="px-1 rounded-full bg-black/20 font-mono text-4xs">{{ activeSecondaryFilterCount }}</span>
+            </button>
+          </div>
+
+          <!-- Center: Floating Glass Status Chips (Dual-Purpose Filter + Legend — Zero Duplicate Legend Below!) -->
+          <div class="pointer-events-auto flex items-center gap-1 p-1 rounded-full bg-white/90 dark:bg-[#0E1626]/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/80 shadow-lg overflow-x-auto fleet-no-scrollbar max-w-[44%]">
+            <button
+              v-for="pill in floatingStatusPills"
+              :key="'flt-' + pill.key"
+              type="button"
+              @click="setQuickFilter(pill.key)"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-2xs font-bold transition cursor-pointer whitespace-nowrap flex-shrink-0"
+              :class="quickFilter === pill.key
+                ? pill.activeClass
+                : (pill.key === 'ALARM' && pill.count > 0
+                  ? 'bg-rose-500/12 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300'
+                  : 'hover:bg-slate-100/90 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200')"
+            >
+              <span v-if="pill.dotClass" class="w-2 h-2 rounded-full flex-shrink-0" :class="pill.dotClass"></span>
+              <span>{{ pill.label }}</span>
+              <span class="font-mono text-3xs tabular-nums opacity-85">{{ pill.count }}</span>
+            </button>
+          </div>
+
+          <!-- Right: Floating Glass Mode, Layer Popover, Fit, Fullscreen & Station Drawer Pill -->
+          <div class="pointer-events-auto flex flex-col items-end gap-1.5 flex-shrink-0">
+            <div class="flex items-center gap-1 p-1 rounded-full bg-white/90 dark:bg-[#0E1626]/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/80 shadow-lg">
+              <!-- Status | ISPU Segmented Switch -->
+              <div class="inline-flex items-center p-0.5 rounded-full bg-slate-100/90 dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800">
+                <button
+                  type="button"
+                  @click="pinDisplayMode = 'status'"
+                  class="px-2 py-0.5 rounded-full text-3xs font-bold transition cursor-pointer whitespace-nowrap"
+                  :class="pinDisplayMode === 'status' ? 'bg-sky-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-400'"
+                >
+                  Status
+                </button>
+                <button
+                  type="button"
+                  @click="pinDisplayMode = 'env'"
+                  class="px-2 py-0.5 rounded-full text-3xs font-bold transition cursor-pointer whitespace-nowrap"
+                  :class="pinDisplayMode === 'env' ? 'bg-emerald-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-400'"
+                >
+                  ISPU
+                </button>
+              </div>
+
+              <!-- IP | IKA Sub-switch -->
+              <div v-if="pinDisplayMode === 'env'" class="inline-flex items-center p-0.5 rounded-full bg-slate-100/90 dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800">
+                <button
+                  type="button"
+                  @click="wqmsIndexMode = 'ip'"
+                  class="px-1.5 py-0.5 rounded-full text-4xs font-extrabold font-mono cursor-pointer"
+                  :class="wqmsIndexMode === 'ip' ? 'bg-teal-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-400'"
+                >IP</button>
+                <button
+                  type="button"
+                  @click="wqmsIndexMode = 'ika'"
+                  class="px-1.5 py-0.5 rounded-full text-4xs font-extrabold font-mono cursor-pointer"
+                  :class="wqmsIndexMode === 'ika' ? 'bg-teal-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-400'"
+                >IKA</button>
+              </div>
+
+              <!-- Map Layer Popover Button -->
+              <div class="relative">
+                <button
+                  id="btn-fleet-tablet-layers"
+                  type="button"
+                  @click.stop="showLayerPopover = !showLayerPopover"
+                  class="w-7 h-7 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  :class="{ 'bg-sky-500/15 text-sky-600 dark:text-sky-400': showLayerPopover }"
+                  :title="'Layer Peta: ' + mapStyleLabel"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3 2 8.5 12 14l10-5.5L12 3Zm0 14.5-10-5.5m20 0-10 5.5m0 3.5-10-5.5m20 0-10 5.5" />
+                  </svg>
+                </button>
+                <div
+                  v-if="showLayerPopover"
+                  @click.stop
+                  class="absolute right-0 top-full mt-1.5 w-32 p-1 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-2xl z-[520] space-y-0.5"
+                >
+                  <button
+                    v-for="opt in mapStyleOptions"
+                    :key="'tab-layer-' + opt.value"
+                    type="button"
+                    @click="setMapStyle(opt.value); showLayerPopover = false"
+                    class="w-full px-2.5 py-1.5 rounded-lg text-left text-2xs font-bold flex items-center justify-between transition cursor-pointer"
+                    :class="mapStyle === opt.value
+                      ? 'bg-sky-600 text-white btn-text shadow-2xs'
+                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                  >
+                    <span>{{ opt.label }}</span>
+                    <span v-if="mapStyle === opt.value" class="text-3xs">✓</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Fit Map -->
+              <button
+                type="button"
+                @click="fitMapToVisibleSites"
+                class="w-7 h-7 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer text-xs"
+                title="Fit semua pin stasiun"
+              >
+                ⛶
+              </button>
+
+              <!-- Refresh -->
+              <button
+                type="button"
+                :disabled="loading"
+                @click="fetchFleetOverview(true)"
+                class="w-7 h-7 rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 transition cursor-pointer text-xs font-bold"
+                :title="'Segarkan · ' + lastUpdatedLabel"
+              >
+                <span :class="{ 'animate-spin': loading }">↻</span>
+              </button>
+
+              <!-- Fullscreen -->
+              <button
+                type="button"
+                @click="toggleMapFullscreen"
+                class="w-7 h-7 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                title="Layar penuh peta"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Prominent Floating Station List Drawer Trigger -->
+            <button
+              id="btn-fleet-tablet-drawer-toggle"
+              type="button"
+              @click="isRightDockCollapsed = !isRightDockCollapsed"
+              class="h-8 px-3.5 rounded-full text-2xs font-extrabold inline-flex items-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap border"
+              :class="!isRightDockCollapsed
+                ? 'bg-slate-800 text-white btn-text border-slate-700'
+                : 'bg-sky-600 hover:bg-sky-500 text-white btn-text border-sky-500'"
+              title="Buka / Tutup Daftar Prioritas Stasiun"
+            >
+              <span>{{ isRightDockCollapsed ? 'Daftar Stasiun' : 'Tutup Daftar' }}</span>
+              <span v-if="isRightDockCollapsed && issueFilteredSites.length > 0" class="px-1.5 py-0.2 rounded-full bg-white/20 font-mono text-4xs">
+                {{ issueFilteredSites.length }} Masalah
+              </span>
+              <span v-else-if="isRightDockCollapsed" class="px-1.5 py-0.2 rounded-full bg-white/20 font-mono text-4xs">
+                {{ filteredSites.length }}
+              </span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                <path v-if="isRightDockCollapsed" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h10" />
+                <path v-else stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mobile Floating Glass Status Chips (over top of map in Peta mode) -->
+        <div
+          v-if="!isDesktopViewport && mobileViewMode === 'map' && !isMapFullscreen"
+          id="fleet-mobile-floating-chips"
+          class="flex md:hidden items-center gap-1.5 absolute top-2 left-2 right-12 z-[450] overflow-x-auto fleet-no-scrollbar py-0.5"
+        >
+          <button
+            v-for="pill in floatingStatusPills"
+            :key="'mflt-' + pill.key"
+            type="button"
+            @click="setQuickFilter(pill.key)"
+            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-2xs font-bold border shadow-md backdrop-blur-md whitespace-nowrap flex-shrink-0 cursor-pointer"
+            :class="quickFilter === pill.key
+              ? pill.activeClass
+              : 'bg-white/90 dark:bg-[#0E1626]/90 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700/80'"
+          >
+            <span v-if="pill.dotClass" class="w-1.5 h-1.5 rounded-full" :class="pill.dotClass"></span>
+            <span>{{ pill.label }}</span>
+            <span class="font-mono text-3xs opacity-85">{{ pill.count }}</span>
+          </button>
+        </div>
+
+        <!-- Mobile Bottom Sheet Peek Pill (in Peta mode when no site card is open) -->
+        <div
+          v-if="!isDesktopViewport && mobileViewMode === 'map' && !selectedSite && !isMapFullscreen"
+          id="fleet-mobile-bottom-peek"
+          @click="switchMobileView('list')"
+          class="flex md:hidden flex-col gap-1 absolute inset-x-2.5 bottom-2.5 z-[460] px-3.5 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/80 shadow-2xl cursor-pointer active:scale-[0.99] transition"
+        >
+          <div class="w-9 h-1 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mb-0.5"></div>
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 text-xs font-extrabold text-slate-900 dark:text-white min-w-0">
+              <span v-if="issueFilteredSites.length > 0" class="text-rose-500">▲</span>
+              <span v-else class="text-emerald-500">●</span>
+              <span class="truncate">{{ filteredSites.length }} Stasiun · {{ issueFilteredSites.length }} Masalah</span>
+            </div>
+            <span class="text-2xs font-bold text-sky-600 dark:text-sky-400 whitespace-nowrap">Lihat Daftar →</span>
+          </div>
+          <div v-if="dockDisplayedSites.length > 0" class="flex items-center justify-between gap-2 text-3xs text-slate-500 dark:text-slate-400">
+            <span class="truncate font-semibold text-slate-700 dark:text-slate-300">{{ dockDisplayedSites[0].site_name }}</span>
+            <span
+              v-if="dockDisplayedSites[0].total_active_alarms > 0"
+              class="px-1.5 py-0.2 rounded-full bg-rose-600 text-white badge-text font-mono text-4xs font-extrabold flex-shrink-0"
+            >
+              ● {{ dockDisplayedSites[0].total_active_alarms }}
+            </span>
+          </div>
+        </div>
 
         <!-- Clean Fullscreen Top-Right Mini Controls (Zero Search / Zero Dropdown Filters) -->
         <div
@@ -613,22 +867,9 @@
           <span>Tile peta online tidak terjangkau (koordinat pin tetap akurat)</span>
         </div>
 
-        <!-- Compact Legend Pill (Desktop Bottom-Left — Dynamic Status vs ISPU/IP/IKA) -->
+        <!-- Compact Legend Pill (ONLY in ISPU / IP / IKA mode — Status mode already shows color dots in top filter pills, zero duplicate info!) -->
         <div
-          v-if="isTilesOnline && pinDisplayMode === 'status'"
-          class="hidden sm:flex items-center gap-2.5 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-3xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
-        >
-          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Online</span>
-          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Delayed / Warning</span>
-          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Offline / Critical</span>
-          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span>Nonaktif</span>
-          <span class="hidden lg:inline-flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-700 text-sky-700 dark:text-sky-300">
-            <span class="px-1 rounded-full bg-sky-600 text-white badge-text font-mono text-4xs leading-tight">2+</span>
-            <span>Cluster (Klik Mekar)</span>
-          </span>
-        </div>
-        <div
-          v-else-if="isTilesOnline && pinDisplayMode === 'env'"
+          v-if="isTilesOnline && pinDisplayMode === 'env'"
           id="fleet-env-index-legend"
           class="hidden sm:flex flex-col gap-1 absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-4xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
         >
@@ -666,7 +907,8 @@
             v-if="selectedSite && isDesktopViewport"
             :key="'desk-site-card-' + selectedSite.site_id"
             id="fleet-desktop-site-card"
-            class="hidden md:flex flex-col absolute top-3 left-3 z-[500] w-[325px] lg:w-[350px] max-h-[calc(100%-24px)] rounded-2xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700/90 shadow-2xl overflow-hidden"
+            class="hidden md:flex flex-col absolute left-3 z-[500] w-[325px] lg:w-[350px] rounded-2xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700/90 shadow-2xl overflow-hidden"
+            :class="isTabletFloatingMode && !isMapFullscreen ? 'top-16 max-h-[calc(100%-74px)]' : 'top-3 max-h-[calc(100%-24px)]'"
           >
             <!-- Top Accent Bar -->
             <div class="h-1 w-full" :class="severityBarClass(selectedSite)"></div>
@@ -994,9 +1236,9 @@
         </transition>
       </div>
 
-      <!-- Interactive Vertical Splitter Handle (Drag Left/Right to Resize Right Sidebar) -->
+      <!-- Interactive Vertical Splitter Handle (Drag Left/Right to Resize Right Sidebar on Wide Desktop) -->
       <div
-        v-if="!isRightDockCollapsed && !isMapFullscreen"
+        v-if="!isRightDockCollapsed && !isMapFullscreen && !isTabletFloatingMode"
         id="fleet-dock-resize-handle"
         @mousedown.prevent="startDockResize"
         @touchstart.prevent="startDockResize"
@@ -1013,19 +1255,33 @@
       </div>
 
       <!-- ================================================================= -->
-      <!-- 3B. DESKTOP RIGHT PRIORITY STATION DOCK (>= 768px, Resizable)     -->
+      <!-- 3B. DESKTOP RIGHT PRIORITY STATION DOCK (Wide Split / Tablet Glass Drawer) -->
       <!-- ================================================================= -->
       <aside
         v-if="!isRightDockCollapsed"
         id="fleet-priority-dock"
-        :style="{ width: effectiveRightDockWidth + 'px' }"
-        class="hidden md:flex flex-col flex-shrink-0 h-full rounded-2xl bg-white dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800/90 shadow-xs overflow-hidden"
+        :style="{ width: (isTabletFloatingMode ? Math.min(340, effectiveRightDockWidth) : effectiveRightDockWidth) + 'px' }"
+        class="hidden md:flex flex-col flex-shrink-0 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 overflow-hidden"
+        :class="isTabletFloatingMode
+          ? 'absolute top-24 right-2.5 bottom-2.5 z-[510] bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md shadow-2xl'
+          : 'h-full bg-white dark:bg-[#0E1626] shadow-xs'"
       >
         <!-- Dock Header + Sub-Tabs (Semua | Normal | Masalah | No-GPS) -->
         <div class="px-3 pt-2.5 pb-2 border-b border-slate-100 dark:border-slate-800/80 space-y-2 flex-shrink-0">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-2">
             <span class="text-xs font-extrabold text-slate-900 dark:text-white tracking-tight">Prioritas Stasiun</span>
-            <span class="text-3xs font-mono text-slate-400">{{ dockDisplayedSites.length }} ditampilkan</span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-3xs font-mono text-slate-400">{{ dockDisplayedSites.length }} ditampilkan</span>
+              <button
+                v-if="isTabletFloatingMode"
+                type="button"
+                @click="isRightDockCollapsed = true"
+                class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center text-2xs font-bold cursor-pointer"
+                title="Tutup Daftar Stasiun"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <div class="grid grid-cols-4 gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200/70 dark:border-slate-800">
             <button
@@ -1254,14 +1510,14 @@
     </div>
 
     <!-- ===================================================================== -->
-    <!-- 4. MOBILE FILTER BOTTOM SHEET (< 768px)                               -->
+    <!-- 4. FILTER SHEET / MODAL (Mobile Bottom Sheet + Tablet Floating Card)  -->
     <!-- ===================================================================== -->
     <div
       v-if="showMobileFilterSheet"
       @click.self="showMobileFilterSheet = false"
-      class="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 backdrop-blur-xs md:hidden"
+      class="fixed inset-0 z-[80] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/55 backdrop-blur-xs"
     >
-      <div class="w-full rounded-t-3xl bg-white dark:bg-[#0E1626] border-t border-slate-200 dark:border-slate-800 p-4 space-y-3.5 shadow-2xl max-h-[82vh] overflow-y-auto">
+      <div class="w-full md:max-w-lg rounded-t-3xl md:rounded-2xl bg-white dark:bg-[#0E1626] border-t md:border border-slate-200 dark:border-slate-800 p-4 space-y-3.5 shadow-2xl max-h-[82vh] overflow-y-auto">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Filter Peta & Stasiun</h3>
           <button type="button" @click="showMobileFilterSheet = false" class="text-slate-400 text-sm font-bold cursor-pointer">✕</button>
@@ -1576,9 +1832,13 @@ export default {
 
       // Responsive & Layout State
       viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1280,
+      viewportHeight: typeof window !== 'undefined' ? window.innerHeight : 800,
       mobileViewMode: 'map', // 'map' | 'list'
       showMobileFilterSheet: false,
-      isRightDockCollapsed: false,
+      showLayerPopover: false,
+      isRightDockCollapsed: typeof window !== 'undefined'
+        ? (window.innerWidth < 1360 || window.innerHeight <= 820)
+        : false,
       rightDockWidth: (() => {
         try {
           const saved = Number(localStorage.getItem('datalogger_fleet_dock_width'));
@@ -1641,6 +1901,14 @@ export default {
     },
     isDesktopViewport() {
       return this.viewportWidth >= 768;
+    },
+    isTabletFloatingMode() {
+      return this.isDesktopViewport && (this.viewportWidth < 1360 || this.viewportHeight <= 820);
+    },
+    floatingStatusPills() {
+      const keep = ['ALL', 'ONLINE', 'DELAYED', 'OFFLINE', 'ALARM'];
+      if ((this.summary.no_gps_sites || 0) > 0) keep.push('NOGPS');
+      return this.kpiPills.filter(p => keep.includes(p.key));
     },
     effectiveRightDockWidth() {
       const maxAllowed = Math.max(260, Math.min(720, Math.floor(this.viewportWidth * 0.58)));
@@ -2020,7 +2288,12 @@ export default {
   methods: {
     onResize() {
       if (typeof window === 'undefined') return;
+      const wasTabletFloating = this.isTabletFloatingMode;
       this.viewportWidth = window.innerWidth;
+      this.viewportHeight = window.innerHeight;
+      if (!wasTabletFloating && this.isTabletFloatingMode) {
+        this.isRightDockCollapsed = true;
+      }
       this.$nextTick(() => {
         if (this.map) this.map.invalidateSize();
       });

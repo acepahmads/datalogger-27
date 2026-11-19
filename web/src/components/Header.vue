@@ -21,11 +21,11 @@
       <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-soft text-white font-bold text-xs tracking-wider flex-shrink-0">
         DL
       </div>
-      <div class="hidden md:flex items-center space-x-2 flex-shrink-0">
-        <h1 class="text-xs font-bold tracking-tight text-slate-900 dark:text-white uppercase font-sans hidden md:block">
+      <div class="hidden xl:flex items-center space-x-2 flex-shrink-0">
+        <h1 class="text-xs font-bold tracking-tight text-slate-900 dark:text-white uppercase font-sans hidden xl:block">
           {{ $t('header.appTitle') }}
         </h1>
-        <span class="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-3xs px-1.5 py-0.5 rounded-full font-mono font-medium hidden lg:inline-block">
+        <span class="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-3xs px-1.5 py-0.5 rounded-full font-mono font-medium hidden 2xl:inline-block">
           {{ $t('header.version') }}
         </span>
       </div>
@@ -73,9 +73,9 @@
           <span class="truncate">{{ currentTenantLabel }}</span>
         </div>
 
-        <!-- Site / Station Switcher -->
+        <!-- Site / Station Switcher (avoid repeating identical single-site name while on Fleet Map) -->
         <select
-          v-if="availableSites.length > 0 && (!canSwitchTenants || activeTenantId > 0)"
+          v-if="availableSites.length > 0 && (!canSwitchTenants || activeTenantId > 0) && !(availableSites.length === 1 && $route.path === '/monitoring/fleet-map')"
           id="header-site-switcher"
           :value="activeSiteId"
           @change="onHeaderSiteChange($event.target.value)"

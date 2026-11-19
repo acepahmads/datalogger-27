@@ -6,7 +6,8 @@
       isCompactScreen ? 'is-compact-vp' : 'is-wide-vp',
       {
         'is-mobile-vp': isMobileScreen,
-        'has-mobile-trend-sheet': isMobileScreen && mobileTrendSheetOpen,
+        'has-compact-trend-dock': useCompactTrendSheet && !mobileTrendSheetOpen,
+        'has-mobile-trend-sheet': useCompactTrendSheet && mobileTrendSheetOpen,
         'no-perf-animations': perfSettings && !perfSettings.chartAnimationsEnabled
       }
     ]"
@@ -3545,7 +3546,7 @@
     <!-- 3. BOTTOM ZONE: COMPLETE TREND ANALYSIS STUDIO (COMPACT 1-ROW BAR)  -->
     <!-- =================================================================== -->
     <div
-      v-if="isMobileScreen && mobileTrendSheetOpen && perfSettings.trendAnalysisEnabled"
+      v-if="useCompactTrendSheet && mobileTrendSheetOpen && perfSettings.trendAnalysisEnabled"
       class="mobile-trend-backdrop"
       @click="closeMobileTrendSheet"
     ></div>
@@ -3554,12 +3555,12 @@
       v-if="perfSettings.trendAnalysisEnabled"
       class="trend-studio"
       :class="{
-        'is-mobile-sheet-closed': isMobileScreen && !mobileTrendSheetOpen,
-        'is-mobile-sheet-open': isMobileScreen && mobileTrendSheetOpen
+        'is-mobile-sheet-closed': useCompactTrendSheet && !mobileTrendSheetOpen,
+        'is-mobile-sheet-open': useCompactTrendSheet && mobileTrendSheetOpen
       }"
     >
       <div
-        v-if="isMobileScreen && mobileTrendSheetOpen"
+        v-if="useCompactTrendSheet && mobileTrendSheetOpen"
         class="mobile-sheet-grabber"
         @click="closeMobileTrendSheet"
         title="Tutup panel grafik"
@@ -4540,10 +4541,10 @@
         </div>
 
     <!-- =================================================================== -->
-    <!-- 3B. MOBILE DOCKED COLLAPSIBLE TREND PILL BAR (< 768px)              -->
+    <!-- 3B. TABLET COMPACT & MOBILE DOCKED COLLAPSIBLE TREND PILL BAR       -->
     <!-- =================================================================== -->
     <div
-      v-if="isMobileScreen && !mobileTrendSheetOpen"
+      v-if="useCompactTrendSheet && !mobileTrendSheetOpen"
       class="mobile-trend-dock-bar"
       @click="openMobileTrendSheet"
     >
@@ -4559,7 +4560,7 @@
           ></span>
           <span>{{ !$store.state.wsConnected ? 'OFFLINE' : (trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? 'LIVE' : trendCommDiagnostics.badge) }}</span>
         </span>
-        <span class="mtd-count">{{ activeTrendSeries.length }}/{{ allParameters.length }}</span>
+        <span class="mtd-count">{{ activeTrendSeries.length }}/{{ allParameters.length }} Kanal</span>
       </div>
 
       <button
@@ -4580,7 +4581,7 @@
     <!-- =================================================================== -->
     <footer class="dock-footer">
       <div class="dock-left">
-        <span class="dock-kicker hidden sm:inline">AKSI CEPAT:</span>
+        <span class="dock-kicker hidden xl:inline">AKSI CEPAT:</span>
 
         <button type="button" @click="openExportModal" class="dock-btn cyan">
           <OperatorDashboardIcon name="export" :size="12" />
@@ -4606,13 +4607,13 @@
       </div>
 
       <div class="dock-right">
-        <router-link v-if="isNonOperator" to="/monitoring/devices" class="dock-btn hidden lg:inline-flex">
+        <router-link v-if="isNonOperator" to="/monitoring/devices" class="dock-btn hidden xl:inline-flex">
           {{ $t('operator.deviceMonitoring') || 'Devices' }}
         </router-link>
-        <router-link v-if="isNonOperator" to="/monitoring/analysis" class="dock-btn hidden lg:inline-flex">
+        <router-link v-if="isNonOperator" to="/monitoring/analysis" class="dock-btn hidden xl:inline-flex">
           {{ $t('operator.telemetryAnalysis') || 'Analysis' }}
         </router-link>
-        <router-link v-if="isNonOperator" to="/monitoring/system" class="dock-btn hidden lg:inline-flex">
+        <router-link v-if="isNonOperator" to="/monitoring/system" class="dock-btn hidden xl:inline-flex">
           {{ $t('operator.systemHealthAction') || 'System Health' }}
         </router-link>
 
@@ -7052,10 +7053,13 @@ export default {
       return this.activeMonitoringDomain === 'WQMS' || this.activeMonitoringDomain === 'ONLIMO';
     },
     isCompactScreen() {
-      return this.bentoViewportWidth < 1280;
+      return this.bentoViewportWidth < 1280 || (this.bentoViewportWidth < 1400 && this.bentoViewportHeight <= 780);
     },
     isMobileScreen() {
       return this.bentoViewportWidth < 768;
+    },
+    useCompactTrendSheet() {
+      return this.isMobileScreen || this.isCompactScreen;
     },
     isNonOperator() {
       const user = this.$store && this.$store.state ? this.$store.state.user : null;
@@ -7512,7 +7516,7 @@ export default {
       // Require >= 796px container width for 2 side-by-side tables (~394px+ per table)
       if (count <= 1 || availW < 796) return 1;
       if (this.bentoTableSplitMode === '2T' || count === 2) return 2;
-      // Require >= 1216px container width for 3 side-by-side category tables (~400px+ per table)
+      // Require >= 1216px container width for 3 side-by-side category tables (~400px+ per table; automatically satisfied on Tablet Landscape now that ISPU moves to top horizontal strip)
       if (this.bentoTableSplitMode === 'CAT' && count >= 3) {
         if (availW >= 1216) return 3;
         return 2;
@@ -7536,7 +7540,7 @@ export default {
       return this.bentoPerTableCardWidth >= 560;
     },
     bentoParamsScrollAreaStyle() {
-      if (this.isMobileScreen || !this.perfSettings || !this.perfSettings.trendAnalysisEnabled) {
+      if (this.isMobileScreen || this.isCompactScreen || !this.perfSettings || !this.perfSettings.trendAnalysisEnabled) {
         return null;
       }
       const isCatCards = this.viewMode === 'cards' && Boolean(this.bentoCardGroupByCategory);
@@ -8162,7 +8166,7 @@ export default {
       this.showTrendDownloadMenu = false;
     },
     onBentoTrendMinimizeClick() {
-      if (this.isMobileScreen) {
+      if (this.useCompactTrendSheet) {
         this.closeMobileTrendSheet();
       } else {
         this.setPerfSetting('trendAnalysisEnabled', false);
@@ -12456,6 +12460,132 @@ export default {
 }
 
 /* ========================================================================= */
+/* 4B. TABLET & COMPACT LANDSCAPE COLLAPSIBLE TREND BAR + SLIDE-UP SHEET     */
+/* ========================================================================= */
+.bento-dashboard-page.is-compact-vp.has-compact-trend-dock {
+  padding-bottom: 86px;
+}
+
+.bento-dashboard-page.has-compact-trend-dock .sensors-scroll-area,
+.bento-dashboard-page.has-compact-trend-dock .sensors-scroll-area.is-compact-scroll,
+.bento-dashboard-page.has-compact-trend-dock .bento-table-area,
+.bento-dashboard-page.has-compact-trend-dock .bento-table-area.is-compact-scroll {
+  max-height: none !important;
+  overflow-y: visible !important;
+  padding-right: 0;
+}
+
+.is-compact-vp .trend-studio.is-mobile-sheet-closed {
+  display: none !important;
+}
+
+.is-compact-vp .mobile-trend-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  background: rgba(2, 6, 23, 0.44);
+  backdrop-filter: blur(2px);
+}
+
+.is-compact-vp .trend-studio.is-mobile-sheet-open {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 42px;
+  z-index: 45;
+  border-radius: 18px 18px 0 0;
+  border-bottom: none;
+  padding: 8px 14px 14px;
+  max-height: calc(100vh - 86px);
+  overflow-y: auto;
+  box-shadow: 0 -14px 36px rgba(2, 6, 23, 0.28);
+}
+
+.is-compact-vp .trend-studio.is-mobile-sheet-open .bento-chart-canvas {
+  height: 270px !important;
+  min-height: 220px;
+}
+
+.is-compact-vp .mobile-sheet-grabber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0 6px;
+  cursor: pointer;
+}
+
+.is-compact-vp .mobile-sheet-grabber-bar {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--b-border);
+}
+
+.is-compact-vp .mobile-trend-dock-bar {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: 42px;
+  height: 38px;
+  z-index: 35;
+  background: var(--b-card);
+  border: 1px solid var(--b-border);
+  border-radius: 12px;
+  padding: 0 10px 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08), var(--b-shadow);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.is-compact-vp .mobile-trend-dock-bar:hover {
+  border-color: rgba(2, 132, 199, 0.45);
+}
+
+.is-night.is-compact-vp .mobile-trend-dock-bar {
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.42);
+}
+
+.is-compact-vp .mtd-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.is-compact-vp .mtd-count {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--b-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.is-compact-vp .mtd-open-btn {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #0284C7;
+  border: 1px solid #0284C7;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.28);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.is-compact-vp .mtd-open-btn:hover {
+  background: #0369A1;
+}
+
+/* ========================================================================= */
 /* 5. MOBILE PHONE RESPONSIVE LAYOUT (< 768px — DESKTOP 100% UNTOUCHED)      */
 /* ========================================================================= */
 @media (max-width: 767px) {
@@ -12834,16 +12964,17 @@ export default {
 
   .mtd-open-btn {
     height: 28px;
-    padding: 0 10px;
-    border-radius: 8px;
+    padding: 0 11px;
+    border-radius: 999px;
     font-size: 10.5px;
-    font-weight: 700;
+    font-weight: 800;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    background: var(--b-subtle);
-    border: 1px solid var(--b-border);
-    color: var(--b-text-main);
+    background: #0284C7;
+    border: 1px solid #0284C7;
+    color: #FFFFFF !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.28);
     cursor: pointer;
     flex-shrink: 0;
   }
