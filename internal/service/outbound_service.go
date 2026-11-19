@@ -3466,10 +3466,11 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 	isSparingArray := structureUpper == "SPARING_DATA_ARRAY"
 	isCBIHourlyArray := structureUpper == "CBI_HOURLY_ARRAY" || templateUpper == "CBI_MULTI_HOURLY"
 	isBundledArray := isSparingArray || isCBIHourlyArray
+	isBundledDispatch := dest != nil && dest.DispatchIntervalSeconds > 0 && (dest.IntervalSeconds <= 0 || dest.DispatchIntervalSeconds > dest.IntervalSeconds)
 
 	var realResults []model.AggregationResult
 	var err error
-	if isBundledArray || (dest != nil && dest.DispatchIntervalSeconds > 0 && customCfg == nil) {
+	if isBundledArray || isBundledDispatch {
 		srcInterval := 120
 		if dest != nil && dest.IntervalSeconds > 0 {
 			srcInterval = dest.IntervalSeconds
@@ -3576,7 +3577,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			batch.DeviceCode = devicesList[0].DeviceCode
 			batch.DeviceName = devicesList[0].DeviceName
 		}
-	} else if isBundledArray || templateUpper == "KLHK_SPARING" || templateUpper == "KLHK_SPARING_HOURLY" {
+	} else if isBundledArray || isBundledDispatch || templateUpper == "KLHK_SPARING" || templateUpper == "KLHK_SPARING_HOURLY" {
 		// Construct realistic KLHK SPARING / Cloud CBI 30x 2-minute hourly bundle or 1x 2-minute flat sample batch
 		srcSec := 120
 		if dest != nil && dest.IntervalSeconds > 0 {
@@ -3587,7 +3588,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			dispSec = dest.DispatchIntervalSeconds
 		}
 		bucketCount := 1
-		if isBundledArray {
+		if isBundledArray || isBundledDispatch {
 			bucketCount = dispSec / srcSec
 			if bucketCount < 1 {
 				bucketCount = 30
@@ -3597,7 +3598,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		}
 
 		alignedHourEnd := time.Unix((time.Now().Unix()/3600)*3600, 0).UTC()
-		if !isBundledArray {
+		if !isBundledArray && !isBundledDispatch {
 			alignedHourEnd = time.Unix((time.Now().Unix()/int64(srcSec))*int64(srcSec), 0).UTC()
 		}
 		windowStart := alignedHourEnd.Add(-time.Duration(bucketCount*srcSec) * time.Second)

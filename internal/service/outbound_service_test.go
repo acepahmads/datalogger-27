@@ -1394,5 +1394,110 @@ func TestOutboundService_HybridStatus1AndSuccessTrueResponse(t *testing.T) {
 	}
 }
 
+func TestOutboundService_Sparing30x2CustomSchemaLivePreviewReturns30Records(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+	ctx := context.Background()
+
+	db.Create(&model.Device{
+		ID:         1,
+		DeviceCode: "sparing-ujikon-2026",
+		DeviceName: "SPARING Ujikon 2026",
+		Enabled:    true,
+		Status:     model.DeviceStatusActive,
+	})
+	db.Create(&model.Parameter{ID: 1, DeviceID: 1, ParameterCode: "ph", ParameterName: "pH", Enabled: true})
+	db.Create(&model.Parameter{ID: 2, DeviceID: 1, ParameterCode: "cod", ParameterName: "COD", Enabled: true})
+
+	dest := &model.OutputDestination{
+		Name:                    "Ujikon Sparing 2026",
+		Type:                    model.DestREST,
+		Endpoint:                "https://example.invalid/api/v1/ingest/telemetry",
+		IntervalSeconds:         120,
+		DispatchIntervalSeconds: 3600,
+		Enabled:                 true,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	draftCfg := &model.DestinationPayloadConfig{
+		DestinationID:    dest.ID,
+		TemplateType:     "CUSTOM",
+		Structure:        "CUSTOM_SCHEMA",
+		CustomSchemaMode: "VISUAL_FIELDS",
+		TimestampFormat:  "ISO8601",
+		TimestampSource:  "PERIOD_START",
+		CustomFieldsJSON: `[` +
+			`{"key":"logger_type","source":"STATIC_STRING","value":"SPARING","enabled":true},` +
+			`{"key":"site_code","source":"STATIC_STRING","value":"sparing-ujikon-2026","enabled":true},` +
+			`{"key":"device_code","source":"STATIC_STRING","value":"sparing-ujikon-2026","enabled":true},` +
+			`{"key":"records","source":"RECORDS_VALUES_ARRAY","enabled":true}` +
+			`]`,
+	}
+
+	// 1. Sample fallback (no real DB aggregation rows yet) must still preview 30 records
+	sampleJSON, err := svc.GeneratePreviewWithConfig(ctx, dest.ID, nil, draftCfg)
+	if err != nil {
+		t.Fatalf("GeneratePreviewWithConfig (sample fallback) failed: %v", err)
+	}
+	var sampleParsed struct {
+		Records []map[string]interface{} `json:"records"`
+	}
+	if err := json.Unmarshal([]byte(sampleJSON), &sampleParsed); err != nil {
+		t.Fatalf("invalid JSON from sample preview: %v\n%s", err, sampleJSON)
+	}
+	if len(sampleParsed.Records) != 30 {
+		t.Fatalf("expected 30 records in SPARING 30x2m sample preview, got %d\n%s", len(sampleParsed.Records), sampleJSON)
+	}
+
+	// 2. Real DB aggregation rows (30 x 2-minute buckets) with live draft customCfg != nil must preview all 30 records
+	baseEnd := time.Now().UTC().Truncate(time.Hour)
+	for i := 0; i < 30; i++ {
+		pStart := baseEnd.Add(-time.Hour + time.Duration(i*2)*time.Minute)
+		pEnd := pStart.Add(2 * time.Minute)
+		phVal := 7.0 + float64(i)*0.01
+		codVal := 10.0 + float64(i)*0.1
+		db.Create(&model.AggregationResult{
+			DeviceID:        1,
+			ParameterID:     1,
+			SourceType:      model.SourceCustomerProcessed,
+			IntervalSeconds: 120,
+			PeriodStart:     pStart,
+			PeriodEnd:       pEnd,
+			Value:           &phVal,
+			Quality:         model.QualityGood,
+		})
+		db.Create(&model.AggregationResult{
+			DeviceID:        1,
+			ParameterID:     2,
+			SourceType:      model.SourceCustomerProcessed,
+			IntervalSeconds: 120,
+			PeriodStart:     pStart,
+			PeriodEnd:       pEnd,
+			Value:           &codVal,
+			Quality:         model.QualityGood,
+		})
+	}
+
+	liveJSON, err := svc.GeneratePreviewWithConfig(ctx, dest.ID, nil, draftCfg)
+	if err != nil {
+		t.Fatalf("GeneratePreviewWithConfig (real DB) failed: %v", err)
+	}
+	var liveParsed struct {
+		Records []map[string]interface{} `json:"records"`
+	}
+	if err := json.Unmarshal([]byte(liveJSON), &liveParsed); err != nil {
+		t.Fatalf("invalid JSON from live preview: %v\n%s", err, liveJSON)
+	}
+	if len(liveParsed.Records) != 30 {
+		t.Fatalf("expected 30 records in SPARING 30x2m live draft preview, got %d\n%s", len(liveParsed.Records), liveJSON)
+	}
+}
+
+
 
 
