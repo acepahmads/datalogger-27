@@ -5,7 +5,7 @@
       v-if="!isLoginRoute && isShellReady"
       v-show="!effectiveTopPanelHidden"
       @toggle-sidebar="toggleSidebar"
-      @toggle-autohide="onSidebarAutoHideToggle"
+      @toggle-autohide="onSidebarAutoHideToggle(false)"
     />
 
     <!-- Global Alarm Banner (Directly beneath header) -->
@@ -108,7 +108,7 @@
           :is-sidebar-auto-hide="sidebarAutoHide"
           @toggle-sidebar="toggleSidebar"
           @toggle-fullwidth="toggleSidebar"
-          @toggle-autohide="onSidebarAutoHideToggle"
+          @toggle-autohide="onSidebarAutoHideToggle(true)"
         />
       </main>
     </div>
@@ -367,9 +367,20 @@ export default {
         this.isTopPanelHidden = false;
       }
     },
-    onSidebarAutoHideToggle() {
-      if (!this.sidebarAutoHide) {
+    onSidebarAutoHideToggle(fromDashboardToolbar = false) {
+      if (this.isMobileViewport) {
+        this.isMobileDrawerOpen = !this.isMobileDrawerOpen;
+        return;
+      }
+      if (this.sidebarAutoHide) {
+        if (fromDashboardToolbar === true) {
+          this.openSidebarHover();
+        }
+      } else {
         this.closeSidebarHoverImmediate();
+        if (this.isSidebarCollapsed) {
+          this.isSidebarCollapsed = false;
+        }
       }
     },
     toggleSidebarAutoHide() {
