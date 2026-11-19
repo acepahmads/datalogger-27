@@ -140,19 +140,6 @@
             />
           </div>
 
-          <!-- Tenant Filter -->
-          <select
-            id="filter-inbound-tenant"
-            v-model="filters.tenant_id"
-            @change="onFilterChange"
-            class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 text-2xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer max-w-[200px]"
-          >
-            <option value="">🏢 Semua Tenant ({{ tenants.length }})</option>
-            <option v-for="t in tenants" :key="t.id" :value="String(t.id)">
-              {{ t.name }}
-            </option>
-          </select>
-
           <!-- Status Filter -->
           <select
             id="filter-inbound-status"
@@ -163,20 +150,6 @@
             <option value="">Semua Status</option>
             <option value="ACCEPTED">✓ ACCEPTED</option>
             <option value="REJECTED">✕ REJECTED</option>
-          </select>
-
-          <!-- Logger Domain -->
-          <select
-            id="filter-inbound-logger"
-            v-model="filters.logger_type"
-            @change="onFilterChange"
-            class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 text-2xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-          >
-            <option value="">Semua Domain</option>
-            <option value="AQMS">AQMS</option>
-            <option value="SPARING">SPARING</option>
-            <option value="ONLIMO">ONLIMO</option>
-            <option value="WQMS">WQMS</option>
           </select>
 
           <!-- Format -->
@@ -580,7 +553,6 @@ export default {
       toastMessage: '',
       toastType: 'success',
 
-      tenants: [],
       items: [],
       total: 0,
       page: 1,
@@ -607,9 +579,7 @@ export default {
       ],
       filters: {
         search: '',
-        tenant_id: '',
         status: '',
-        logger_type: '',
         format: '',
         source: '',
       },
@@ -628,15 +598,16 @@ export default {
       const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
       return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
     },
+    activeTenantId() {
+      return Number((this.$store && this.$store.state && this.$store.state.activeTenantId) || 0);
+    },
     totalPages() {
       return Math.max(1, Math.ceil((this.total || 0) / (this.pageSize || 25)));
     },
     hasActiveFilters() {
       return Boolean(
         this.filters.search ||
-        this.filters.tenant_id ||
         this.filters.status ||
-        this.filters.logger_type ||
         this.filters.format ||
         this.filters.source ||
         this.activeTimePreset !== '24h'
@@ -688,7 +659,6 @@ export default {
       this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
       return;
     }
-    this.loadTenants();
     this.fetchLogs(false);
     this.startAutoRefresh();
   },
@@ -726,16 +696,6 @@ export default {
         this.stopAutoRefresh();
       }
     },
-    async loadTenants() {
-      try {
-        const res = await axios.get('/api/tenants');
-        if (res.data && Array.isArray(res.data.data)) {
-          this.tenants = res.data.data;
-        }
-      } catch (_) {
-        this.tenants = [];
-      }
-    },
     computeStartTimeISO() {
       const now = Date.now();
       const mapMs = {
@@ -755,9 +715,8 @@ export default {
           page: this.page,
           page_size: this.pageSize,
         };
-        if (this.filters.tenant_id) params.tenant_id = this.filters.tenant_id;
+        if (this.activeTenantId > 0) params.tenant_id = this.activeTenantId;
         if (this.filters.status) params.status = this.filters.status;
-        if (this.filters.logger_type) params.logger_type = this.filters.logger_type;
         if (this.filters.format) params.format = this.filters.format;
         if (this.filters.source) params.source = this.filters.source;
         if (this.filters.search && this.filters.search.trim()) params.search = this.filters.search.trim();
@@ -807,9 +766,7 @@ export default {
     resetFilters() {
       this.filters = {
         search: '',
-        tenant_id: '',
         status: '',
-        logger_type: '',
         format: '',
         source: '',
       };

@@ -16,12 +16,13 @@ assert(routerCode.includes('if (to.meta && to.meta.cloudOnly && !isCloudMode)'),
 assert(sidebarCode.includes('id="nav-inbound-data"'), 'Sidebar must expose #nav-inbound-data link');
 assert(/v-if="isSuperAdmin && isCloudMode"\s+id="nav-inbound-data"/.test(sidebarCode), 'Sidebar Inbound Data link must be gated by isSuperAdmin && isCloudMode');
 
-// 3. InboundDataView enforces role/mode guard + multi-facet filters + 3-mode Raw JSON inspector
+// 3. InboundDataView enforces role/mode guard + compact filters (uses Header tenant switcher, no duplicate tenant/domain dropdowns) + 3-mode Raw JSON inspector
 assert(viewCode.includes('if (!this.isSuperAdmin || !this.isCloudMode)'), 'InboundDataView must redirect non-Superadmin or Edge Mode users');
 assert(viewCode.includes('/api/superadmin/inbound-logs'), 'InboundDataView must fetch from /api/superadmin/inbound-logs');
-assert(viewCode.includes('id="filter-inbound-tenant"'), 'InboundDataView must include Tenant filter');
+assert(!viewCode.includes('id="filter-inbound-tenant"'), 'InboundDataView must NOT render duplicate Tenant dropdown (uses top Header tenant selector)');
+assert(!viewCode.includes('id="filter-inbound-logger"'), 'InboundDataView must NOT render Domain (AQMS/SPARING) dropdown');
+assert(viewCode.includes('this.activeTenantId > 0'), 'InboundDataView must filter automatically by Header activeTenantId');
 assert(viewCode.includes('id="filter-inbound-status"'), 'InboundDataView must include Status filter');
-assert(viewCode.includes('id="filter-inbound-logger"'), 'InboundDataView must include Domain/Logger filter');
 assert(viewCode.includes('id="filter-inbound-format"'), 'InboundDataView must include Format filter');
 assert(viewCode.includes('id="filter-inbound-source"'), 'InboundDataView must include Source filter');
 assert(viewCode.includes('id="filter-inbound-search"'), 'InboundDataView must include Search input');
