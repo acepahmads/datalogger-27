@@ -17,29 +17,9 @@
           <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide">{{ isCloudMode ? 'Cloud Receiver Active' : $t('navigation.edgeSystem') }}</span>
         </div>
       </div>
-      <!-- Setup / Auto-Hide Pin Icon Button (Desktop) -->
-      <button
-        v-if="!isMobileDrawer"
-        type="button"
-        id="btn-sidebar-autohide-setup"
-        @click.stop="toggleAutoHide"
-        class="p-1.5 rounded-lg border transition-all flex items-center justify-center mt-0.5 flex-shrink-0 cursor-pointer"
-        :class="sidebarAutoHide
-          ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/30 ring-1 ring-cyan-500/30'
-          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-slate-200 dark:border-slate-700/60'"
-        :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
-        aria-label="Toggle Sidebar Auto-Hide"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <path d="M9 3v18" stroke-linecap="round" />
-          <path v-if="!sidebarAutoHide" stroke-linecap="round" stroke-linejoin="round" d="m14 9-3 3 3 3" />
-          <path v-else stroke-linecap="round" stroke-linejoin="round" d="m12 9 3 3-3 3" />
-        </svg>
-      </button>
       <!-- Close Drawer Button (Mobile Slide-Over) -->
       <button
-        v-else
+        v-if="isMobileDrawer"
         type="button"
         id="btn-sidebar-mobile-close"
         @click.stop="$emit('close-mobile')"

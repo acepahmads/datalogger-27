@@ -41,7 +41,7 @@ check('1.1: App.vue renders Sidebar as full-height z-[70] overlay drawer on < 76
 check('1.2: Sidebar.vue supports isMobileDrawer mode with dedicated Close (X) button while keeping desktop Auto-Hide intact', () => {
   assert(sidebarCode.includes('isMobileDrawer: {'), 'Sidebar.vue must accept isMobileDrawer prop');
   assert(sidebarCode.includes('id="btn-sidebar-mobile-close"') && sidebarCode.includes("$emit('close-mobile')"), 'Sidebar.vue must render mobile close button emitting close-mobile');
-  assert(sidebarCode.includes('v-if="!isMobileDrawer"') && sidebarCode.includes('id="btn-sidebar-autohide-setup"'), 'Desktop auto-hide setup button must stay intact when !isMobileDrawer');
+  assert(!sidebarCode.includes('id="btn-sidebar-autohide-setup"'), 'Redundant desktop hide icon inside Sidebar must be removed (controlled solely by Header hamburger toggle)');
 });
 
 check('2.1: Header.vue provides mobile Hamburger trigger and single-pill station switcher with zero horizontal overflow', () => {

@@ -109,24 +109,9 @@
 
       <!-- Row 2: 100% Icon-Only Toolbar Matching Operator Console -->
       <div class="h-row2" ref="toolbarContainer">
-        <!-- Left Icon Cluster: Sidebar Auto-Hide, Fullscreen, View/Filter, Performance, ISPU Settings, Day/Night -->
+        <!-- Left Icon Cluster: Fullscreen, Switch Tenant, View/Filter, Performance, ISPU Settings, Day/Night -->
         <div class="tool-cluster flex-wrap">
-          <!-- 1. Sidebar Auto-Hide (Icon Only) -->
-          <button
-            type="button"
-            id="btn-operator-sidebar-autohide"
-            @click.stop="toggleSidebarAutoHide"
-            class="op-icon-btn"
-            :class="{ 'is-active': sidebarAutoHide }"
-            :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Aktif (Klik untuk Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Dipin (Klik untuk Auto-Hide)')"
-            aria-label="Toggle Sidebar Auto-Hide"
-          >
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-
-          <!-- 2. Fullscreen / Focus Layout Toggle (Icon Only) -->
+          <!-- 1. Fullscreen / Focus Layout Toggle (Icon Only) -->
           <button
             type="button"
             @click="$emit('toggle-sidebar')"
