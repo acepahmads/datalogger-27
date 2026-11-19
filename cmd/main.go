@@ -307,7 +307,10 @@ func main() {
 	ingestService := service.NewIngestService(tenantService, deviceRepo, categoryRepo, telemetryService)
 	defer ingestService.Stop()
 	ingestService.SetHub(hub)
+	inboundLogRepo := repository.NewInboundLogRepository(db)
 	ingestHandler := handler.NewIngestHandler(ingestService)
+	ingestHandler.SetInboundLogRepository(inboundLogRepo)
+	inboundLogHandler := handler.NewInboundLogHandler(inboundLogRepo)
 	commTraceHandler := handler.NewCommTraceHandler(commTracer, deviceService)
 	activityHandler := handler.NewActivityMonitorHandler(activityMonitor, deviceService, commTracer)
 
@@ -670,6 +673,16 @@ func main() {
 			superadminInjGroup.POST("/batches/:id/sync-outbound", telemetryInjHandler.SyncOutbound)
 			superadminInjGroup.POST("/batches/:id/rollback", telemetryInjHandler.Rollback)
 			superadminInjGroup.DELETE("/batches/:id", telemetryInjHandler.Rollback)
+		}
+
+		// Cloud Mode Global Inbound Raw JSON Monitor (SUPERADMIN ONLY)
+		superadminInboundGroup := api.Group("/superadmin/inbound-logs")
+		superadminInboundGroup.Use(middleware.JWTAuth(authService))
+		superadminInboundGroup.Use(middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR"))
+		{
+			superadminInboundGroup.GET("", inboundLogHandler.List)
+			superadminInboundGroup.GET("/:id", inboundLogHandler.GetByID)
+			superadminInboundGroup.DELETE("", inboundLogHandler.Purge)
 		}
 
 		// Sensor Calibration & Multi-Point Regression (Accessible to all non-OPERATOR roles)

@@ -204,6 +204,24 @@
             <span class="font-medium text-slate-200">{{ $t('navigation.telemetryAnalysis') }}</span>
           </router-link>
 
+          <!-- Inbound Data Monitor (CLOUD MODE + SUPERADMIN ONLY) -->
+          <router-link
+            v-if="isSuperAdmin && isCloudMode"
+            id="nav-inbound-data"
+            to="/monitoring/inbound-data"
+            class="nav-item"
+            :class="{ 'nav-active': $route.path === '/monitoring/inbound-data' }"
+          >
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-emerald-500 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            <span class="font-semibold text-emerald-600 dark:text-emerald-300">Inbound Data</span>
+            <span class="ml-auto text-3xs font-mono px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 uppercase tracking-tighter">
+              SA
+            </span>
+          </router-link>
+
           <!-- Telemetry Injector (SUPERADMIN ONLY) -->
           <router-link
             v-if="isSuperAdmin"

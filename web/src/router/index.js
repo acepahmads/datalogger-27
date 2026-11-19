@@ -105,6 +105,12 @@ const routes = [
     component: () => import('../views/TelemetryInjectionView.vue'),
     meta: { roles: ['SUPERADMIN'] },
   },
+  {
+    path: '/monitoring/inbound-data',
+    name: 'InboundData',
+    component: () => import('../views/InboundDataView.vue'),
+    meta: { roles: ['SUPERADMIN'], cloudOnly: true },
+  },
   { path: '/monitoring/devices', name: 'Devices', component: DevicesView },
   { path: '/monitoring/devices/:id', name: 'DeviceDetail', component: DeviceDetailView },
   { path: '/devices/:id', redirect: to => `/monitoring/devices/${to.params.id}` },
@@ -387,6 +393,7 @@ router.beforeEach(async (to, from, next) => {
       '/monitoring/calibration',
       '/calibration',
       '/monitoring/telemetry-injection',
+      '/monitoring/inbound-data',
     ];
     if (cloudRestrictedPrefixes.some(p => to.path === p || to.path.startsWith(p + '/'))) {
       return next({
@@ -394,6 +401,13 @@ router.beforeEach(async (to, from, next) => {
         query: { from: to.fullPath },
       });
     }
+  }
+
+  if (to.meta && to.meta.cloudOnly && !isCloudMode) {
+    return next({
+      path: '/access-denied',
+      query: { from: to.fullPath },
+    });
   }
 
   if (to.meta && to.meta.disallowOperator && isOperator) {

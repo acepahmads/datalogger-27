@@ -60,6 +60,7 @@ func RunMigrations(db *gorm.DB) error {
 		&model.DestinationPayloadConfig{},
 		&model.OutboundDeliveryQueue{},
 		&model.DeliveryLog{},
+		&model.InboundIngestLog{},
 		&model.SystemHealth{},
 		&model.AggregationDefinition{},
 		&model.AggregationResult{},
