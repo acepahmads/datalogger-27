@@ -49,6 +49,7 @@ type OutboundService interface {
 	UpdatePayloadConfig(ctx context.Context, cfg *model.DestinationPayloadConfig) error
 	GeneratePreview(ctx context.Context, destID uint, deviceID *uint) (string, error)
 	GeneratePreviewWithConfig(ctx context.Context, destID uint, deviceID *uint, customCfg *model.DestinationPayloadConfig) (string, error)
+	GetAvailablePreviewWindows(ctx context.Context, destID uint, limit int) ([]repository.AvailableBundledWindow, error)
 	TestPayload(ctx context.Context, destID uint) (*TestPayloadResult, error)
 	TestPayloadWithConfig(ctx context.Context, destID uint, customCfg *model.DestinationPayloadConfig) (*TestPayloadResult, error)
 
@@ -3425,6 +3426,55 @@ func (s *outboundService) GeneratePreview(ctx context.Context, destID uint, devi
 	return s.GeneratePreviewWithConfig(ctx, destID, deviceID, nil)
 }
 
+type previewWindowStartCtxKey struct{}
+
+// WithPreviewWindowStart attaches an explicit preview/test dispatch window start time to ctx
+// so users can preview and test-deliver a specific completed historical hour (e.g. 30x2m SPARING).
+func WithPreviewWindowStart(ctx context.Context, windowStart time.Time) context.Context {
+	if windowStart.IsZero() {
+		return ctx
+	}
+	return context.WithValue(ctx, previewWindowStartCtxKey{}, windowStart.UTC())
+}
+
+func previewWindowStartFromContext(ctx context.Context) (time.Time, bool) {
+	if ctx == nil {
+		return time.Time{}, false
+	}
+	v, ok := ctx.Value(previewWindowStartCtxKey{}).(time.Time)
+	if !ok || v.IsZero() {
+		return time.Time{}, false
+	}
+	return v.UTC(), true
+}
+
+// GetAvailablePreviewWindows lists recent aligned dispatch windows (e.g. hourly 30x2m SPARING)
+// that already contain persisted aggregation data so operators can pick a complete hour for test delivery.
+func (s *outboundService) GetAvailablePreviewWindows(ctx context.Context, destID uint, limit int) ([]repository.AvailableBundledWindow, error) {
+	dest, err := s.repo.GetDestinationByID(ctx, destID)
+	if err != nil {
+		return nil, fmt.Errorf("destination not found: %w", err)
+	}
+	if err := checkDestScope(ctx, dest); err != nil {
+		return nil, err
+	}
+	ctx = destinationScopeCtx(ctx, dest)
+
+	srcInterval := 120
+	if dest.IntervalSeconds > 0 {
+		srcInterval = dest.IntervalSeconds
+	}
+	winSec := 3600
+	if dest.DispatchIntervalSeconds > 0 {
+		winSec = dest.DispatchIntervalSeconds
+	}
+	var targetDeviceIDs []uint
+	if dest.DeviceID != nil && *dest.DeviceID > 0 {
+		targetDeviceIDs = []uint{*dest.DeviceID}
+	}
+	return s.repo.ListAvailableBundledWindows(ctx, srcInterval, winSec, targetDeviceIDs, limit)
+}
+
 // GeneratePreviewWithConfig builds a real or sample preview payload matching provided or stored config
 func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID uint, deviceID *uint, customCfg *model.DestinationPayloadConfig) (string, error) {
 	cfg := customCfg
@@ -3482,13 +3532,16 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		if dest != nil && dest.DispatchIntervalSeconds > 0 {
 			previewWinSec = dest.DispatchIntervalSeconds
 		}
-		nowUTC := time.Now().UTC()
+		refTimeUTC := time.Now().UTC()
+		if forcedStart, ok := previewWindowStartFromContext(ctx); ok {
+			refTimeUTC = forcedStart
+		}
 		winSec64 := int64(previewWinSec)
 		if winSec64 <= 0 {
 			winSec64 = 3600
 		}
-		// Align live preview to the current active dispatch window (e.g. at 15:27 -> 15:00..16:00, slots :00..:58)
-		previewWindowStart = time.Unix((nowUTC.Unix()/winSec64)*winSec64, 0).UTC()
+		// Align live preview to the requested or current active dispatch window (e.g. at 15:27 -> 15:00..16:00, slots :00..:58)
+		previewWindowStart = time.Unix((refTimeUTC.Unix()/winSec64)*winSec64, 0).UTC()
 		previewWindowEnd = previewWindowStart.Add(time.Duration(winSec64) * time.Second)
 
 		realResults, err = s.repo.GetCustomerAggregationResultsForRange(ctx, previewWindowStart, previewWindowEnd, previewSrcInterval, targetDeviceIDs)
@@ -3717,17 +3770,20 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			}
 		}
 
-		nowUnix := time.Now().UTC().Unix()
+		refUnix := time.Now().UTC().Unix()
+		if forcedStart, ok := previewWindowStartFromContext(ctx); ok {
+			refUnix = forcedStart.Unix()
+		}
 		var windowStart, alignedHourEnd time.Time
 		if isBundledPreview {
 			winSec64 := int64(bucketCount * srcSec)
 			if winSec64 <= 0 {
 				winSec64 = 3600
 			}
-			windowStart = time.Unix((nowUnix/winSec64)*winSec64, 0).UTC()
+			windowStart = time.Unix((refUnix/winSec64)*winSec64, 0).UTC()
 			alignedHourEnd = windowStart.Add(time.Duration(winSec64) * time.Second)
 		} else {
-			alignedHourEnd = time.Unix((nowUnix/int64(srcSec))*int64(srcSec), 0).UTC()
+			alignedHourEnd = time.Unix((refUnix/int64(srcSec))*int64(srcSec), 0).UTC()
 			windowStart = alignedHourEnd.Add(-time.Duration(srcSec) * time.Second)
 		}
 

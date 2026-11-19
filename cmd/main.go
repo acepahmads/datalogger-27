@@ -855,6 +855,7 @@ func main() {
 			destinationsGroup.PUT("/:id/payload-config", middleware.RequirePermission("integration.manage"), outboundHandler.UpdatePayloadConfig)
 			destinationsGroup.GET("/:id/preview", middleware.RequirePermission("integration.view"), outboundHandler.GeneratePreview)
 			destinationsGroup.POST("/:id/preview", middleware.RequirePermission("integration.view"), outboundHandler.GeneratePreview)
+			destinationsGroup.GET("/:id/preview-hours", middleware.RequirePermission("integration.view"), outboundHandler.GetPreviewHours)
 			destinationsGroup.POST("/:id/test", middleware.RequirePermission("integration.test"), outboundHandler.TestPayload)
 		}
 

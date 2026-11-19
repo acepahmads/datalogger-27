@@ -681,11 +681,11 @@
             v-if="!isCustomerService"
             @click="testPayloadTransmission"
             :disabled="testingPayload"
-            class="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs"
-            title="Dispatch a test serialized payload directly to this destination"
+            class="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white btn-text text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs cursor-pointer"
+            :title="effectivePreviewWindowLabel ? ('Kirim test payload data jam ' + effectivePreviewWindowLabel + ' ke tujuan ini') : 'Dispatch a test serialized payload directly to this destination'"
           >
             <span v-if="testingPayload" class="animate-spin">⏳</span>
-            <span>⚡ Test Payload Delivery</span>
+            <span>⚡ {{ effectivePreviewWindowLabel ? ('Test Kirim (' + effectivePreviewWindowLabel + ')') : 'Test Payload Delivery' }}</span>
           </button>
 
           <!-- Save Config Action -->
@@ -1627,6 +1627,81 @@
               </div>
             </div>
 
+            <!-- Bundled Hourly Window Selector for Preview & Test Delivery (e.g. SPARING 30x2m) -->
+            <div
+              v-if="isBundledPreviewDestination"
+              class="mt-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-2"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  <span>🎯</span>
+                  <span>Jam Data Preview &amp; Test Kirim</span>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    v-if="latestCompletePreviewWindow && selectedPreviewWindowMode !== latestCompletePreviewWindow.window_start"
+                    id="btn-pick-latest-complete-hour"
+                    type="button"
+                    @click="selectPreviewWindow(latestCompletePreviewWindow.window_start)"
+                    class="px-2 py-0.5 rounded-md text-3xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-text transition cursor-pointer shadow-2xs"
+                    title="Pilih otomatis 1 jam penuh terakhir yang datanya lengkap untuk preview & test kirim"
+                  >
+                    ✓ Jam Lengkap ({{ formatPreviewWindowShort(latestCompletePreviewWindow.window_start) }})
+                  </button>
+                  <button
+                    type="button"
+                    @click="fetchAvailablePreviewWindows"
+                    :disabled="loadingPreviewWindows"
+                    class="px-1.5 py-0.5 rounded-md text-3xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+                    title="Muat ulang daftar jam yang memiliki data di database"
+                  >
+                    {{ loadingPreviewWindows ? '…' : '↻' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <select
+                  id="select-preview-window-hour"
+                  v-model="selectedPreviewWindowMode"
+                  @change="onPreviewWindowModeChange"
+                  class="flex-1 min-w-[200px] bg-white dark:bg-slate-900 text-2xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-medium cursor-pointer focus:outline-hidden"
+                >
+                  <option value="">⏱️ Jam Berjalan (Live — slot belum waktunya tampil null)</option>
+                  <optgroup v-if="availablePreviewWindows.length > 0" label="Jam Tersedia di Database">
+                    <option
+                      v-for="w in availablePreviewWindows"
+                      :key="w.window_start"
+                      :value="w.window_start"
+                    >
+                      {{ formatPreviewWindowOption(w) }}
+                    </option>
+                  </optgroup>
+                  <option value="CUSTOM">📅 Pilih Tanggal &amp; Jam Manual...</option>
+                </select>
+
+                <template v-if="selectedPreviewWindowMode === 'CUSTOM'">
+                  <input
+                    id="input-preview-custom-date"
+                    v-model="customPreviewDate"
+                    type="date"
+                    @change="triggerLivePreview"
+                    class="bg-white dark:bg-slate-900 text-2xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-mono"
+                  />
+                  <select
+                    id="select-preview-custom-hour"
+                    v-model="customPreviewHour"
+                    @change="triggerLivePreview"
+                    class="bg-white dark:bg-slate-900 text-2xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-mono cursor-pointer"
+                  >
+                    <option v-for="h in 24" :key="h - 1" :value="String(h - 1).padStart(2, '0')">
+                      {{ String(h - 1).padStart(2, '0') }}:00 – {{ String(h - 1).padStart(2, '0') }}:58
+                    </option>
+                  </select>
+                </template>
+              </div>
+            </div>
+
             <!-- Code block -->
             <pre class="mt-3 p-3.5 rounded-lg bg-slate-950 text-emerald-400 font-mono text-2xs overflow-x-auto max-h-[500px] border border-slate-800 shadow-inner leading-relaxed select-all">{{ displayedPreviewJSON || '// Generating live preview from real aggregation data...' }}</pre>
           </div>
@@ -2460,6 +2535,11 @@ export default {
       parameterMappings: [],
       previewJSON: '',
       previewDisplayMode: 'raw',
+      availablePreviewWindows: [],
+      loadingPreviewWindows: false,
+      selectedPreviewWindowMode: '',
+      customPreviewDate: '',
+      customPreviewHour: '00',
       savingConfig: false,
       testingPayload: false,
       testResult: null,
@@ -2538,6 +2618,50 @@ export default {
     isActiveDestONLIMOBody() {
       const dest = (this.destinations || []).find(d => d.id === this.selectedDestinationId);
       return Boolean(dest && dest.auth_type === 'KLHK_ONLIMO_BODY');
+    },
+    activeSelectedDestination() {
+      return (this.destinations || []).find(d => Number(d.id) === Number(this.selectedDestinationId)) || null;
+    },
+    isBundledPreviewDestination() {
+      const dest = this.activeSelectedDestination;
+      const disp = Number((dest && dest.dispatch_interval_seconds) || 0);
+      const src = Number((dest && dest.interval_seconds) || 0);
+      if (disp > 0 && (src <= 0 || disp > src)) return true;
+      const st = String((this.payloadConfig && this.payloadConfig.structure) || '').toUpperCase();
+      const tpl = String((this.payloadConfig && this.payloadConfig.template_type) || '').toUpperCase();
+      return st === 'SPARING_DATA_ARRAY' || st === 'CBI_HOURLY_ARRAY' || tpl === 'CBI_MULTI_HOURLY' || tpl === 'KLHK_SPARING_HOURLY';
+    },
+    latestCompletePreviewWindow() {
+      const list = Array.isArray(this.availablePreviewWindows) ? this.availablePreviewWindows : [];
+      return list.find(w => Boolean(w && w.complete)) || null;
+    },
+    effectivePreviewWindowStartISO() {
+      if (!this.isBundledPreviewDestination) return '';
+      const mode = String(this.selectedPreviewWindowMode || '').trim();
+      if (!mode) return '';
+      if (mode === 'CUSTOM') {
+        if (!this.customPreviewDate) return '';
+        const hh = String(this.customPreviewHour || '00').padStart(2, '0');
+        const tz = String((this.payloadConfig && this.payloadConfig.timestamp_timezone) || '').trim();
+        const offsetMap = {
+          'Asia/Jakarta': '+07:00',
+          'Asia/Makassar': '+08:00',
+          'Asia/Jayapura': '+09:00',
+          UTC: 'Z',
+        };
+        if (offsetMap[tz]) {
+          const d = new Date(`${this.customPreviewDate}T${hh}:00:00${offsetMap[tz]}`);
+          return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+        }
+        const d = new Date(`${this.customPreviewDate}T${hh}:00:00`);
+        return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+      }
+      return mode;
+    },
+    effectivePreviewWindowLabel() {
+      const iso = this.effectivePreviewWindowStartISO;
+      if (!iso) return '';
+      return this.formatPreviewWindowShort(iso);
     },
     filteredParameterMappings() {
       if (!this.paramSearch || !this.paramSearch.trim()) {
@@ -2952,6 +3076,9 @@ export default {
     },
     async loadDestinationPayloadConfig() {
       if (!this.selectedDestinationId) return;
+      this.selectedPreviewWindowMode = '';
+      this.availablePreviewWindows = [];
+      this.fetchAvailablePreviewWindows();
       try {
         this.parameterMappings = [];
         const res = await axios.get(`/api/destinations/${this.selectedDestinationId}/payload-config`);
@@ -3731,12 +3858,68 @@ export default {
         return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())} ${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}:${pad(dateObj.getSeconds())}`;
       }
     },
+    async fetchAvailablePreviewWindows() {
+      if (!this.selectedDestinationId) return;
+      this.loadingPreviewWindows = true;
+      try {
+        const res = await axios.get(`/api/destinations/${this.selectedDestinationId}/preview-hours`, {
+          params: { limit: 48 },
+        });
+        const windows = (res.data && res.data.data && res.data.data.windows) || [];
+        this.availablePreviewWindows = Array.isArray(windows) ? windows : [];
+      } catch (_) {
+        this.availablePreviewWindows = [];
+      } finally {
+        this.loadingPreviewWindows = false;
+      }
+    },
+    selectPreviewWindow(windowStartISO) {
+      this.selectedPreviewWindowMode = windowStartISO || '';
+      this.triggerLivePreview();
+    },
+    onPreviewWindowModeChange() {
+      if (this.selectedPreviewWindowMode === 'CUSTOM' && !this.customPreviewDate) {
+        const ref = new Date(Date.now() - 3600 * 1000);
+        const pad = (n) => String(n).padStart(2, '0');
+        this.customPreviewDate = `${ref.getFullYear()}-${pad(ref.getMonth() + 1)}-${pad(ref.getDate())}`;
+        this.customPreviewHour = pad(ref.getHours());
+      }
+      this.triggerLivePreview();
+    },
+    formatPreviewWindowShort(isoStr) {
+      if (!isoStr) return '';
+      const d = new Date(isoStr);
+      if (Number.isNaN(d.getTime())) return isoStr;
+      const tz = String((this.payloadConfig && this.payloadConfig.timestamp_timezone) || '').trim();
+      try {
+        const opts = { day: '2-digit', month: 'short', hour: '2-digit', hour12: false };
+        if (tz) opts.timeZone = tz;
+        const parts = new Intl.DateTimeFormat('id-ID', opts).formatToParts(d);
+        const get = (t) => (parts.find(p => p.type === t) || {}).value || '';
+        const hh = get('hour') === '24' ? '00' : String(get('hour')).padStart(2, '0');
+        return `${get('day')} ${get('month')} · ${hh}:00–${hh}:58`;
+      } catch (_) {
+        const pad = (n) => String(n).padStart(2, '0');
+        const hh = pad(d.getHours());
+        return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} · ${hh}:00–${hh}:58`;
+      }
+    },
+    formatPreviewWindowOption(w) {
+      if (!w || !w.window_start) return '';
+      const shortLabel = this.formatPreviewWindowShort(w.window_start);
+      const cnt = Number(w.bucket_count || 0);
+      const exp = Number(w.expected_buckets || 30);
+      const badge = w.complete ? '✓ Lengkap' : 'Sebagian';
+      return `${shortLabel} (${cnt}/${exp} data · ${badge})`;
+    },
     async triggerLivePreview() {
       if (!this.selectedDestinationId) return;
       try {
         this.syncCustomSchemaPayloadFields();
         this.payloadConfig.parameter_mappings_json = JSON.stringify(this.parameterMappings);
-        const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/preview`, this.payloadConfig);
+        const winStart = this.effectivePreviewWindowStartISO;
+        const reqCfg = winStart ? { params: { window_start: winStart } } : undefined;
+        const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/preview`, this.payloadConfig, reqCfg);
         if (res.data && res.data.success) {
           this.previewJSON = res.data.data.preview;
         }
@@ -3778,7 +3961,9 @@ export default {
       try {
         this.syncCustomSchemaPayloadFields();
         this.payloadConfig.parameter_mappings_json = JSON.stringify(this.parameterMappings);
-        const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/test`, this.payloadConfig);
+        const winStart = this.effectivePreviewWindowStartISO;
+        const reqCfg = winStart ? { params: { window_start: winStart } } : undefined;
+        const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/test`, this.payloadConfig, reqCfg);
         if (res.data && res.data.success) {
           this.testResult = res.data.data;
         }

@@ -1519,6 +1519,163 @@ func TestOutboundService_Sparing30x2CustomSchemaLivePreviewReturns30Records(t *t
 	}
 }
 
+func TestOutboundService_SparingSpecificHistoricalHourPreviewAndTestDelivery(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+	ctx := context.Background()
+
+	db.Create(&model.Device{
+		ID:         1,
+		DeviceCode: "sparing-klhk-01",
+		DeviceName: "SPARING KLHK 01",
+		Enabled:    true,
+		Status:     model.DeviceStatusActive,
+	})
+	db.Create(&model.Parameter{ID: 1, DeviceID: 1, ParameterCode: "ph", ParameterName: "pH", Enabled: true})
+	db.Create(&model.Parameter{ID: 2, DeviceID: 1, ParameterCode: "cod", ParameterName: "COD", Enabled: true})
+
+	var receivedBody atomic.Value
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		receivedBody.Store(string(b))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":true,"message":"OK"}`))
+	}))
+	defer ts.Close()
+
+	dest := &model.OutputDestination{
+		Name:                    "KLHK SPARING Test Hour",
+		Type:                    model.DestREST,
+		Endpoint:                ts.URL + "/api/sparing",
+		IntervalSeconds:         120,
+		DispatchIntervalSeconds: 3600,
+		Enabled:                 true,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	currHour := time.Now().UTC().Truncate(time.Hour)
+	prevHour := currHour.Add(-time.Hour)
+
+	// Seed 30/30 complete buckets in previous hour
+	for i := 0; i < 30; i++ {
+		pStart := prevHour.Add(time.Duration(i*2) * time.Minute)
+		pEnd := pStart.Add(2 * time.Minute)
+		phVal := 7.1 + float64(i)*0.01
+		codVal := 12.0 + float64(i)*0.1
+		db.Create(&model.AggregationResult{
+			AggregationDefinitionID: 1,
+			DeviceID:                1,
+			ParameterID:             1,
+			SourceType:              model.SourceCustomerProcessed,
+			IntervalSeconds:         120,
+			PeriodStart:             pStart,
+			PeriodEnd:               pEnd,
+			Value:                   &phVal,
+			Quality:                 model.QualityGood,
+		})
+		db.Create(&model.AggregationResult{
+			AggregationDefinitionID: 2,
+			DeviceID:                1,
+			ParameterID:             2,
+			SourceType:              model.SourceCustomerProcessed,
+			IntervalSeconds:         120,
+			PeriodStart:             pStart,
+			PeriodEnd:               pEnd,
+			Value:                   &codVal,
+			Quality:                 model.QualityGood,
+		})
+	}
+	// Seed only 3/30 buckets in current hour (simulating :06 of current hour)
+	for i := 0; i < 3; i++ {
+		pStart := currHour.Add(time.Duration(i*2) * time.Minute)
+		pEnd := pStart.Add(2 * time.Minute)
+		phVal := 7.5
+		db.Create(&model.AggregationResult{
+			AggregationDefinitionID: 1,
+			DeviceID:                1,
+			ParameterID:             1,
+			SourceType:              model.SourceCustomerProcessed,
+			IntervalSeconds:         120,
+			PeriodStart:             pStart,
+			PeriodEnd:               pEnd,
+			Value:                   &phVal,
+			Quality:                 model.QualityGood,
+		})
+	}
+
+	// 1. Discover available hours -> currHour (3/30 incomplete) and prevHour (30/30 complete)
+	windows, err := svc.GetAvailablePreviewWindows(ctx, dest.ID, 24)
+	if err != nil {
+		t.Fatalf("GetAvailablePreviewWindows failed: %v", err)
+	}
+	if len(windows) < 2 {
+		t.Fatalf("expected at least 2 available windows, got %d", len(windows))
+	}
+	var foundPrev, foundCurr bool
+	for _, w := range windows {
+		if w.WindowStart.UTC().Equal(prevHour) {
+			foundPrev = true
+			if w.BucketCount != 30 || !w.Complete {
+				t.Fatalf("expected prevHour to have 30/30 complete, got %+v", w)
+			}
+		}
+		if w.WindowStart.UTC().Equal(currHour) {
+			foundCurr = true
+			if w.BucketCount != 3 || w.Complete {
+				t.Fatalf("expected currHour to have 3/30 incomplete, got %+v", w)
+			}
+		}
+	}
+	if !foundPrev || !foundCurr {
+		t.Fatalf("expected both prevHour and currHour in windows, got %+v", windows)
+	}
+
+	// 2. TestPayloadWithConfig targeting prevHour sends all 30 complete non-null KLHK SPARING rows
+	cfg := &model.DestinationPayloadConfig{
+		DestinationID:   dest.ID,
+		TemplateType:    "KLHK_SPARING_HOURLY",
+		Structure:       "SPARING_DATA_ARRAY",
+		StationIDField:  "uid",
+		StationIDValue:  "sparing-uid-test",
+		NestedDataKey:   "data",
+		TimestampField:  "datetime",
+		TimestampFormat: "UNIX_SEC",
+		TimestampSource: "PERIOD_START",
+	}
+	testCtx := service.WithPreviewWindowStart(ctx, prevHour)
+	res, err := svc.TestPayloadWithConfig(testCtx, dest.ID, cfg)
+	if err != nil || !res.Success {
+		t.Fatalf("TestPayloadWithConfig for prevHour failed: err=%v res=%+v", err, res)
+	}
+
+	wireStr, _ := receivedBody.Load().(string)
+	var wireParsed struct {
+		UID  string                   `json:"uid"`
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(wireStr), &wireParsed); err != nil {
+		t.Fatalf("invalid wire JSON: %v\n%s", err, wireStr)
+	}
+	if len(wireParsed.Data) != 30 {
+		t.Fatalf("expected 30 complete SPARING rows dispatched for prevHour, got %d", len(wireParsed.Data))
+	}
+	if int64(wireParsed.Data[0]["datetime"].(float64)) != prevHour.Unix() {
+		t.Fatalf("expected first row datetime=%d, got %v", prevHour.Unix(), wireParsed.Data[0]["datetime"])
+	}
+	if wireParsed.Data[0]["pH"] == nil && wireParsed.Data[0]["ph"] == nil {
+		t.Fatalf("expected non-null pH in first row, got %+v", wireParsed.Data[0])
+	}
+	if wireParsed.Data[29]["cod"] == nil {
+		t.Fatalf("expected non-null cod in 30th row (complete hour), got %+v", wireParsed.Data[29])
+	}
+}
+
 
 
 

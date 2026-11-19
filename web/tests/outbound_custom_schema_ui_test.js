@@ -21,5 +21,11 @@ assert(code.includes('id="btn-preview-mode-human"'), 'IntegrationView must expos
 assert(code.includes('displayedPreviewJSON'), 'IntegrationView must render displayedPreviewJSON in live preview');
 assert(code.includes('formatHumanPreviewTimestamp'), 'IntegrationView must format UNIX epoch timestamps into human-readable date/time');
 
-console.log('PASS: Outbound Custom Schema UI (Visual Field Builder + JSON Template + 2-Mode Human Datetime Preview) verified!');
+// Historical Specific-Hour Preview & Test Delivery Selector (SPARING 30x2m complete hour testing)
+assert(code.includes('id="select-preview-window-hour"'), 'IntegrationView must expose specific hour selector for bundled preview/test');
+assert(code.includes('id="btn-pick-latest-complete-hour"'), 'IntegrationView must expose 1-click latest complete hour shortcut');
+assert(code.includes('/preview-hours'), 'IntegrationView must fetch available DB hours via /preview-hours');
+assert(code.includes('window_start: winStart'), 'IntegrationView must forward window_start to both preview and test endpoints');
+
+console.log('PASS: Outbound Custom Schema UI (Visual Field Builder + JSON Template + 2-Mode Human Datetime Preview + Specific-Hour Test) verified!');
 

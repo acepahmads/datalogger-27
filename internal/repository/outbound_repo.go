@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -10,6 +11,16 @@ import (
 
 	"gorm.io/gorm"
 )
+
+// AvailableBundledWindow summarizes an aligned dispatch window (e.g. 1 hour = 30 x 2-minute buckets)
+// that already has persisted CUSTOMER_PROCESSED aggregation data available for preview/testing.
+type AvailableBundledWindow struct {
+	WindowStart     time.Time `json:"window_start"`
+	WindowEnd       time.Time `json:"window_end"`
+	BucketCount     int       `json:"bucket_count"`
+	ExpectedBuckets int       `json:"expected_buckets"`
+	Complete        bool      `json:"complete"`
+}
 
 // OutboundRepository defines database operations for destinations, payload configs, and outbound delivery queue
 type OutboundRepository interface {
@@ -33,6 +44,7 @@ type OutboundRepository interface {
 	GetLatestAggregationResults(ctx context.Context, deviceID uint) ([]model.AggregationResult, error)
 	GetLatestAggregationResultsMultiDevice(ctx context.Context, deviceIDs []uint) ([]model.AggregationResult, error)
 	GetRecentAggregationResultsMultiDevice(ctx context.Context, intervalSeconds int, windowDuration time.Duration, deviceIDs []uint) ([]model.AggregationResult, error)
+	ListAvailableBundledWindows(ctx context.Context, intervalSeconds int, windowSeconds int, deviceIDs []uint, limit int) ([]AvailableBundledWindow, error)
 
 	// Delivery Queue
 	EnqueueDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) error
@@ -359,6 +371,77 @@ func (r *outboundRepository) GetRecentAggregationResultsMultiDevice(ctx context.
 		Order("aggregation_results.period_start ASC, aggregation_results.device_id ASC, aggregation_results.parameter_id ASC").
 		Find(&results).Error
 	return results, err
+}
+
+// ListAvailableBundledWindows returns recent aligned dispatch windows (e.g. 1-hour SPARING 30x2m windows)
+// that already have persisted CUSTOMER_PROCESSED aggregation data, ordered newest first.
+func (r *outboundRepository) ListAvailableBundledWindows(ctx context.Context, intervalSeconds int, windowSeconds int, deviceIDs []uint, limit int) ([]AvailableBundledWindow, error) {
+	if intervalSeconds <= 0 {
+		intervalSeconds = 120
+	}
+	if windowSeconds <= 0 {
+		windowSeconds = 3600
+	}
+	if limit <= 0 || limit > 168 {
+		limit = 48
+	}
+	expected := windowSeconds / intervalSeconds
+	if expected < 1 {
+		expected = 1
+	}
+
+	lookback := time.Now().UTC().Add(-7 * 24 * time.Hour)
+	q := applyActiveDeviceParamScope(ctx, r.db).
+		Model(&model.AggregationResult{}).
+		Select("DISTINCT aggregation_results.period_start").
+		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
+		Where("aggregation_results.period_start >= ?", lookback)
+	if intervalSeconds > 0 {
+		q = q.Where("aggregation_results.interval_seconds = ?", intervalSeconds)
+	}
+	if len(deviceIDs) > 0 {
+		q = q.Where("aggregation_results.device_id IN (?)", deviceIDs)
+	}
+
+	var periodStarts []time.Time
+	if err := q.Order("aggregation_results.period_start DESC").Pluck("aggregation_results.period_start", &periodStarts).Error; err != nil {
+		return nil, err
+	}
+
+	winSec64 := int64(windowSeconds)
+	countsByWindow := make(map[int64]map[int64]struct{})
+	for _, ps := range periodStarts {
+		u := ps.UTC().Unix()
+		winUnix := (u / winSec64) * winSec64
+		if _, ok := countsByWindow[winUnix]; !ok {
+			countsByWindow[winUnix] = make(map[int64]struct{})
+		}
+		countsByWindow[winUnix][u] = struct{}{}
+	}
+
+	keys := make([]int64, 0, len(countsByWindow))
+	for k := range countsByWindow {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] > keys[j] })
+	if len(keys) > limit {
+		keys = keys[:limit]
+	}
+
+	out := make([]AvailableBundledWindow, 0, len(keys))
+	for _, winUnix := range keys {
+		ws := time.Unix(winUnix, 0).UTC()
+		we := ws.Add(time.Duration(windowSeconds) * time.Second)
+		cnt := len(countsByWindow[winUnix])
+		out = append(out, AvailableBundledWindow{
+			WindowStart:     ws,
+			WindowEnd:       we,
+			BucketCount:     cnt,
+			ExpectedBuckets: expected,
+			Complete:        cnt >= expected,
+		})
+	}
+	return out, nil
 }
 
 // EnqueueDelivery persists a new delivery queue entry with idempotency check and pending batch merge

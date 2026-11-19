@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -218,6 +219,49 @@ func (h *OutboundHandler) UpdatePayloadConfig(c *gin.Context) {
 	response.OK(c, cfg)
 }
 
+func attachPreviewWindowFromQuery(c *gin.Context, ctx context.Context) context.Context {
+	raw := strings.TrimSpace(c.Query("window_start"))
+	if raw == "" {
+		return ctx
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return service.WithPreviewWindowStart(ctx, t)
+	}
+	if u, err := strconv.ParseInt(raw, 10, 64); err == nil && u > 0 {
+		return service.WithPreviewWindowStart(ctx, time.Unix(u, 0).UTC())
+	}
+	return ctx
+}
+
+// GetPreviewHours handles GET /api/destinations/:id/preview-hours
+// Returns recent aligned hourly/bundled dispatch windows that already have persisted data in DB.
+func (h *OutboundHandler) GetPreviewHours(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid destination ID")
+		return
+	}
+
+	limit := 48
+	if limitStr := strings.TrimSpace(c.Query("limit")); limitStr != "" {
+		if v, pErr := strconv.Atoi(limitStr); pErr == nil && v > 0 && v <= 168 {
+			limit = v
+		}
+	}
+
+	windows, err := h.service.GetAvailablePreviewWindows(c.Request.Context(), uint(id), limit)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
+		response.BadRequest(c, "Failed to load available preview hours: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{"windows": windows})
+}
+
 // GeneratePreview handles GET and POST /api/destinations/:id/preview
 func (h *OutboundHandler) GeneratePreview(c *gin.Context) {
 	idParam := c.Param("id")
@@ -243,7 +287,8 @@ func (h *OutboundHandler) GeneratePreview(c *gin.Context) {
 		}
 	}
 
-	preview, err := h.service.GeneratePreviewWithConfig(c.Request.Context(), uint(id), deviceID, customCfg)
+	reqCtx := attachPreviewWindowFromQuery(c, c.Request.Context())
+	preview, err := h.service.GeneratePreviewWithConfig(reqCtx, uint(id), deviceID, customCfg)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
 			response.Forbidden(c, err.Error())
@@ -272,7 +317,8 @@ func (h *OutboundHandler) TestPayload(c *gin.Context) {
 		}
 	}
 
-	result, err := h.service.TestPayloadWithConfig(c.Request.Context(), uint(id), customCfg)
+	reqCtx := attachPreviewWindowFromQuery(c, c.Request.Context())
+	result, err := h.service.TestPayloadWithConfig(reqCtx, uint(id), customCfg)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
 			response.Forbidden(c, err.Error())
