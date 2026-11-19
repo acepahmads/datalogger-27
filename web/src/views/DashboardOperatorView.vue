@@ -121,11 +121,8 @@
             :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Aktif (Klik untuk Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Dipin (Klik untuk Auto-Hide)')"
             aria-label="Toggle Sidebar Auto-Hide"
           >
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M9 3v18" />
-              <path v-if="!sidebarAutoHide" d="m14 9-3 3 3 3" stroke-linecap="round" stroke-linejoin="round" />
-              <path v-else d="m12 9 3 3-3 3" stroke-linecap="round" stroke-linejoin="round" />
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 

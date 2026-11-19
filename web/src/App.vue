@@ -295,12 +295,23 @@ export default {
         }
       },
     },
+    isCloudMode(isCloud) {
+      if (isCloud && (this.isOperatorRoute || this.isDashboardOperatorRoute)) {
+        this.isSidebarCollapsed = false;
+        this.isTopPanelHidden = false;
+      }
+    },
     $route: {
       immediate: true,
       handler(to) {
         if (to && (to.path === '/monitoring/operator' || to.path === '/operator' || to.path === '/monitoring/dashboard-operator')) {
-          this.isSidebarCollapsed = true;
-          this.isTopPanelHidden = true;
+          if (this.isCloudMode) {
+            this.isSidebarCollapsed = false;
+            this.isTopPanelHidden = false;
+          } else {
+            this.isSidebarCollapsed = true;
+            this.isTopPanelHidden = true;
+          }
         } else {
           this.isTopPanelHidden = false;
           this.isSidebarCollapsed = false;

@@ -30,11 +30,8 @@
         :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
         aria-label="Toggle Sidebar Auto-Hide"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <path d="M9 3v18" stroke-linecap="round" />
-          <path v-if="!sidebarAutoHide" stroke-linecap="round" stroke-linejoin="round" d="m14 9-3 3 3 3" />
-          <path v-else stroke-linecap="round" stroke-linejoin="round" d="m12 9 3 3-3 3" />
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
       <!-- Close Drawer Button (Mobile Slide-Over) -->
