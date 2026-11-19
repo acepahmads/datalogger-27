@@ -1454,32 +1454,35 @@ func TestOutboundService_Sparing30x2CustomSchemaLivePreviewReturns30Records(t *t
 		t.Fatalf("expected 30 records in SPARING 30x2m sample preview, got %d\n%s", len(sampleParsed.Records), sampleJSON)
 	}
 
-	// 2. Real DB aggregation rows (30 x 2-minute buckets) with live draft customCfg != nil must preview all 30 records
-	baseEnd := time.Now().UTC().Truncate(time.Hour)
-	for i := 0; i < 30; i++ {
-		pStart := baseEnd.Add(-time.Hour + time.Duration(i*2)*time.Minute)
+	// 2. Partial real DB aggregation rows inside current clock hour (e.g. :00..:24 = 13 buckets, simulating 15:27)
+	// MUST return all 30 slots (:00..:58) of the current hour, with real values for :00..:24 and null for future :26..:58.
+	currHourStart := time.Now().UTC().Truncate(time.Hour)
+	for i := 0; i < 13; i++ {
+		pStart := currHourStart.Add(time.Duration(i*2) * time.Minute)
 		pEnd := pStart.Add(2 * time.Minute)
 		phVal := 7.0 + float64(i)*0.01
 		codVal := 10.0 + float64(i)*0.1
 		db.Create(&model.AggregationResult{
-			DeviceID:        1,
-			ParameterID:     1,
-			SourceType:      model.SourceCustomerProcessed,
-			IntervalSeconds: 120,
-			PeriodStart:     pStart,
-			PeriodEnd:       pEnd,
-			Value:           &phVal,
-			Quality:         model.QualityGood,
+			AggregationDefinitionID: 1,
+			DeviceID:                1,
+			ParameterID:             1,
+			SourceType:              model.SourceCustomerProcessed,
+			IntervalSeconds:         120,
+			PeriodStart:             pStart,
+			PeriodEnd:               pEnd,
+			Value:                   &phVal,
+			Quality:                 model.QualityGood,
 		})
 		db.Create(&model.AggregationResult{
-			DeviceID:        1,
-			ParameterID:     2,
-			SourceType:      model.SourceCustomerProcessed,
-			IntervalSeconds: 120,
-			PeriodStart:     pStart,
-			PeriodEnd:       pEnd,
-			Value:           &codVal,
-			Quality:         model.QualityGood,
+			AggregationDefinitionID: 2,
+			DeviceID:                1,
+			ParameterID:             2,
+			SourceType:              model.SourceCustomerProcessed,
+			IntervalSeconds:         120,
+			PeriodStart:             pStart,
+			PeriodEnd:               pEnd,
+			Value:                   &codVal,
+			Quality:                 model.QualityGood,
 		})
 	}
 
@@ -1488,13 +1491,31 @@ func TestOutboundService_Sparing30x2CustomSchemaLivePreviewReturns30Records(t *t
 		t.Fatalf("GeneratePreviewWithConfig (real DB) failed: %v", err)
 	}
 	var liveParsed struct {
-		Records []map[string]interface{} `json:"records"`
+		Records []struct {
+			Timestamp string                 `json:"timestamp"`
+			Values    map[string]interface{} `json:"values"`
+		} `json:"records"`
 	}
 	if err := json.Unmarshal([]byte(liveJSON), &liveParsed); err != nil {
 		t.Fatalf("invalid JSON from live preview: %v\n%s", err, liveJSON)
 	}
 	if len(liveParsed.Records) != 30 {
 		t.Fatalf("expected 30 records in SPARING 30x2m live draft preview, got %d\n%s", len(liveParsed.Records), liveJSON)
+	}
+	firstTS, err := time.Parse(time.RFC3339, liveParsed.Records[0].Timestamp)
+	if err != nil || !firstTS.UTC().Equal(currHourStart) {
+		t.Fatalf("expected first record timestamp to equal current hour :00 (%s), got %q", currHourStart.Format(time.RFC3339), liveParsed.Records[0].Timestamp)
+	}
+	lastTS, err := time.Parse(time.RFC3339, liveParsed.Records[29].Timestamp)
+	wantLast := currHourStart.Add(58 * time.Minute)
+	if err != nil || !lastTS.UTC().Equal(wantLast) {
+		t.Fatalf("expected last record timestamp to equal current hour :58 (%s), got %q", wantLast.Format(time.RFC3339), liveParsed.Records[29].Timestamp)
+	}
+	if liveParsed.Records[0].Values["ph"] == nil || liveParsed.Records[12].Values["cod"] == nil {
+		t.Fatalf("expected populated values for completed slots :00..:24, got slot0=%v slot12=%v", liveParsed.Records[0].Values, liveParsed.Records[12].Values)
+	}
+	if liveParsed.Records[13].Values["ph"] != nil || liveParsed.Records[29].Values["cod"] != nil {
+		t.Fatalf("expected null values for future unrecorded slots :26..:58, got slot13=%v slot29=%v", liveParsed.Records[13].Values, liveParsed.Records[29].Values)
 	}
 }
 

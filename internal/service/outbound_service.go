@@ -3467,29 +3467,45 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 	isCBIHourlyArray := structureUpper == "CBI_HOURLY_ARRAY" || templateUpper == "CBI_MULTI_HOURLY"
 	isBundledArray := isSparingArray || isCBIHourlyArray
 	isBundledDispatch := dest != nil && dest.DispatchIntervalSeconds > 0 && (dest.IntervalSeconds <= 0 || dest.DispatchIntervalSeconds > dest.IntervalSeconds)
+	isBundledPreview := isBundledArray || isBundledDispatch
 
+	previewSrcInterval := 120
+	previewWinSec := 3600
+	var previewWindowStart, previewWindowEnd time.Time
 	var realResults []model.AggregationResult
+	var metaFallbackResults []model.AggregationResult
 	var err error
-	if isBundledArray || isBundledDispatch {
-		srcInterval := 120
+	if isBundledPreview {
 		if dest != nil && dest.IntervalSeconds > 0 {
-			srcInterval = dest.IntervalSeconds
+			previewSrcInterval = dest.IntervalSeconds
 		}
-		winDur := time.Hour
 		if dest != nil && dest.DispatchIntervalSeconds > 0 {
-			winDur = time.Duration(dest.DispatchIntervalSeconds) * time.Second
+			previewWinSec = dest.DispatchIntervalSeconds
 		}
-		realResults, err = s.repo.GetRecentAggregationResultsMultiDevice(ctx, srcInterval, winDur, targetDeviceIDs)
-		if (err != nil || len(realResults) == 0) && srcInterval > 0 {
-			realResults, err = s.repo.GetRecentAggregationResultsMultiDevice(ctx, 0, winDur, targetDeviceIDs)
+		nowUTC := time.Now().UTC()
+		winSec64 := int64(previewWinSec)
+		if winSec64 <= 0 {
+			winSec64 = 3600
+		}
+		// Align live preview to the current active dispatch window (e.g. at 15:27 -> 15:00..16:00, slots :00..:58)
+		previewWindowStart = time.Unix((nowUTC.Unix()/winSec64)*winSec64, 0).UTC()
+		previewWindowEnd = previewWindowStart.Add(time.Duration(winSec64) * time.Second)
+
+		realResults, err = s.repo.GetCustomerAggregationResultsForRange(ctx, previewWindowStart, previewWindowEnd, previewSrcInterval, targetDeviceIDs)
+		if (err != nil || len(realResults) == 0) && previewSrcInterval > 0 {
+			realResults, err = s.repo.GetCustomerAggregationResultsForRange(ctx, previewWindowStart, previewWindowEnd, 0, targetDeviceIDs)
+		}
+		// If current clock hour has no completed buckets yet (e.g. at :01), fetch latest rows solely to discover real device/parameter keys
+		if err != nil || len(realResults) == 0 {
+			metaFallbackResults, _ = s.repo.GetLatestAggregationResultsMultiDevice(ctx, targetDeviceIDs)
 		}
 	} else {
 		realResults, err = s.repo.GetLatestAggregationResultsMultiDevice(ctx, targetDeviceIDs)
 	}
 
-	var filteredReal []model.AggregationResult
-	if err == nil && len(realResults) > 0 {
-		for _, r := range realResults {
+	filterActiveMapped := func(rows []model.AggregationResult) []model.AggregationResult {
+		var out []model.AggregationResult
+		for _, r := range rows {
 			if !isActiveOutboundAggregationResult(r) {
 				continue
 			}
@@ -3500,14 +3516,41 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			if enabled, _ := matcher.ResolveWithName(r.DeviceID, devCode, r.ParameterID, r.Parameter.ParameterCode, r.Parameter.ParameterName); !enabled {
 				continue
 			}
-			filteredReal = append(filteredReal, r)
+			out = append(out, r)
 		}
+		return out
 	}
 
-	if len(filteredReal) > 0 {
+	var filteredReal []model.AggregationResult
+	if err == nil && len(realResults) > 0 {
+		filteredReal = filterActiveMapped(realResults)
+	}
+	var filteredMeta []model.AggregationResult
+	if len(filteredReal) == 0 && len(metaFallbackResults) > 0 {
+		filteredMeta = filterActiveMapped(metaFallbackResults)
+	}
+
+	metaSourceRows := filteredReal
+	if len(metaSourceRows) == 0 {
+		metaSourceRows = filteredMeta
+	}
+
+	if len(metaSourceRows) > 0 {
 		deviceMap := make(map[uint]BatchDeviceSummary)
 		var deviceOrder []uint
-		for _, r := range filteredReal {
+		type paramTemplate struct {
+			deviceID   uint
+			deviceCode string
+			deviceName string
+			paramID    uint
+			paramCode  string
+			paramName  string
+			unit       string
+		}
+		paramSeen := make(map[string]bool)
+		var paramTemplates []paramTemplate
+
+		for _, r := range metaSourceRows {
 			if _, exists := deviceMap[r.DeviceID]; !exists {
 				devCode := fmt.Sprintf("DEV-%d", r.DeviceID)
 				devName := fmt.Sprintf("Device %d", r.DeviceID)
@@ -3526,6 +3569,20 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 				}
 				deviceOrder = append(deviceOrder, r.DeviceID)
 			}
+			devInfo := deviceMap[r.DeviceID]
+			pKey := fmt.Sprintf("%d:%d", r.DeviceID, r.ParameterID)
+			if !paramSeen[pKey] {
+				paramSeen[pKey] = true
+				paramTemplates = append(paramTemplates, paramTemplate{
+					deviceID:   r.DeviceID,
+					deviceCode: devInfo.DeviceCode,
+					deviceName: devInfo.DeviceName,
+					paramID:    r.ParameterID,
+					paramCode:  r.Parameter.ParameterCode,
+					paramName:  r.Parameter.ParameterName,
+					unit:       r.Parameter.Unit,
+				})
+			}
 		}
 
 		var devicesList []BatchDeviceSummary
@@ -3537,39 +3594,102 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		}
 
 		var items []model.SourceAggregationValueItem
-		for _, r := range filteredReal {
-			pCode := r.Parameter.ParameterCode
-			pName := r.Parameter.ParameterName
-			unit := r.Parameter.Unit
-			devInfo := deviceMap[r.DeviceID]
-			val := r.Value
-			if val != nil {
-				roundedVal := roundOutboundValue(*val)
-				val = &roundedVal
+		if isBundledPreview && !previewWindowStart.IsZero() && previewWindowEnd.After(previewWindowStart) && previewSrcInterval > 0 {
+			step := time.Duration(previewSrcInterval) * time.Second
+			slotCount := int(previewWindowEnd.Sub(previewWindowStart) / step)
+			if slotCount >= 1 && slotCount <= 120 {
+				realBySlotParam := make(map[string]model.AggregationResult, len(filteredReal))
+				for _, r := range filteredReal {
+					key := fmt.Sprintf("%d:%d:%d", r.PeriodStart.UTC().Unix(), r.DeviceID, r.ParameterID)
+					realBySlotParam[key] = r
+				}
+				for cur := previewWindowStart; cur.Before(previewWindowEnd); cur = cur.Add(step) {
+					subEnd := cur.Add(step)
+					for _, pt := range paramTemplates {
+						key := fmt.Sprintf("%d:%d:%d", cur.UTC().Unix(), pt.deviceID, pt.paramID)
+						if r, ok := realBySlotParam[key]; ok {
+							val := r.Value
+							if val != nil {
+								roundedVal := roundOutboundValue(*val)
+								val = &roundedVal
+							}
+							items = append(items, model.SourceAggregationValueItem{
+								DeviceID:            r.DeviceID,
+								DeviceCode:          pt.deviceCode,
+								DeviceName:          pt.deviceName,
+								ParameterID:         r.ParameterID,
+								ParameterCode:       pt.paramCode,
+								ParameterName:       pt.paramName,
+								Value:               val,
+								Unit:                pt.unit,
+								Quality:             string(r.Quality),
+								AggregationResultID: r.ID,
+								PeriodStart:         r.PeriodStart,
+								PeriodEnd:           r.PeriodEnd,
+							})
+						} else {
+							items = append(items, model.SourceAggregationValueItem{
+								DeviceID:      pt.deviceID,
+								DeviceCode:    pt.deviceCode,
+								DeviceName:    pt.deviceName,
+								ParameterID:   pt.paramID,
+								ParameterCode: pt.paramCode,
+								ParameterName: pt.paramName,
+								Value:         nil,
+								Unit:          pt.unit,
+								Quality:       "",
+								PeriodStart:   cur,
+								PeriodEnd:     subEnd,
+							})
+						}
+					}
+				}
 			}
-			items = append(items, model.SourceAggregationValueItem{
-				DeviceID:            r.DeviceID,
-				DeviceCode:          devInfo.DeviceCode,
-				DeviceName:          devInfo.DeviceName,
-				ParameterID:         r.ParameterID,
-				ParameterCode:       pCode,
-				ParameterName:       pName,
-				Value:               val,
-				Unit:                unit,
-				Quality:             string(r.Quality),
-				AggregationResultID: r.ID,
-				PeriodStart:         r.PeriodStart,
-				PeriodEnd:           r.PeriodEnd,
-			})
 		}
 
+		if len(items) == 0 {
+			for _, r := range filteredReal {
+				pCode := r.Parameter.ParameterCode
+				pName := r.Parameter.ParameterName
+				unit := r.Parameter.Unit
+				devInfo := deviceMap[r.DeviceID]
+				val := r.Value
+				if val != nil {
+					roundedVal := roundOutboundValue(*val)
+					val = &roundedVal
+				}
+				items = append(items, model.SourceAggregationValueItem{
+					DeviceID:            r.DeviceID,
+					DeviceCode:          devInfo.DeviceCode,
+					DeviceName:          devInfo.DeviceName,
+					ParameterID:         r.ParameterID,
+					ParameterCode:       pCode,
+					ParameterName:       pName,
+					Value:               val,
+					Unit:                unit,
+					Quality:             string(r.Quality),
+					AggregationResultID: r.ID,
+					PeriodStart:         r.PeriodStart,
+					PeriodEnd:           r.PeriodEnd,
+				})
+			}
+		}
+
+		batchInterval := previewSrcInterval
+		batchStart := previewWindowStart
+		batchEnd := previewWindowEnd
+		if !isBundledPreview && len(filteredReal) > 0 {
+			batchInterval = filteredReal[0].IntervalSeconds
+			batchStart = filteredReal[0].PeriodStart
+			batchEnd = filteredReal[len(filteredReal)-1].PeriodEnd
+		}
 		batch = &OutboundBatchData{
 			DeviceCount:     len(devicesList),
 			DevicesSummary:  strings.Join(devCodes, ", "),
 			Devices:         devicesList,
-			IntervalSeconds: filteredReal[0].IntervalSeconds,
-			PeriodStart:     filteredReal[0].PeriodStart,
-			PeriodEnd:       filteredReal[len(filteredReal)-1].PeriodEnd,
+			IntervalSeconds: batchInterval,
+			PeriodStart:     batchStart,
+			PeriodEnd:       batchEnd,
 			Values:          items,
 		}
 		if len(devicesList) == 1 {
@@ -3577,7 +3697,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			batch.DeviceCode = devicesList[0].DeviceCode
 			batch.DeviceName = devicesList[0].DeviceName
 		}
-	} else if isBundledArray || isBundledDispatch || templateUpper == "KLHK_SPARING" || templateUpper == "KLHK_SPARING_HOURLY" {
+	} else if isBundledPreview || templateUpper == "KLHK_SPARING" || templateUpper == "KLHK_SPARING_HOURLY" {
 		// Construct realistic KLHK SPARING / Cloud CBI 30x 2-minute hourly bundle or 1x 2-minute flat sample batch
 		srcSec := 120
 		if dest != nil && dest.IntervalSeconds > 0 {
@@ -3588,7 +3708,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			dispSec = dest.DispatchIntervalSeconds
 		}
 		bucketCount := 1
-		if isBundledArray || isBundledDispatch {
+		if isBundledPreview {
 			bucketCount = dispSec / srcSec
 			if bucketCount < 1 {
 				bucketCount = 30
@@ -3597,11 +3717,19 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			}
 		}
 
-		alignedHourEnd := time.Unix((time.Now().Unix()/3600)*3600, 0).UTC()
-		if !isBundledArray && !isBundledDispatch {
-			alignedHourEnd = time.Unix((time.Now().Unix()/int64(srcSec))*int64(srcSec), 0).UTC()
+		nowUnix := time.Now().UTC().Unix()
+		var windowStart, alignedHourEnd time.Time
+		if isBundledPreview {
+			winSec64 := int64(bucketCount * srcSec)
+			if winSec64 <= 0 {
+				winSec64 = 3600
+			}
+			windowStart = time.Unix((nowUnix/winSec64)*winSec64, 0).UTC()
+			alignedHourEnd = windowStart.Add(time.Duration(winSec64) * time.Second)
+		} else {
+			alignedHourEnd = time.Unix((nowUnix/int64(srcSec))*int64(srcSec), 0).UTC()
+			windowStart = alignedHourEnd.Add(-time.Duration(srcSec) * time.Second)
 		}
-		windowStart := alignedHourEnd.Add(-time.Duration(bucketCount*srcSec) * time.Second)
 
 		type sparingParamSpec struct {
 			deviceID   uint
