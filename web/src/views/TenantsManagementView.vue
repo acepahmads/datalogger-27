@@ -1,97 +1,135 @@
 <template>
-  <div class="space-y-4 font-sans text-slate-800 dark:text-slate-200">
-    <!-- Top Header & Tab Switcher -->
-    <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center flex-shrink-0">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
-          </svg>
+  <div class="space-y-3 font-sans text-slate-800 dark:text-slate-200">
+    <!-- Unified Compact Command Header + Inline KPI Pills + Tabs + Scope Strip -->
+    <div class="bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+      <!-- Row 1: Identity + Inline Compact KPI Summary -->
+      <div class="px-4 py-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white badge-text shadow-sm flex items-center justify-center flex-shrink-0">
+            <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2 flex-wrap">
+              <span class="truncate">Manajemen Multi-Tenant, Stasiun &amp; Hybrid Edge</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-mono font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25">
+                {{ isSuperAdmin ? 'GLOBAL SUPERADMIN' : (isCustomerService ? 'CUSTOMER SERVICE · READ-ONLY' : (isEngineer ? 'TENANT ENGINEER' : 'TENANT ADMIN')) }}
+              </span>
+            </h1>
+            <p class="hidden sm:block text-2xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+              Kelola organisasi tenant, stasiun pantau (AQMS / SPARING / ONLIMO), token Bearer API Receiver, serta modul akuisisi Sensor Fisik &amp; MQTT.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2 flex-wrap">
-            <span>Manajemen Multi-Tenant, Stasiun &amp; Hybrid Edge</span>
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-              {{ isSuperAdmin ? 'GLOBAL SUPERADMIN' : (isCustomerService ? 'CUSTOMER SERVICE · READ-ONLY' : (isEngineer ? 'TENANT ENGINEER' : 'TENANT ADMIN')) }}
+
+        <!-- Inline Compact KPI Pills (Replaces 4 Bulky White Boxes) -->
+        <div v-if="canViewAllTenants" class="grid grid-cols-4 gap-1.5 sm:flex sm:items-center sm:gap-2 flex-shrink-0">
+          <div class="px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0 hidden sm:inline-block"></span>
+            <div class="leading-none">
+              <div class="text-4xs font-semibold uppercase tracking-wider text-slate-400">Tenant</div>
+              <div class="text-sm font-extrabold font-mono text-slate-900 dark:text-white tabular-nums mt-0.5">{{ tenants.length }}</div>
+            </div>
+          </div>
+          <div class="px-2.5 py-1.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/25 border border-emerald-200/70 dark:border-emerald-800/50 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0 hidden sm:inline-block"></span>
+            <div class="leading-none">
+              <div class="text-4xs font-semibold uppercase tracking-wider text-emerald-700/80 dark:text-emerald-400/80">Aktif</div>
+              <div class="text-sm font-extrabold font-mono text-emerald-700 dark:text-emerald-400 tabular-nums mt-0.5">{{ tenants.filter(t => t.status === 'ACTIVE').length }}</div>
+            </div>
+          </div>
+          <div class="px-2.5 py-1.5 rounded-xl bg-cyan-50/60 dark:bg-cyan-950/25 border border-cyan-200/70 dark:border-cyan-800/50 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0 hidden sm:inline-block"></span>
+            <div class="leading-none">
+              <div class="text-4xs font-semibold uppercase tracking-wider text-cyan-700/80 dark:text-cyan-400/80">Stasiun</div>
+              <div class="text-sm font-extrabold font-mono text-cyan-700 dark:text-cyan-400 tabular-nums mt-0.5">{{ totalSitesAcrossTenants }}</div>
+            </div>
+          </div>
+          <div class="px-2.5 py-1.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/25 border border-blue-200/70 dark:border-blue-800/50 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 hidden sm:inline-block"></span>
+            <div class="leading-none">
+              <div class="text-4xs font-semibold uppercase tracking-wider text-blue-700/80 dark:text-blue-400/80">Device</div>
+              <div class="text-sm font-extrabold font-mono text-blue-700 dark:text-blue-400 tabular-nums mt-0.5">{{ totalDevicesAcrossTenants }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Segmented Tabs (Left) + Compact Workspace Scope Pill (Right) -->
+      <div class="px-4 py-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-[#0B0F19]/60 flex flex-wrap items-center justify-between gap-2">
+        <!-- Tab Switcher -->
+        <div class="inline-flex flex-wrap items-center p-0.5 bg-slate-200/60 dark:bg-[#0B0F19] rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs font-medium gap-0.5">
+          <button
+            id="tab-tenants"
+            type="button"
+            @click="activeTab = 'tenants'"
+            class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+            :class="activeTab === 'tenants' ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+          >
+            <span>🏢 {{ canViewAllTenants ? `Tenant (${tenants.length})` : 'Profil Organisasi' }}</span>
+          </button>
+
+          <button
+            id="tab-sites"
+            type="button"
+            @click="activeTab = 'sites'"
+            class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+            :class="activeTab === 'sites' ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+          >
+            <span>📍 Stasiun Pantau ({{ sites.length }})</span>
+          </button>
+
+          <button
+            id="tab-ingest-keys"
+            type="button"
+            @click="activeTab = 'ingest'"
+            class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+            :class="activeTab === 'ingest' ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+          >
+            <span>🔑 API &amp; Bearer Tokens ({{ ingestKeys.length }})</span>
+          </button>
+        </div>
+
+        <!-- Inline Workspace Scope Pill (Replaces Separate Full-Width Banner Card) -->
+        <div v-if="canViewAllTenants" class="flex items-center gap-1.5 min-w-0 max-w-full">
+          <div
+            v-if="activeTenantId > 0"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-500/10 border border-purple-500/25 text-purple-800 dark:text-purple-200 text-2xs min-w-0 max-w-[300px] sm:max-w-[380px]"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+            <span class="truncate">
+              <strong>{{ activeTenantName }}</strong>
+              <span v-if="activeSiteId > 0 && activeSiteName && !activeSiteName.startsWith(activeTenantName)"> · {{ activeSiteName }}</span>
             </span>
-          </h1>
-          <p class="text-xs text-slate-500 dark:text-slate-400">
-            Kelola organisasi tenant, stasiun pantau (AQMS / SPARING / ONLIMO), token Bearer API Receiver, serta modul akuisisi Sensor Fisik &amp; MQTT.
-          </p>
+          </div>
+          <span
+            v-else
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-300 text-2xs font-semibold"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Mode Global{{ isReadOnly ? ' · Read-Only' : '' }}</span>
+          </span>
+          <button
+            v-if="activeTenantId > 0 || activeSiteId > 0"
+            type="button"
+            @click="resetToGlobalScope"
+            class="px-2.5 py-1 rounded-xl bg-white hover:bg-purple-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-purple-300/80 dark:border-purple-700 text-purple-700 dark:text-purple-300 font-bold text-2xs transition cursor-pointer whitespace-nowrap shadow-2xs"
+            title="Reset filter workspace ke seluruh tenant"
+          >
+            🌐 Global
+          </button>
         </div>
-      </div>
-
-      <!-- Tab Switcher -->
-      <div class="flex flex-wrap items-center p-1 bg-slate-100 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium gap-1">
-        <button
-          id="tab-tenants"
-          type="button"
-          @click="activeTab = 'tenants'"
-          class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-          :class="activeTab === 'tenants' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-white font-semibold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-        >
-          <span>🏢 {{ canViewAllTenants ? `Tenant (${tenants.length})` : 'Profil Organisasi' }}</span>
-        </button>
-
-        <button
-          id="tab-sites"
-          type="button"
-          @click="activeTab = 'sites'"
-          class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-          :class="activeTab === 'sites' ? 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-white font-semibold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-        >
-          <span>📍 Stasiun Pantau ({{ sites.length }})</span>
-        </button>
-
-        <button
-          id="tab-ingest-keys"
-          type="button"
-          @click="activeTab = 'ingest'"
-          class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-          :class="activeTab === 'ingest' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-white font-semibold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-        >
-          <span>🔑 API &amp; Bearer Tokens ({{ ingestKeys.length }})</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Active Workspace Banner for Global Viewers (SUPERADMIN & CUSTOMER_SERVICE) -->
-    <div
-      v-if="canViewAllTenants"
-      class="p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
-      :class="activeTenantId > 0
-        ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/60 text-purple-900 dark:text-purple-200'
-        : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'"
-    >
-      <div class="flex items-center gap-2">
-        <span class="text-sm">{{ activeTenantId > 0 ? '🏢' : '🌐' }}</span>
-        <span v-if="activeTenantId > 0">
-          Workspace Aktif: <strong>{{ activeTenantName }}</strong>
-          <span v-if="activeSiteId > 0"> &bull; Stasiun: <strong>{{ activeSiteName }}</strong></span>
-          <span v-if="isReadOnly" class="ml-1 font-mono text-3xs text-teal-700 dark:text-teal-300">(Read-Only)</span>
-        </span>
-        <span v-else>
-          Mode <strong>Global Semua Tenant</strong> aktif — Anda melihat seluruh organisasi, stasiun, dan kunci Edge lintas tenant<span v-if="isReadOnly"> (Read-Only)</span>.
-        </span>
-      </div>
-      <div class="flex items-center gap-2" v-if="activeTenantId > 0 || activeSiteId > 0">
-        <button
-          type="button"
-          @click="resetToGlobalScope"
-          class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 font-semibold text-2xs hover:bg-purple-100/60 dark:hover:bg-slate-700 transition cursor-pointer"
-        >
-          🌐 Kembali ke Global Semua Tenant
-        </button>
       </div>
     </div>
 
     <!-- Toast Feedback -->
     <div
       v-if="toastMessage"
-      class="p-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-all"
+      class="px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition-all shadow-xs"
       :class="toastType === 'error'
-        ? 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400'
-        : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400'"
+        ? 'bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-400'
+        : 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-400'"
     >
       <span>{{ toastMessage }}</span>
       <button type="button" @click="toastMessage = ''" class="hover:opacity-75 text-sm leading-none cursor-pointer">&times;</button>
@@ -100,148 +138,195 @@
     <!-- =================================================================== -->
     <!-- TAB 1: TENANTS (SUPERADMIN CRUD / TENANT ADMIN SELF-SERVICE)        -->
     <!-- =================================================================== -->
-    <div v-if="activeTab === 'tenants'" class="space-y-4">
+    <div v-if="activeTab === 'tenants'" class="space-y-3">
       <!-- 1A. GLOBAL TENANT LIST (SUPERADMIN CRUD / CUSTOMER_SERVICE READ-ONLY) -->
       <template v-if="canViewAllTenants">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <div class="text-3xs font-semibold uppercase tracking-wider text-slate-500">Total Tenant</div>
-            <div class="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">{{ tenants.length }}</div>
-          </div>
-          <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <div class="text-3xs font-semibold uppercase tracking-wider text-slate-500">Tenant Aktif</div>
-            <div class="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-              {{ tenants.filter(t => t.status === 'ACTIVE').length }}
+        <div class="bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+          <!-- Integrated Compact Toolbar Inside Table Card -->
+          <div class="px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#0B0F19]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 min-w-0">
+              <div class="relative flex-1 sm:max-w-xs">
+                <svg class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path stroke-linecap="round" d="m21 21-4.3-4.3" />
+                </svg>
+                <input
+                  v-model="tenantSearch"
+                  type="text"
+                  placeholder="Cari organisasi, kode slug, atau tahun..."
+                  class="w-full h-8 pl-8 pr-7 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/25"
+                />
+                <button
+                  v-if="tenantSearch"
+                  type="button"
+                  @click="tenantSearch = ''"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+              <select
+                id="select-tenant-project-year"
+                v-model="tenantYearFilter"
+                class="h-8 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-xl px-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-purple-500 cursor-pointer"
+              >
+                <option value="ALL">📅 Semua Tahun</option>
+                <option v-for="yr in availableTenantProjectYears" :key="'t-yr-' + yr" :value="String(yr)">
+                  📅 Tahun {{ yr }}
+                </option>
+                <option value="UNSET">Belum Diset</option>
+              </select>
+              <span class="hidden md:inline-flex items-center text-3xs font-mono text-slate-400 px-1 whitespace-nowrap">
+                {{ filteredTenants.length }}/{{ tenants.length }} tenant
+              </span>
             </div>
-          </div>
-          <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <div class="text-3xs font-semibold uppercase tracking-wider text-slate-500">Total Stasiun</div>
-            <div class="text-xl font-bold font-mono text-cyan-600 dark:text-cyan-400 mt-1">{{ totalSitesAcrossTenants }}</div>
-          </div>
-          <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <div class="text-3xs font-semibold uppercase tracking-wider text-slate-500">Total Perangkat</div>
-            <div class="text-xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1">{{ totalDevicesAcrossTenants }}</div>
-          </div>
-        </div>
 
-        <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
-            <input
-              v-model="tenantSearch"
-              type="text"
-              placeholder="Cari nama organisasi, kode slug, atau tahun project..."
-              class="w-full sm:max-w-sm bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-purple-500"
-            />
-            <select
-              id="select-tenant-project-year"
-              v-model="tenantYearFilter"
-              class="bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-purple-500 cursor-pointer"
+            <button
+              v-if="isSuperAdmin && !isReadOnly"
+              id="btn-create-tenant"
+              type="button"
+              @click="openCreateTenantModal"
+              class="h-8 px-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer inline-flex items-center justify-center gap-1.5 flex-shrink-0"
             >
-              <option value="ALL">📅 Semua Tahun Project</option>
-              <option v-for="yr in availableTenantProjectYears" :key="'t-yr-' + yr" :value="String(yr)">
-                📅 Tahun {{ yr }}
-              </option>
-              <option value="UNSET">Belum Diset</option>
-            </select>
+              <span>+ Tambah Tenant Baru</span>
+            </button>
+            <span
+              v-else-if="isReadOnly"
+              class="px-2.5 py-1 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-3xs font-mono font-bold self-start sm:self-auto"
+            >
+              👁️ Mode Read-Only
+            </span>
           </div>
-          <button
-            v-if="isSuperAdmin && !isReadOnly"
-            id="btn-create-tenant"
-            type="button"
-            @click="openCreateTenantModal"
-            class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
-          >
-            <span>+ Tambah Tenant Baru</span>
-          </button>
-          <span
-            v-else-if="isReadOnly"
-            class="px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-2xs font-mono font-bold self-start sm:self-auto"
-          >
-            👁️ Mode Read-Only (Tanpa Tambah / Ubah / Hapus)
-          </span>
-        </div>
 
-        <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+          <!-- Zero-Clip Compact Multi-Tenant Table -->
           <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs min-w-[920px]">
-              <thead class="bg-slate-50 dark:bg-[#0B0F19]/60 text-3xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50/90 dark:bg-[#0B0F19]/70 text-4xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200/80 dark:border-slate-800">
                 <tr>
-                  <th class="px-4 py-3">Organisasi / Tenant</th>
-                  <th class="px-4 py-3">Kode</th>
-                  <th class="px-4 py-3">Tahun Project</th>
-                  <th class="px-4 py-3">Status</th>
-                  <th class="px-4 py-3">Stasiun / Kuota</th>
-                  <th class="px-4 py-3">Perangkat / Kuota</th>
-                  <th class="px-4 py-3">Pengguna</th>
-                  <th class="px-4 py-3">Kontak PIC</th>
-                  <th class="px-4 py-3 text-right">Aksi</th>
+                  <th class="px-3.5 py-2.5">Organisasi &amp; Kode Slug</th>
+                  <th class="px-2.5 py-2.5 w-20 text-center">Tahun</th>
+                  <th class="px-2.5 py-2.5 w-24 text-center">Status</th>
+                  <th class="px-2.5 py-2.5">Stasiun · Device · User</th>
+                  <th class="hidden xl:table-cell px-2.5 py-2.5">Kontak PIC</th>
+                  <th class="px-3.5 py-2.5 text-right w-48">Aksi</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
-                <tr v-for="t in filteredTenants" :key="t.id" class="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                  <td class="px-4 py-3">
-                    <div class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>{{ t.name }}</span>
-                      <span
-                        v-if="Number(activeTenantId) === Number(t.id)"
-                        class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-purple-600 text-white badge-text"
+                <tr
+                  v-for="t in filteredTenants"
+                  :key="t.id"
+                  class="group transition-colors"
+                  :class="Number(activeTenantId) === Number(t.id)
+                    ? 'bg-purple-50/50 dark:bg-purple-950/20'
+                    : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/35'"
+                >
+                  <!-- Organisasi + Compact Slug Pill (No 5-line wrapping, No duplicate customer_name) -->
+                  <td class="px-3.5 py-2.5 max-w-[340px]">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div
+                        class="w-7 h-7 rounded-lg flex items-center justify-center text-3xs font-extrabold font-mono flex-shrink-0 border"
+                        :class="Number(activeTenantId) === Number(t.id)
+                          ? 'bg-purple-600 text-white badge-text border-purple-600 shadow-2xs'
+                          : 'bg-slate-100 dark:bg-slate-800/90 text-purple-700 dark:text-purple-300 border-slate-200/80 dark:border-slate-700'"
                       >
-                        AKTIF
-                      </span>
-                    </div>
-                    <div class="text-3xs text-slate-500 truncate max-w-[260px]">
-                      {{ t.customer_name || t.description || '-' }}
+                        {{ String(t.name || 'TN').trim().slice(0, 2).toUpperCase() }}
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5 min-w-0">
+                          <span class="truncate">{{ t.name }}</span>
+                          <span
+                            v-if="Number(activeTenantId) === Number(t.id)"
+                            class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-purple-600 text-white badge-text flex-shrink-0"
+                          >
+                            AKTIF
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-1.5 mt-0.5 min-w-0 flex-wrap">
+                          <span class="inline-block px-1.5 py-0.2 rounded bg-purple-500/8 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 font-mono text-4xs font-semibold truncate max-w-[230px]">
+                            {{ t.code }}
+                          </span>
+                          <span
+                            v-if="t.customer_name && String(t.customer_name).trim().toLowerCase() !== String(t.name || '').trim().toLowerCase()"
+                            class="text-4xs text-slate-400 truncate max-w-[160px]"
+                          >
+                            · {{ t.customer_name }}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </td>
-                  <td class="px-4 py-3 font-mono text-2xs text-purple-600 dark:text-purple-400 font-semibold">
-                    {{ t.code }}
-                  </td>
-                  <td class="px-4 py-3 font-mono text-2xs">
+
+                  <!-- Tahun Project -->
+                  <td class="px-2.5 py-2.5 text-center whitespace-nowrap">
                     <span
                       v-if="Number(t.project_year) > 0"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-3xs font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25"
+                      class="inline-flex items-center px-2 py-0.5 rounded-lg text-4xs font-mono font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25"
                     >
-                      📅 {{ t.project_year }}
+                      {{ t.project_year }}
                     </span>
-                    <span v-else class="text-slate-400">-</span>
+                    <span v-else class="text-slate-300 dark:text-slate-600 font-mono">—</span>
                   </td>
-                  <td class="px-4 py-3">
+
+                  <!-- Status -->
+                  <td class="px-2.5 py-2.5 text-center whitespace-nowrap">
                     <span
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-bold"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold border"
                       :class="t.status === 'ACTIVE'
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'"
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25'
+                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'"
                     >
-                      {{ t.status }}
+                      <span class="w-1.5 h-1.5 rounded-full" :class="t.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+                      <span>{{ t.status }}</span>
                     </span>
                   </td>
-                  <td class="px-4 py-3 font-mono text-2xs">
-                    {{ t.site_count || 0 }} / {{ t.max_sites > 0 ? t.max_sites : '∞' }}
+
+                  <!-- Compact Resource Chips (Stasiun · Perangkat · Pengguna) -->
+                  <td class="px-2.5 py-2.5 whitespace-nowrap">
+                    <div class="inline-flex items-center gap-1 font-mono text-4xs font-bold">
+                      <span
+                        class="px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20"
+                        :title="'Stasiun: ' + (t.site_count || 0) + ' / ' + (t.max_sites > 0 ? t.max_sites : '∞')"
+                      >
+                        📍 {{ t.site_count || 0 }}/{{ t.max_sites > 0 ? t.max_sites : '∞' }}
+                      </span>
+                      <span
+                        class="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20"
+                        :title="'Perangkat: ' + (t.device_count || 0) + ' / ' + (t.max_devices > 0 ? t.max_devices : '∞')"
+                      >
+                        📡 {{ t.device_count || 0 }}/{{ t.max_devices > 0 ? t.max_devices : '∞' }}
+                      </span>
+                      <span
+                        class="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700"
+                        :title="'Pengguna: ' + (t.user_count || 0)"
+                      >
+                        👥 {{ t.user_count || 0 }}
+                      </span>
+                    </div>
                   </td>
-                  <td class="px-4 py-3 font-mono text-2xs">
-                    {{ t.device_count || 0 }} / {{ t.max_devices > 0 ? t.max_devices : '∞' }}
+
+                  <!-- Kontak PIC (XL desktop only so tablet/laptop never clips Aksi) -->
+                  <td class="hidden xl:table-cell px-2.5 py-2.5 text-3xs text-slate-600 dark:text-slate-400 max-w-[160px]">
+                    <div class="truncate">{{ t.contact_name || '—' }}</div>
+                    <div v-if="t.contact_email" class="text-4xs font-mono text-slate-400 truncate">{{ t.contact_email }}</div>
                   </td>
-                  <td class="px-4 py-3 font-mono text-2xs">
-                    {{ t.user_count || 0 }}
-                  </td>
-                  <td class="px-4 py-3 text-2xs text-slate-600 dark:text-slate-400">
-                    <div>{{ t.contact_name || '-' }}</div>
-                    <div v-if="t.contact_email" class="text-3xs font-mono text-slate-400">{{ t.contact_email }}</div>
-                  </td>
-                  <td class="px-4 py-3 text-right whitespace-nowrap">
-                    <div class="inline-flex items-center gap-1.5">
+
+                  <!-- Action Buttons (Always 100% Visible) -->
+                  <td class="px-3.5 py-2.5 text-right whitespace-nowrap">
+                    <div class="inline-flex items-center gap-1">
                       <button
                         type="button"
                         @click="enterTenantWorkspace(t)"
-                        class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/50 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 text-3xs font-semibold cursor-pointer"
+                        class="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white btn-text text-3xs font-bold shadow-2xs transition cursor-pointer"
+                        title="Masuk Workspace Tenant ini"
                       >
-                        Masuk Workspace
+                        Masuk →
                       </button>
                       <button
                         v-if="isSuperAdmin && !isReadOnly"
                         type="button"
                         @click="openEditTenantModal(t)"
-                        class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-3xs font-semibold cursor-pointer"
+                        class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-3xs font-semibold transition cursor-pointer"
+                        title="Edit Tenant"
                       >
                         Edit
                       </button>
@@ -249,7 +334,8 @@
                         v-if="isSuperAdmin && !isReadOnly && Number(t.id) !== 1"
                         type="button"
                         @click="confirmDeleteTenant(t)"
-                        class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-3xs font-semibold cursor-pointer"
+                        class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/60 text-3xs font-semibold transition cursor-pointer"
+                        title="Hapus Tenant"
                       >
                         Hapus
                       </button>
@@ -257,7 +343,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredTenants.length === 0">
-                  <td colspan="9" class="px-4 py-8 text-center text-slate-500">Belum ada tenant yang sesuai filter.</td>
+                  <td colspan="6" class="px-4 py-10 text-center text-slate-500">Belum ada tenant yang sesuai filter.</td>
                 </tr>
               </tbody>
             </table>
@@ -382,71 +468,79 @@
     <!-- =================================================================== -->
     <!-- TAB 2: SITES / STASIUN PANTAU                                       -->
     <!-- =================================================================== -->
-    <div v-if="activeTab === 'sites'" class="space-y-4">
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 class="text-sm font-bold text-slate-900 dark:text-white">Daftar Stasiun / Titik Pantau</h2>
-          <p class="text-2xs text-slate-500">
-            Setiap stasiun memiliki domain datalogger (AQMS / SPARING / ONLIMO), koordinat GPS, dan perangkat serta parameter manual terisolasi.
-          </p>
+    <div v-if="activeTab === 'sites'" class="space-y-3">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+        <div class="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#0B0F19]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div class="min-w-0">
+            <h2 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Daftar Stasiun / Titik Pantau ({{ sites.length }})</h2>
+            <p class="text-3xs text-slate-500 truncate">
+              Domain datalogger (AQMS / SPARING / ONLIMO), koordinat GPS, serta perangkat &amp; parameter terisolasi per stasiun.
+            </p>
+          </div>
+          <button
+            v-if="!isReadOnly"
+            id="btn-create-site"
+            type="button"
+            @click="openCreateSiteModal"
+            class="h-8 px-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer self-start sm:self-auto flex-shrink-0"
+          >
+            + Tambah Stasiun Pantau
+          </button>
+          <span
+            v-else
+            class="px-2.5 py-1 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-3xs font-mono font-bold self-start sm:self-auto"
+          >
+            👁️ Mode Read-Only
+          </span>
         </div>
-        <button
-          v-if="!isReadOnly"
-          id="btn-create-site"
-          type="button"
-          @click="openCreateSiteModal"
-          class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer self-start sm:self-auto"
-        >
-          + Tambah Stasiun Pantau
-        </button>
-        <span
-          v-else
-          class="px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-2xs font-mono font-bold self-start sm:self-auto"
-        >
-          👁️ Mode Read-Only
-        </span>
-      </div>
 
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs min-w-[880px]">
-            <thead class="bg-slate-50 dark:bg-[#0B0F19]/60 text-3xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50/90 dark:bg-[#0B0F19]/70 text-4xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200/80 dark:border-slate-800">
               <tr>
-                <th class="px-4 py-3">Nama Stasiun</th>
-                <th class="px-4 py-3">Kode</th>
-                <th v-if="canViewAllTenants" class="px-4 py-3">Tenant</th>
-                <th class="px-4 py-3">Domain</th>
-                <th class="px-4 py-3">Koordinat GPS</th>
-                <th class="px-4 py-3">Perangkat</th>
-                <th class="px-4 py-3">Status</th>
-                <th class="px-4 py-3 text-right">Aksi</th>
+                <th class="px-3.5 py-2.5">Stasiun &amp; Kode</th>
+                <th v-if="canViewAllTenants" class="hidden lg:table-cell px-2.5 py-2.5">Tenant</th>
+                <th class="px-2.5 py-2.5">Domain &amp; Format</th>
+                <th class="hidden md:table-cell px-2.5 py-2.5">GPS &amp; Device</th>
+                <th class="px-2.5 py-2.5 text-center">Status</th>
+                <th class="px-3.5 py-2.5 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
-              <tr v-for="s in sites" :key="s.id" class="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                <td class="px-4 py-3">
-                  <div class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>{{ s.name }}</span>
+              <tr
+                v-for="s in sites"
+                :key="s.id"
+                class="transition-colors"
+                :class="Number(activeSiteId) === Number(s.id)
+                  ? 'bg-cyan-50/50 dark:bg-cyan-950/20'
+                  : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/35'"
+              >
+                <td class="px-3.5 py-2.5 max-w-[300px]">
+                  <div class="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5 min-w-0">
+                    <span class="truncate">{{ s.name }}</span>
                     <span
                       v-if="Number(activeSiteId) === Number(s.id)"
-                      class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-600 text-white badge-text"
+                      class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-cyan-600 text-white badge-text flex-shrink-0"
                     >
                       AKTIF
                     </span>
                   </div>
-                  <div class="text-3xs text-slate-500 truncate max-w-[240px]">{{ s.address || s.timezone || 'Asia/Jakarta' }}</div>
-                </td>
-                <td class="px-4 py-3">
-                  <div class="font-mono text-2xs text-cyan-700 dark:text-cyan-400 font-semibold">{{ s.code }}</div>
-                  <div v-if="s.legacy_station_id" class="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 font-mono text-4xs font-semibold">
-                    station_id: {{ s.legacy_station_id }}
+                  <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span class="px-1.5 py-0.2 rounded bg-cyan-500/8 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-mono text-4xs font-semibold truncate max-w-[200px]">
+                      {{ s.code }}
+                    </span>
+                    <span v-if="s.legacy_station_id" class="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 font-mono text-4xs font-semibold">
+                      station_id: {{ s.legacy_station_id }}
+                    </span>
                   </div>
                 </td>
-                <td v-if="canViewAllTenants" class="px-4 py-3 text-2xs font-medium">{{ tenantNameById(s.tenant_id) }}</td>
-                <td class="px-4 py-3">
+                <td v-if="canViewAllTenants" class="hidden lg:table-cell px-2.5 py-2.5 text-3xs font-medium text-slate-600 dark:text-slate-300 max-w-[180px] truncate">
+                  {{ tenantNameById(s.tenant_id) }}
+                </td>
+                <td class="px-2.5 py-2.5">
                   <div class="flex flex-wrap items-center gap-1">
                     <span
-                      class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border"
+                      class="px-2 py-0.5 rounded-full text-4xs font-mono font-bold border"
                       :class="domainBadgeClass(s.monitoring_domain)"
                     >
                       {{ s.monitoring_domain || 'AQMS' }}
@@ -463,39 +557,40 @@
                       class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25"
                       title="Tahun Project"
                     >
-                      📅 {{ effectiveSiteProjectYear(s) }}
+                      {{ effectiveSiteProjectYear(s) }}
                     </span>
                   </div>
                 </td>
-                <td class="px-4 py-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
-                  <span v-if="s.latitude || s.longitude">{{ Number(s.latitude || 0).toFixed(5) }}, {{ Number(s.longitude || 0).toFixed(5) }}</span>
-                  <span v-else class="text-slate-400">Belum diset</span>
+                <td class="hidden md:table-cell px-2.5 py-2.5 font-mono text-4xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                  <div v-if="s.latitude || s.longitude">📍 {{ Number(s.latitude || 0).toFixed(4) }}, {{ Number(s.longitude || 0).toFixed(4) }}</div>
+                  <div v-else class="text-slate-400">GPS belum diset</div>
+                  <div class="text-slate-500 mt-0.5">📡 {{ s.device_count || 0 }} perangkat</div>
                 </td>
-                <td class="px-4 py-3 font-mono text-2xs">{{ s.device_count || 0 }}</td>
-                <td class="px-4 py-3">
+                <td class="px-2.5 py-2.5 text-center whitespace-nowrap">
                   <span
-                    class="px-2 py-0.5 rounded-full text-3xs font-bold"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold border"
                     :class="s.enabled !== false
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-500'"
+                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700'"
                   >
-                    {{ s.enabled !== false ? 'ENABLED' : 'DISABLED' }}
+                    <span class="w-1.5 h-1.5 rounded-full" :class="s.enabled !== false ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                    <span>{{ s.enabled !== false ? 'ENABLED' : 'DISABLED' }}</span>
                   </span>
                 </td>
-                <td class="px-4 py-3 text-right whitespace-nowrap">
-                  <div class="inline-flex items-center gap-1.5">
+                <td class="px-3.5 py-2.5 text-right whitespace-nowrap">
+                  <div class="inline-flex items-center gap-1">
                     <button
                       type="button"
                       @click="focusSite(s)"
-                      class="px-2.5 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/50 dark:hover:bg-cyan-900/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 text-3xs font-semibold cursor-pointer"
+                      class="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white btn-text text-3xs font-bold shadow-2xs transition cursor-pointer"
                     >
-                      Pilih Stasiun
+                      Pilih →
                     </button>
                     <button
                       v-if="!isReadOnly"
                       type="button"
                       @click="openEditSiteModal(s)"
-                      class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-3xs font-semibold cursor-pointer"
+                      class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-3xs font-semibold transition cursor-pointer"
                     >
                       Edit
                     </button>
@@ -503,7 +598,7 @@
                       v-if="!isReadOnly"
                       type="button"
                       @click="confirmDeleteSite(s)"
-                      class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-3xs font-semibold cursor-pointer"
+                      class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/60 text-3xs font-semibold transition cursor-pointer"
                     >
                       Hapus
                     </button>
@@ -511,7 +606,7 @@
                 </td>
               </tr>
               <tr v-if="sites.length === 0">
-                <td :colspan="canViewAllTenants ? 8 : 7" class="px-4 py-8 text-center text-slate-500">
+                <td :colspan="canViewAllTenants ? 6 : 5" class="px-4 py-10 text-center text-slate-500">
                   Belum ada stasiun pantau terdaftar pada scope ini.
                 </td>
               </tr>

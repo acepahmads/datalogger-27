@@ -4543,6 +4543,7 @@
     <div
       v-if="useCompactTrendSheet && !mobileTrendSheetOpen"
       class="mobile-trend-dock-bar"
+      :style="(!isSidebarCollapsed && !isMobileScreen) ? { left: '250px' } : null"
       @click="openMobileTrendSheet"
     >
       <div class="mtd-left">
@@ -4576,7 +4577,10 @@
     <!-- =================================================================== -->
     <!-- 4. DOCKED BOTTOM QUICK ACTIONS & SHORTCUTS BAR                      -->
     <!-- =================================================================== -->
-    <footer class="dock-footer">
+    <footer
+      class="dock-footer"
+      :style="(!isSidebarCollapsed && !isMobileScreen) ? { left: '240px' } : null"
+    >
       <div class="dock-left">
         <span class="dock-kicker hidden xl:inline">AKSI CEPAT:</span>
 

@@ -18,7 +18,7 @@
         <Sidebar
           :is-collapsed="requiresCloudTenantGate ? false : isSidebarCollapsed"
           :is-auto-hide="false"
-          @toggle-autohide="onSidebarAutoHideToggle"
+          @toggle-autohide="onSidebarAutoHideToggle(false)"
           @request-logout="openLogoutConfirmModal"
         />
       </div>
@@ -46,7 +46,7 @@
           <Sidebar
             :is-collapsed="false"
             :is-auto-hide="true"
-            @toggle-autohide="onSidebarAutoHideToggle"
+            @toggle-autohide="onSidebarAutoHideToggle(false)"
             @navigate="closeSidebarHoverImmediate"
             @request-logout="openLogoutConfirmModal"
           />
@@ -375,6 +375,8 @@ export default {
       if (this.sidebarAutoHide) {
         if (fromDashboardToolbar === true) {
           this.openSidebarHover();
+        } else {
+          this.closeSidebarHoverImmediate();
         }
       } else {
         this.closeSidebarHoverImmediate();
