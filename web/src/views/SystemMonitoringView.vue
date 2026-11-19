@@ -353,8 +353,11 @@
         </div>
 
         <!-- Live RX/TX Sparkline + Counters -->
-        <div class="flex items-center gap-2.5">
-          <div class="relative w-[64px] h-[64px] flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div
+            class="relative w-[72px] h-[72px] flex-shrink-0"
+            :title="'Total RX+TX: ' + netCombinedRateCompact"
+          >
             <svg viewBox="0 0 80 80" class="w-full h-full -rotate-90">
               <circle cx="40" cy="40" r="32" fill="none" stroke-width="7" class="stroke-slate-200/90 dark:stroke-slate-800" />
               <circle
@@ -370,11 +373,17 @@
                 class="transition-all duration-500 sysmon-ring-glow"
               />
             </svg>
-            <div class="absolute inset-0 flex flex-col items-center justify-center leading-none text-center px-1">
-              <span class="text-[10.5px] font-mono font-extrabold text-slate-900 dark:text-white tabular-nums truncate max-w-full">
-                {{ netCombinedRateCompact }}
+            <div class="absolute inset-0 flex flex-col items-center justify-center leading-none text-center px-2.5">
+              <span
+                class="font-mono font-extrabold text-slate-900 dark:text-white tabular-nums tracking-tight"
+                :class="netCombinedRateParts.value.length >= 5 ? 'text-[11px]' : 'text-[12.5px]'"
+              >
+                {{ netCombinedRateParts.value }}
               </span>
-              <span class="text-[8.5px] font-mono text-cyan-600 dark:text-cyan-400 mt-0.5">RX+TX</span>
+              <span class="text-[8.5px] font-mono font-bold text-cyan-600 dark:text-cyan-400 mt-0.5">
+                {{ netCombinedRateParts.unit }}
+              </span>
+              <span class="text-[7px] font-mono text-slate-400 mt-0.5">RX+TX</span>
             </div>
           </div>
 
@@ -1077,6 +1086,14 @@ export default {
     netCombinedRateCompact() {
       const total = Number(this.status.net_rx_bytes_per_sec || 0) + Number(this.status.net_tx_bytes_per_sec || 0);
       return this.formatByteRate(total);
+    },
+    netCombinedRateParts() {
+      const formatted = String(this.netCombinedRateCompact || '0 B/s').trim();
+      const parts = formatted.split(/\s+/);
+      return {
+        value: parts[0] || '0',
+        unit: parts[1] || 'B/s',
+      };
     },
     netHistoryPeak() {
       const maxVal = Math.max(10, ...this.netHistory);
