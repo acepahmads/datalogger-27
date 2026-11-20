@@ -1036,23 +1036,27 @@
         <div
           v-if="isTilesOnline && isAqmsWeatherToggleVisible && (showWindLayer || showRainLayer)"
           id="fleet-weather-overlay-legend"
-          class="hidden sm:flex items-center gap-2.5 flex-wrap absolute left-2.5 z-[450] px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-4xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
+          class="hidden sm:flex flex-col gap-1 absolute left-2.5 z-[450] px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-4xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
           :class="pinDisplayMode === 'env' ? 'bottom-[74px]' : 'bottom-2.5'"
         >
-          <template v-if="showWindLayer">
-            <span class="font-extrabold text-cyan-700 dark:text-cyan-300">🌬 Angin:</span>
-            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-600"></span>&lt;2 m/s</span>
-            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>2–5</span>
-            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-600"></span>5–10</span>
-            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span>&gt;10 m/s</span>
-          </template>
-          <template v-if="showRainLayer">
-            <span v-if="showWindLayer" class="text-slate-300 dark:text-slate-600">|</span>
-            <span class="font-extrabold text-blue-700 dark:text-blue-300 inline-flex items-center gap-1">
-              <span class="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
-              🌧 Hujan Aktif ({{ aqmsRainingCount }})
-            </span>
-          </template>
+          <div v-if="showWindLayer" class="flex items-center gap-2 flex-wrap">
+            <span class="font-extrabold text-cyan-700 dark:text-cyan-300">🌬 Aliran Angin:</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-1 rounded-full bg-sky-600"></span>&lt;2 Sepoi</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-1 rounded-full bg-emerald-600"></span>2–5 Sedang</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-1 rounded-full bg-amber-600"></span>5–10 Kencang</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-1 rounded-full bg-rose-600"></span>&gt;10 m/s</span>
+          </div>
+          <div
+            v-if="showRainLayer"
+            class="flex items-center gap-2 flex-wrap"
+            :class="{ 'pt-0.5 border-t border-slate-100 dark:border-slate-800': showWindLayer }"
+          >
+            <span class="font-extrabold text-blue-700 dark:text-blue-300">🌧 Hujan (Ikut Wind Angle):</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400"></span>Ringan &lt;2</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-600"></span>Sedang 2–10</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-700"></span>Lebat &gt;10 mm</span>
+            <span class="font-mono font-extrabold text-blue-700 dark:text-blue-300">({{ aqmsRainingCount }} Aktif)</span>
+          </div>
         </div>
 
         <!-- =============================================================== -->
@@ -1893,6 +1897,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import StationMapViewer from '../components/StationMapViewer.vue';
+import { FleetWeatherCanvasOverlay } from '../utils/fleetWeatherCanvasLayer';
 
 const INDONESIA_DEFAULT_CENTER = [-2.5489, 118.0149];
 const INDONESIA_DEFAULT_ZOOM = 5;
@@ -2025,6 +2030,7 @@ export default {
       tileLayer: null,
       tileOverlayLayer: null,
       markersLayer: null,
+      weatherCanvasOverlay: null,
       markerBySiteId: {},
       hasInitialFitDone: false,
       isTilesOnline: true,
@@ -2402,6 +2408,7 @@ export default {
   watch: {
     resolvedTileTheme() {
       this.applyTileLayer();
+      this.syncWeatherCanvasLayer();
     },
     pinDisplayMode() {
       this.syncMapMarkers();
@@ -2416,15 +2423,21 @@ export default {
         localStorage.setItem('datalogger_fleet_show_wind', val ? '1' : '0');
       } catch (_) {}
       this.syncMapMarkers();
+      this.syncWeatherCanvasLayer();
     },
     showRainLayer(val) {
       try {
         localStorage.setItem('datalogger_fleet_show_rain', val ? '1' : '0');
       } catch (_) {}
       this.syncMapMarkers();
+      this.syncWeatherCanvasLayer();
+    },
+    domainFilter() {
+      this.syncWeatherCanvasLayer();
     },
     mappedFilteredSites() {
       this.syncMapMarkers();
+      this.syncWeatherCanvasLayer();
     },
     projectYearFilter() {
       if (this.tenantFilter !== 'ALL') {
@@ -2486,6 +2499,10 @@ export default {
     if (typeof document !== 'undefined') {
       document.removeEventListener('fullscreenchange', this.onNativeFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', this.onNativeFullscreenChange);
+    }
+    if (this.weatherCanvasOverlay) {
+      this.weatherCanvasOverlay.destroy();
+      this.weatherCanvasOverlay = null;
     }
     if (this.map) {
       this.map.remove();
@@ -2586,6 +2603,7 @@ export default {
 
       this.$nextTick(() => {
         this.syncMapMarkers();
+        this.syncWeatherCanvasLayer();
         if (!this.hasInitialFitDone && this.mappedFilteredSites.length > 0) {
           this.hasInitialFitDone = true;
           this.fitMapToVisibleSites();
@@ -2890,6 +2908,12 @@ export default {
       L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomright' }).addTo(this.map);
       L.control.zoom({ position: 'bottomright' }).addTo(this.map);
       this.markersLayer = L.layerGroup().addTo(this.map);
+      this.weatherCanvasOverlay = new FleetWeatherCanvasOverlay(this.map, {
+        L,
+        showWind: this.showWindLayer && this.isAqmsWeatherToggleVisible,
+        showRain: this.showRainLayer && this.isAqmsWeatherToggleVisible,
+        isDark: this.resolvedTileTheme === 'dark' || this.resolvedTileTheme === 'night_clean',
+      });
 
       this.map.on('zoomstart', () => {
         this.spiderfiedClusterKey = '';
@@ -3229,21 +3253,31 @@ export default {
       `;
     },
 
+    syncWeatherCanvasLayer() {
+      if (!this.weatherCanvasOverlay) return;
+      const allowWeather = this.isAqmsWeatherToggleVisible;
+      const isDarkMap =
+        this.resolvedTileTheme === 'dark' ||
+        this.resolvedTileTheme === 'night_clean' ||
+        this.resolvedTileTheme === 'satellite';
+      this.weatherCanvasOverlay.updateConfig({
+        sites: this.mappedFilteredSites || [],
+        showWind: Boolean(allowWeather && this.showWindLayer),
+        showRain: Boolean(allowWeather && this.showRainLayer),
+        isDark: isDarkMap,
+      });
+    },
+
     buildSiteWeatherOverlayHtml(site, pinSize) {
       if (!this.isSiteAqmsWeatherEligible(site) || !site.weather || !site.weather.available) {
         return { rippleHtml: '', arrowHtml: '', pillStripHtml: '' };
       }
       const w = site.weather;
-      let rippleHtml = '';
-      let arrowHtml = '';
       const pills = [];
 
       if (this.showWindLayer && (w.wind_speed != null || w.wind_angle != null)) {
         const wsMeta = this.resolveWindSpeedMeta(w.wind_speed, w.wind_speed_unit);
         const dir = this.formatWindCompassShort(w.wind_angle);
-        if (dir.valid) {
-          arrowHtml = this.buildWindArrowSvg(dir.deg, wsMeta.color, pinSize);
-        }
         const speedTxt =
           w.wind_speed != null
             ? `${Number(w.wind_speed).toFixed(1)} ${this.escapeHtml(w.wind_speed_unit || 'm/s')}`
@@ -3258,10 +3292,6 @@ export default {
       }
 
       if (this.showRainLayer && w.is_raining) {
-        rippleHtml = `
-          <span class="fleet-rain-ripple"></span>
-          <span class="fleet-rain-ripple fleet-rain-ripple-delay"></span>
-        `;
         const rfVal = Number(w.rain_fall || 0).toFixed(1);
         const rfUnit = this.escapeHtml(w.rain_fall_unit || 'mm');
         pills.push(
@@ -3271,10 +3301,10 @@ export default {
 
       const pillStripHtml =
         pills.length > 0
-          ? `<div class="fleet-weather-pill-strip" style="top:${pinSize + 5}px;">${pills.join('')}</div>`
+          ? `<div class="fleet-weather-pill-strip" style="top:${pinSize + 4}px;">${pills.join('')}</div>`
           : '';
 
-      return { rippleHtml, arrowHtml, pillStripHtml };
+      return { rippleHtml: '', arrowHtml: '', pillStripHtml };
     },
 
     summarizeClusterWeather(sites) {
@@ -3340,16 +3370,11 @@ export default {
         return { rippleHtml: '', arrowHtml: '', pillStripHtml: '' };
       }
       const cw = this.summarizeClusterWeather(group.sites);
-      let rippleHtml = '';
-      let arrowHtml = '';
       const pills = [];
 
       if (this.showWindLayer && cw.hasWind) {
         const wsMeta = this.resolveWindSpeedMeta(cw.avgSpeed, cw.windUnit);
         const dir = this.formatWindCompassShort(cw.avgAngle);
-        if (dir.valid) {
-          arrowHtml = this.buildWindArrowSvg(dir.deg, wsMeta.color, outerSize);
-        }
         const speedTxt =
           cw.avgSpeed != null
             ? `${Number(cw.avgSpeed).toFixed(1)} ${this.escapeHtml(cw.windUnit || 'm/s')}`
@@ -3364,10 +3389,6 @@ export default {
       }
 
       if (this.showRainLayer && cw.hasRain) {
-        rippleHtml = `
-          <span class="fleet-rain-ripple"></span>
-          <span class="fleet-rain-ripple fleet-rain-ripple-delay"></span>
-        `;
         const rfTxt =
           cw.rainingCount > 1
             ? `🌧 ${cw.rainingCount} · ${Number(cw.maxRain).toFixed(1)}${this.escapeHtml(cw.rainUnit || 'mm')}`
@@ -3377,10 +3398,10 @@ export default {
 
       const pillStripHtml =
         pills.length > 0
-          ? `<div class="fleet-weather-pill-strip" style="top:${outerSize + 4}px;">${pills.join('')}</div>`
+          ? `<div class="fleet-weather-pill-strip" style="top:${outerSize + 3}px;">${pills.join('')}</div>`
           : '';
 
-      return { rippleHtml, arrowHtml, pillStripHtml };
+      return { rippleHtml: '', arrowHtml: '', pillStripHtml };
     },
 
     buildSiteWeatherTooltipHtml(site) {
