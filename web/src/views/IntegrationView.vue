@@ -261,7 +261,35 @@
           </div>
 
           <!-- Compact Right Controls -->
-          <div class="flex items-center gap-1.5 flex-shrink-0">
+          <div class="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+            <!-- Bulk Delete Selected Queue Items (Admin / Superadmin only) -->
+            <template v-if="canManageQueue && selectedQueueIds.length > 0">
+              <button
+                id="btn-queue-delete-selected"
+                type="button"
+                @click="deleteSelectedQueueItems"
+                :disabled="bulkDeletingQueue"
+                class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white btn-text text-3xs font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer disabled:opacity-50"
+                :title="'Hapus ' + selectedQueueIds.length + ' antrean yang dipilih secara permanen'"
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span v-if="bulkDeletingQueue">Menghapus {{ bulkDeleteProgress.done }}/{{ bulkDeleteProgress.total }}…</span>
+                <span v-else>Hapus Terpilih ({{ selectedQueueIds.length }})</span>
+              </button>
+              <button
+                id="btn-queue-clear-selection"
+                type="button"
+                @click="clearQueueSelection"
+                :disabled="bulkDeletingQueue"
+                class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-3xs font-bold transition cursor-pointer disabled:opacity-50"
+                title="Batalkan pilihan antrean"
+              >
+                Batal
+              </button>
+            </template>
+
             <!-- Purge Queue Button (Admin / Superadmin only) -->
             <button
               v-if="canManageQueue"
@@ -309,6 +337,18 @@
           <table class="w-full text-left text-2xs">
             <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-4xs uppercase tracking-wider font-bold">
               <tr>
+                <th v-if="canManageQueue" class="py-2 pl-3 pr-1 w-8 text-center">
+                  <input
+                    id="chk-queue-select-all"
+                    type="checkbox"
+                    :checked="isAllQueuePageSelected"
+                    :indeterminate.prop="isSomeQueuePageSelected"
+                    :disabled="selectableQueueItems.length === 0 || bulkDeletingQueue"
+                    @change="toggleSelectAllQueueItems"
+                    class="w-3.5 h-3.5 rounded accent-rose-600 cursor-pointer disabled:opacity-40 align-middle"
+                    title="Pilih semua antrean pada halaman ini"
+                  />
+                </th>
                 <th class="py-2 px-3">Batch &amp; Destinasi</th>
                 <th class="py-2 px-2.5">Window &amp; Kirim</th>
                 <th class="py-2 px-2.5">Status &amp; Respon</th>
@@ -317,7 +357,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
               <tr v-if="queueItems.length === 0">
-                <td colspan="4" class="py-10 text-center text-slate-400">
+                <td :colspan="canManageQueue ? 5 : 4" class="py-10 text-center text-slate-400">
                   <div class="text-xs font-semibold">No outbound delivery queue items found</div>
                   <div class="text-3xs text-slate-500 mt-1">
                     Aggregation batches are automatically enqueued when an aggregation window completes.
@@ -327,8 +367,23 @@
               <tr
                 v-for="item in queueItems"
                 :key="item.id"
-                class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition"
+                class="transition"
+                :class="isQueueItemSelected(item.id)
+                  ? 'bg-rose-50/60 dark:bg-rose-950/25'
+                  : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'"
               >
+                <!-- 0. Multi-Select Checkbox -->
+                <td v-if="canManageQueue" class="py-2 pl-3 pr-1 w-8 text-center">
+                  <input
+                    type="checkbox"
+                    :checked="isQueueItemSelected(item.id)"
+                    :disabled="item.status === 'SENDING' || bulkDeletingQueue"
+                    @change="toggleQueueItemSelection(item.id)"
+                    @click.stop
+                    class="w-3.5 h-3.5 rounded accent-rose-600 cursor-pointer disabled:opacity-35 align-middle"
+                    :title="item.status === 'SENDING' ? 'Sedang dikirim (tidak bisa dipilih)' : 'Pilih untuk hapus massal'"
+                  />
+                </td>
                 <!-- 1. Batch Identity + Destination + Device Chip -->
                 <td class="py-2 px-3 max-w-[300px]">
                   <div class="flex items-center gap-1.5 flex-wrap">
@@ -2537,6 +2592,9 @@ export default {
       // Queue state
       queueItems: [],
       queueTotal: 0,
+      selectedQueueIds: [],
+      bulkDeletingQueue: false,
+      bulkDeleteProgress: { done: 0, total: 0 },
       page: 1,
       pageSize: 20,
       filterStatus: 'ALL',
@@ -2843,6 +2901,20 @@ export default {
       // Khusus untuk SUPERADMIN dan ADMIN
       return this.isSuperAdmin || this.isAdmin;
     },
+    selectableQueueItems() {
+      return (this.queueItems || []).filter(item => item && item.status !== 'SENDING');
+    },
+    isAllQueuePageSelected() {
+      if (this.selectableQueueItems.length === 0) return false;
+      const selSet = new Set(this.selectedQueueIds);
+      return this.selectableQueueItems.every(item => selSet.has(item.id));
+    },
+    isSomeQueuePageSelected() {
+      if (this.selectableQueueItems.length === 0 || this.selectedQueueIds.length === 0) return false;
+      const selSet = new Set(this.selectedQueueIds);
+      const count = this.selectableQueueItems.filter(item => selSet.has(item.id)).length;
+      return count > 0 && count < this.selectableQueueItems.length;
+    },
     editingEndpointLabel() {
       const auth = this.editingDest && this.editingDest.auth_type;
       if (auth === 'LOGIN_BEARER') {
@@ -2985,6 +3057,7 @@ export default {
     },
     onQueueFilterChange() {
       this.page = 1;
+      this.selectedQueueIds = [];
       this.fetchQueue();
     },
     async fetchQueue() {
@@ -3018,6 +3091,14 @@ export default {
         if (res.data && res.data.success) {
           this.queueItems = res.data.data.items || [];
           this.queueTotal = res.data.data.total || 0;
+          if (this.selectedQueueIds.length > 0) {
+            const validIds = new Set(
+              this.queueItems
+                .filter(it => it && it.status !== 'SENDING')
+                .map(it => it.id)
+            );
+            this.selectedQueueIds = this.selectedQueueIds.filter(id => validIds.has(id));
+          }
         }
       } catch (err) {
         console.error('Failed to load queue:', err);
@@ -3028,7 +3109,54 @@ export default {
     changePage(p) {
       if (p < 1 || p > this.totalPages) return;
       this.page = p;
+      this.selectedQueueIds = [];
       this.fetchQueue();
+    },
+    isQueueItemSelected(id) {
+      return this.selectedQueueIds.includes(id);
+    },
+    toggleQueueItemSelection(id) {
+      const idx = this.selectedQueueIds.indexOf(id);
+      if (idx >= 0) {
+        this.selectedQueueIds.splice(idx, 1);
+      } else {
+        this.selectedQueueIds.push(id);
+      }
+    },
+    toggleSelectAllQueueItems() {
+      if (this.isAllQueuePageSelected) {
+        this.selectedQueueIds = [];
+      } else {
+        this.selectedQueueIds = this.selectableQueueItems.map(item => item.id);
+      }
+    },
+    clearQueueSelection() {
+      this.selectedQueueIds = [];
+    },
+    async deleteSelectedQueueItems() {
+      const ids = this.selectedQueueIds.slice();
+      if (ids.length === 0 || this.bulkDeletingQueue) return;
+      if (!confirm(`Hapus ${ids.length} item antrean yang dipilih secara permanen dari database?`)) return;
+      this.bulkDeletingQueue = true;
+      this.bulkDeleteProgress = { done: 0, total: ids.length };
+      const failedIds = [];
+      try {
+        for (const id of ids) {
+          try {
+            await axios.delete(`/api/integration/queue/${id}`);
+          } catch (_) {
+            failedIds.push(id);
+          }
+          this.bulkDeleteProgress.done += 1;
+        }
+        this.selectedQueueIds = failedIds;
+        await Promise.all([this.fetchSummary(), this.fetchQueue()]);
+        if (failedIds.length > 0) {
+          alert(`${ids.length - failedIds.length} antrean terhapus, ${failedIds.length} item gagal dihapus.`);
+        }
+      } finally {
+        this.bulkDeletingQueue = false;
+      }
     },
     async openInspectModal(id) {
       try {
@@ -3074,6 +3202,7 @@ export default {
       if (!confirm('Hapus item antrean ini secara permanen dari database?')) return;
       try {
         await axios.delete(`/api/integration/queue/${id}`);
+        this.selectedQueueIds = this.selectedQueueIds.filter(selId => selId !== id);
         this.fetchSummary();
         this.fetchQueue();
       } catch (err) {
