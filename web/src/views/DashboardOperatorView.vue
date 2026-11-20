@@ -353,6 +353,68 @@
                   </div>
                 </div>
 
+                <!-- 3b. Weather Hero Card Section (Auto-visible when station has meteorology sensors) -->
+                <div
+                  v-if="hasBentoWeatherSensors"
+                  class="p-3 rounded-xl bg-sky-50/70 dark:bg-sky-950/25 border border-sky-200/80 dark:border-sky-800/60 space-y-2.5"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2 min-w-0 pr-2">
+                      <span class="w-6 h-6 rounded-lg bg-white dark:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30 flex items-center justify-center text-sky-500 text-xs flex-shrink-0">☀</span>
+                      <div class="min-w-0">
+                        <div class="text-xs font-semibold text-slate-900 dark:text-white leading-tight truncate">
+                          Kartu Cuaca Kanan (Weather)
+                        </div>
+                        <div class="text-3xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5 truncate">
+                          {{ bentoWeatherData.count }} sensor cuaca terdeteksi
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="toggleBentoWeatherCard"
+                      class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="bentoShowWeatherCard ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="bentoShowWeatherCard"
+                    >
+                      <span
+                        aria-hidden="true"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out"
+                        :class="bentoShowWeatherCard ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+
+                  <div
+                    v-if="bentoShowWeatherCard && canToggleWeatherGridDedup"
+                    class="flex items-center justify-between pt-2 border-t border-sky-200/60 dark:border-sky-800/50"
+                  >
+                    <div class="min-w-0 pr-2">
+                      <div class="text-2xs font-semibold text-slate-800 dark:text-slate-200 leading-tight">
+                        Sembunyikan Duplikat di Tengah
+                      </div>
+                      <div class="text-3xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
+                        Parameter cuaca hanya tampil di kartu kanan
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="toggleBentoHideDupWeather"
+                      class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="bentoHideDupWeatherInGrid ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="bentoHideDupWeatherInGrid"
+                    >
+                      <span
+                        aria-hidden="true"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out"
+                        :class="bentoHideDupWeatherInGrid ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+                </div>
+
                 <!-- 4. Parameter Categories Section -->
                 <div>
                   <div class="text-3xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5 flex items-center justify-between">
@@ -2586,13 +2648,15 @@
 
     <!-- =================================================================== -->
     <!-- 2. AUTO-ADAPTIVE MIDDLE BENTO:                                      -->
-    <!--    - Wide (>=1280px): Left Full ISPU Hero Card + Right Parameters   -->
-    <!--    - Compact (<1280px): Top Dominant ISPU Bar + Full-Width Params   -->
+    <!--    - Wide (>=1280px): Left ISPU + Center Parameters + Right Weather -->
+    <!--    - Compact (<1280px): Top ISPU + Weather Strip + Full-Width Params-->
     <!-- =================================================================== -->
     <section
       class="bento-mid"
       :class="{
-        'bento-mid-single': !(isAQMSDomain && isIspuBarVisible) || isCompactScreen,
+        'bento-mid-both': !isCompactScreen && isAQMSDomain && isIspuBarVisible && isBentoWeatherCardVisible,
+        'bento-mid-weather-only': !isCompactScreen && !(isAQMSDomain && isIspuBarVisible) && isBentoWeatherCardVisible,
+        'bento-mid-single': isCompactScreen || (!(isAQMSDomain && isIspuBarVisible) && !isBentoWeatherCardVisible),
         'is-compact-mid': isCompactScreen,
         'is-trend-hidden': !perfSettings.trendAnalysisEnabled
       }"
@@ -2725,9 +2789,19 @@
 
             <!-- Compact Channel Counter + Active Filter Dismissible Tag -->
             <span class="param-count-tag">
-              <strong>{{ filteredParameters.length }}</strong><template v-if="filteredParameters.length !== allParameters.length">/{{ allParameters.length }}</template>
+              <strong>{{ bentoDisplayedParameters.length }}</strong><template v-if="bentoDisplayedParameters.length !== allParameters.length">/{{ allParameters.length }}</template>
               <span>Kanal</span>
             </span>
+
+            <button
+              v-if="shouldDeduplicateWeatherInGrid"
+              type="button"
+              class="weather-dedup-pill"
+              @click="toggleBentoHideDupWeather"
+              :title="bentoWeatherData.count + ' sensor cuaca ditampilkan pada kartu Weather kanan · Klik untuk tampilkan juga di tengah'"
+            >
+              <span>☀ {{ bentoWeatherData.count }} Cuaca</span>
+            </button>
 
             <button
               v-if="filterPinnedOnly"
@@ -2843,6 +2917,30 @@
                 <OperatorDashboardIcon name="menu" :size="13" />
               </button>
             </div>
+
+            <!-- Quick 1-Click Weather Right Panel Toggle (Visible only when station has weather sensors) -->
+            <button
+              v-if="hasBentoWeatherSensors"
+              id="btn-bento-weather-toggle"
+              type="button"
+              @click="toggleBentoWeatherCard"
+              class="op-icon-btn xs"
+              :class="{ 'is-active': bentoShowWeatherCard }"
+              :title="bentoShowWeatherCard ? 'Sembunyikan Kartu Cuaca Kanan' : 'Tampilkan Kartu Cuaca Kanan (Weather Hero Card)'"
+              aria-label="Toggle Weather Card"
+            >
+              <svg width="13.5" height="13.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <line x1="12" y1="2" x2="12" y2="4.5" />
+                <line x1="12" y1="19.5" x2="12" y2="22" />
+                <line x1="4.93" y1="4.93" x2="6.7" y2="6.7" />
+                <line x1="17.3" y1="17.3" x2="19.07" y2="19.07" />
+                <line x1="2" y1="12" x2="4.5" y2="12" />
+                <line x1="19.5" y1="12" x2="22" y2="12" />
+                <line x1="4.93" y1="19.07" x2="6.7" y2="17.3" />
+                <line x1="17.3" y1="6.7" x2="19.07" y2="4.93" />
+              </svg>
+            </button>
 
             <!-- Setup Card & Table Density Icon Popover -->
             <div class="relative bento-mini-popover-anchor">
@@ -3005,6 +3103,26 @@
                     @change="setPerfSetting('cardBlinksEnabled', $event.target.checked)"
                   />
                 </label>
+
+                <template v-if="hasBentoWeatherSensors">
+                  <div class="bmp-divider"></div>
+                  <label class="bmp-toggle-row">
+                    <span>Kartu Cuaca Kanan (Weather)</span>
+                    <input
+                      type="checkbox"
+                      :checked="bentoShowWeatherCard"
+                      @change="setBentoWeatherCardVisible($event.target.checked)"
+                    />
+                  </label>
+                  <label v-if="bentoShowWeatherCard && canToggleWeatherGridDedup" class="bmp-toggle-row">
+                    <span>Ringkas Duplikat Cuaca di Tengah</span>
+                    <input
+                      type="checkbox"
+                      :checked="bentoHideDupWeatherInGrid"
+                      @change="setBentoHideDupWeather($event.target.checked)"
+                    />
+                  </label>
+                </template>
               </div>
             </div>
           </div>
@@ -3023,7 +3141,7 @@
           :style="bentoParamsScrollAreaStyle"
         >
           <div
-            v-if="filteredParameters.length > 0"
+            v-if="bentoDisplayedParameters.length > 0"
             :class="{ 'bento-cat-cards-stack': bentoCardGroupByCategory }"
             :style="bentoCardGroupByCategory ? { '--cat-total-cols': bentoCategorySlotCols } : null"
           >
@@ -3293,7 +3411,7 @@
           :style="bentoParamsScrollAreaStyle"
         >
           <div
-            v-if="filteredParameters.length > 0"
+            v-if="bentoDisplayedParameters.length > 0"
             class="bento-dual-table-grid"
             :class="{
               'is-dual-cols': bentoEffectiveTableGridCols === 2,
@@ -3552,6 +3670,22 @@
           </div>
         </div>
       </div>
+
+      <!-- Weather Hero Card: Full Right Bento Hero (>=1280px) & Compact Horizontal Strip (<1280px) -->
+      <BentoWeatherHeroCard
+        v-if="isBentoWeatherCardVisible"
+        :weather="bentoWeatherData"
+        :is-dark="isDark"
+        :compact="isCompactScreen"
+        :animations-enabled="!(perfSettings && !perfSettings.chartAnimationsEnabled)"
+        :selected-param-ids="bentoSelectedTrendParamIds"
+        :hide-duplicates-in-grid="bentoHideDupWeatherInGrid"
+        :can-toggle-dedup="canToggleWeatherGridDedup"
+        @select-param="selectParamForTrend"
+        @context-param="handleBentoWeatherContextMenu"
+        @focus-weather-trend="focusBentoWeatherTrend"
+        @toggle-dedup="toggleBentoHideDupWeather"
+      />
     </section>
 
     <!-- =================================================================== -->
@@ -6963,10 +7097,12 @@
 import axios from 'axios';
 import OperatorCommandCenterView from './OperatorCommandCenterView.vue';
 import BentoISPUHeroCard from '../components/BentoISPUHeroCard.vue';
+import BentoWeatherHeroCard from '../components/BentoWeatherHeroCard.vue';
 import BentoWQMSIndexBar from '../components/BentoWQMSIndexBar.vue';
 import ParameterDataDownloadModal from '../components/ParameterDataDownloadModal.vue';
 import ActuatorModal from '../components/actuators/ActuatorModal.vue';
 import ActuatorTestWriteModal from '../components/actuators/ActuatorTestWriteModal.vue';
+import { classifyWeatherParameters } from '../utils/weatherParams';
 import audioAlert from '../utils/audioAlert';
 import {
   getStoredAlarmPreferences,
@@ -7001,6 +7137,7 @@ export default {
   components: {
     ...OperatorCommandCenterView.components,
     BentoISPUHeroCard,
+    BentoWeatherHeroCard,
     BentoWQMSIndexBar,
     ParameterDataDownloadModal,
     ActuatorModal,
@@ -7011,6 +7148,8 @@ export default {
     let cardGroupByCat = false;
     let splitMode = '2T';
     let savedTrendHeight = 205;
+    let savedShowWeatherCard = true;
+    let savedHideDupWeather = true;
     let savedCustName = '';
     let savedCustSub = '';
     let savedStationTypeMode = 'MANUAL';
@@ -7032,6 +7171,10 @@ export default {
       if (savedCardGroup === 'true') cardGroupByCat = true;
       const savedSplit = localStorage.getItem('datalogger_bento_table_split');
       if (savedSplit === '1T' || savedSplit === '2T' || savedSplit === 'CAT') splitMode = savedSplit;
+      const savedWeatherCard = localStorage.getItem('datalogger_bento_show_weather_card');
+      if (savedWeatherCard === 'false') savedShowWeatherCard = false;
+      const savedHideDup = localStorage.getItem('datalogger_bento_hide_dup_weather');
+      if (savedHideDup === 'false') savedHideDupWeather = false;
       const rawTrendH = parseInt(localStorage.getItem('datalogger_bento_trend_height'), 10);
       if (isFinite(rawTrendH) && rawTrendH >= 120 && rawTrendH <= 560) {
         savedTrendHeight = rawTrendH;
@@ -7074,6 +7217,8 @@ export default {
       bentoCardGroupByCategory: cardGroupByCat,
       bentoCollapsedCatCards: {},
       bentoTableSplitMode: splitMode,
+      bentoShowWeatherCard: savedShowWeatherCard,
+      bentoHideDupWeatherInGrid: savedHideDupWeather,
       bentoActiveMiniPopover: null,
       bentoTrendSearch: '',
       bentoTrendCanvasHeight: savedTrendHeight,
@@ -7518,9 +7663,45 @@ export default {
         .slice(0, 4)
         .map(s => s.color || '#0284C7');
     },
+    bentoWeatherData() {
+      return classifyWeatherParameters(this.allParameters, this.bentoRawParamMap, this.categoriesList);
+    },
+    hasBentoWeatherSensors() {
+      return Boolean(this.bentoWeatherData && this.bentoWeatherData.hasAnyWeather);
+    },
+    isBentoWeatherCardVisible() {
+      return Boolean(this.hasBentoWeatherSensors && this.bentoShowWeatherCard);
+    },
+    canToggleWeatherGridDedup() {
+      if (!this.hasBentoWeatherSensors) return false;
+      const matched = this.bentoWeatherData.matchedIds;
+      const all = this.allParameters || [];
+      return all.some(p => p && !matched.has(p.param_id != null ? p.param_id : p.id));
+    },
+    shouldDeduplicateWeatherInGrid() {
+      if (!this.isBentoWeatherCardVisible || !this.bentoHideDupWeatherInGrid) return false;
+      if (this.selectedCategoryFilter && this.selectedCategoryFilter !== 'all') return false;
+      if (this.filterPinnedOnly) return false;
+      if (this.searchQuery && String(this.searchQuery).trim()) return false;
+      const matched = this.bentoWeatherData.matchedIds;
+      const filtered = this.filteredParameters || [];
+      const nonWeatherCount = filtered.filter(p => p && !matched.has(p.param_id != null ? p.param_id : p.id)).length;
+      return nonWeatherCount > 0;
+    },
+    bentoDisplayedParameters() {
+      const list = this.filteredParameters || [];
+      if (!this.shouldDeduplicateWeatherInGrid) return list;
+      const matched = this.bentoWeatherData.matchedIds;
+      return list.filter(p => p && !matched.has(p.param_id != null ? p.param_id : p.id));
+    },
+    bentoSelectedTrendParamIds() {
+      return (this.activeTrendSeries || [])
+        .map(s => Number(s && s.parameterId))
+        .filter(id => Number.isFinite(id) && id > 0);
+    },
     effectiveBentoCols() {
       const w = this.bentoViewportWidth || 1600;
-      const n = (this.filteredParameters && this.filteredParameters.length) || 0;
+      const n = (this.bentoDisplayedParameters && this.bentoDisplayedParameters.length) || 0;
       if (!this.bentoAutoGrid) {
         const manual = Math.max(1, Math.min(5, Number(this.gridColumns) || 4));
         if (w < 768) return Math.min(manual, 2);
@@ -7534,14 +7715,20 @@ export default {
         if (n >= 7) return 4;
         return 3;
       }
-      // Wide screen (>= 1280px, alongside Left ISPU Hero Card)
+      // Wide screen (>= 1280px, alongside Left ISPU & Right Weather Hero Cards)
+      const availW = this.bentoAvailableParamsWidth || w;
+      if (availW < 840) {
+        if (n >= 7) return 4;
+        if (n >= 4) return 3;
+        return n >= 2 ? 2 : 1;
+      }
       if (n >= 11) return 5;
       if (n >= 7) return 4;
       if (n >= 5) return 3;
       return n >= 2 ? 2 : 1;
     },
     isMicroCardDensity() {
-      const n = (this.filteredParameters && this.filteredParameters.length) || 0;
+      const n = (this.bentoDisplayedParameters && this.bentoDisplayedParameters.length) || 0;
       return this.isCompactScreen || n >= 11;
     },
     bentoTableModeShortBadge() {
@@ -7554,10 +7741,12 @@ export default {
       }
       const vw = this.bentoViewportWidth || 1600;
       const hasLeftIspu = Boolean(this.isAQMSDomain && this.isIspuBarVisible && !this.isCompactScreen);
-      return Math.max(320, vw - (hasLeftIspu ? 284 : 28));
+      const hasRightWeather = Boolean(this.isBentoWeatherCardVisible && !this.isCompactScreen);
+      const reserved = (hasLeftIspu ? 290 : 0) + (hasRightWeather ? 282 : 0) + 28;
+      return Math.max(320, vw - reserved);
     },
     bentoCategoryTableSections() {
-      const list = this.filteredParameters || [];
+      const list = this.bentoDisplayedParameters || [];
       if (!list.length) return [];
 
       const colorHexMap = {
@@ -7716,7 +7905,7 @@ export default {
       return sections;
     },
     bentoSplitTableColumns() {
-      const list = this.filteredParameters || [];
+      const list = this.bentoDisplayedParameters || [];
       if (this.bentoTableSplitMode === 'CAT') {
         return this.bentoCategoryTableSections;
       }
@@ -7812,7 +8001,7 @@ export default {
       return this.effectiveBentoCols + 'P';
     },
     bentoActiveCardSections() {
-      const list = this.filteredParameters || [];
+      const list = this.bentoDisplayedParameters || [];
       if (!list.length) return [];
       if (this.bentoCardGroupByCategory) {
         const totalCols = Math.max(2, this.bentoCategorySlotCols || 8);
@@ -9041,6 +9230,54 @@ export default {
         localStorage.setItem('datalogger_bento_card_group_cat', flag ? 'true' : 'false');
       } catch (e) {}
     },
+    toggleBentoWeatherCard() {
+      this.setBentoWeatherCardVisible(!this.bentoShowWeatherCard);
+    },
+    setBentoWeatherCardVisible(flag) {
+      const next = Boolean(flag);
+      this.bentoShowWeatherCard = next;
+      try {
+        localStorage.setItem('datalogger_bento_show_weather_card', next ? 'true' : 'false');
+      } catch (e) {}
+      this.$nextTick(() => {
+        if (typeof this.measureBentoParamsWrap === 'function') {
+          this.measureBentoParamsWrap();
+        }
+      });
+    },
+    toggleBentoHideDupWeather() {
+      this.setBentoHideDupWeather(!this.bentoHideDupWeatherInGrid);
+    },
+    setBentoHideDupWeather(flag) {
+      const next = Boolean(flag);
+      this.bentoHideDupWeatherInGrid = next;
+      try {
+        localStorage.setItem('datalogger_bento_hide_dup_weather', next ? 'true' : 'false');
+      } catch (e) {}
+    },
+    handleBentoWeatherContextMenu(payload) {
+      if (!payload || !payload.param) return;
+      this.openParamContextMenu(payload.event, payload.param);
+    },
+    focusBentoWeatherTrend(weatherParams) {
+      const params = Array.isArray(weatherParams) ? weatherParams.filter(Boolean) : [];
+      if (!params.length) return;
+      if (this.perfSettings && !this.perfSettings.trendAnalysisEnabled && typeof this.setPerfSetting === 'function') {
+        this.setPerfSetting('trendAnalysisEnabled', true);
+      }
+      if (this.useCompactTrendSheet) {
+        this.mobileTrendSheetOpen = true;
+      }
+      if (typeof this.clearAllTrendSeries === 'function') {
+        this.clearAllTrendSeries();
+      }
+      const limit = Math.max(1, Number(this.maxTrendSeries) || 6);
+      for (const p of params.slice(0, limit)) {
+        if (typeof this.selectParamForTrend === 'function') {
+          this.selectParamForTrend(p);
+        }
+      }
+    },
     toggleBentoCatCardCollapse(secKey) {
       if (!secKey) return;
       const next = !this.bentoCollapsedCatCards[secKey];
@@ -9105,300 +9342,6 @@ export default {
       const warnHigh = toFinite(raw.warning_high ?? raw.critical_high ?? raw.high_warning ?? raw.high_critical);
       const warnLow = toFinite(raw.warning_low ?? raw.critical_low ?? raw.low_warning ?? raw.low_critical);
       const maxVal = toFinite(raw.max_value ?? raw.high_limit);
-      const minVal = toFinite(raw.min_value ?? raw.low_limit);
-      const zeroSuppress = (raw.zero_value_alarm_policy || param.zero_value_alarm_policy) === 'SUPPRESS_THRESHOLD';
-
-      // 1. Direct Database Configuration from ParameterModal (Edit Config)
-      if (warnHigh !== null || maxVal !== null || warnLow !== null || minVal !== null) {
-        if (warnHigh !== null) {
-          const lower = warnLow !== null ? warnLow : minVal;
-          const hasLow = lower !== null && lower !== 0;
-          const fmtUp = this.formatBentoLimitNum(warnHigh);
-          const fmtLow = hasLow ? this.formatBentoLimitNum(lower) : '0';
-          return {
-            source: 'configured',
-            upper: warnHigh,
-            lower: lower !== null ? lower : 0,
-            warnHigh,
-            warnLow,
-            hardMax: maxVal,
-            hardMin: minVal,
-            zeroSuppress,
-            shortLabel: hasLow ? `${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
-            longLabel: hasLow ? `Batas ${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
-            detailNote: `Warning High: ${fmtUp}${maxVal !== null ? ' · Max Limit: ' + this.formatBentoLimitNum(maxVal) : ''}`,
-          };
-        }
-        if (maxVal !== null) {
-          const lower = warnLow !== null ? warnLow : minVal;
-          const isRange = lower !== null;
-          const fmtUp = this.formatBentoLimitNum(maxVal);
-          const fmtLow = isRange ? this.formatBentoLimitNum(lower) : '0';
-          return {
-            source: 'configured',
-            upper: maxVal,
-            lower: isRange ? lower : 0,
-            warnHigh: null,
-            warnLow,
-            hardMax: maxVal,
-            hardMin: minVal,
-            zeroSuppress,
-            shortLabel: isRange ? `${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
-            longLabel: isRange ? `Rentang ${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
-            detailNote: isRange ? `Min–Max Limit: ${fmtLow} s/d ${fmtUp}` : `Max Limit: ${fmtUp}`,
-          };
-        }
-        const onlyLow = warnLow !== null ? warnLow : minVal;
-        const fmtOnlyLow = this.formatBentoLimitNum(onlyLow);
-        return {
-          source: 'configured',
-          upper: null,
-          lower: onlyLow,
-          warnHigh: null,
-          warnLow,
-          hardMax: null,
-          hardMin: minVal,
-          zeroSuppress,
-          shortLabel: `Min ${fmtOnlyLow}`,
-          longLabel: `Batas Min ${fmtOnlyLow}`,
-          detailNote: `Batas Minimum: ${fmtOnlyLow}`,
-        };
-      }
-
-      // 2. Fallback Reference ONLY when parameter has no configured limits in Edit Config
-      const keyStr = ((param.param_code || '') + ' ' + (param.param_name || '')).toUpperCase();
-      let refUpper = null;
-      if (keyStr.includes('PM2.5') || keyStr.includes('PM25') || keyStr.includes('PM 2.5')) refUpper = REGULATORY_REF_LIMITS.PM25;
-      else if (keyStr.includes('PM10') || keyStr.includes('PM 10')) refUpper = REGULATORY_REF_LIMITS.PM10;
-      else if (keyStr.includes('SO2') || keyStr.includes('SULFUR')) refUpper = REGULATORY_REF_LIMITS.SO2;
-      else if (keyStr.includes('NO2') || keyStr.includes('NITROGEN')) refUpper = REGULATORY_REF_LIMITS.NO2;
-      else if (keyStr.includes('O3') || keyStr.includes('OZON')) refUpper = REGULATORY_REF_LIMITS.O3;
-      else if (keyStr.includes('CO') || keyStr.includes('KARBON')) refUpper = REGULATORY_REF_LIMITS.CO;
-      else if (keyStr.includes('HC') || keyStr.includes('HIDROKARBON')) refUpper = REGULATORY_REF_LIMITS.HC;
-
-      if (refUpper !== null) {
-        const fmtRef = this.formatBentoLimitNum(refUpper);
-        return {
-          source: 'default',
-          upper: refUpper,
-          lower: 0,
-          warnHigh: null,
-          warnLow: null,
-          hardMax: null,
-          hardMin: null,
-          zeroSuppress,
-          shortLabel: `Limit ${fmtRef}`,
-          longLabel: `Baku mutu ${fmtRef}`,
-          detailNote: `Referensi default (${fmtRef})`,
-        };
-      }
-
-      const unitStr = (param.unit || '').trim().toLowerCase();
-      const isRainParam = keyStr.includes('RAIN') || keyStr.includes('HUJAN') || keyStr.includes('CURAH');
-      const isTempUnit = unitStr === 'c' || unitStr === '°c' || unitStr === 'celcius' || unitStr === 'celsius';
-      if (!isRainParam && (keyStr.includes('TEMP') || keyStr.includes('SUHU') || isTempUnit)) {
-        return {
-          source: 'default',
-          upper: 50,
-          lower: 0,
-          warnHigh: null,
-          warnLow: null,
-          hardMax: null,
-          hardMin: null,
-          zeroSuppress,
-          shortLabel: '0–50',
-          longLabel: 'Rentang 0–50',
-          detailNote: 'Rentang referensi suhu (0–50)',
-        };
-      }
-      if (unitStr === '%' || keyStr.includes('HUMID') || keyStr.includes('LEMBAB')) {
-        return {
-          source: 'default',
-          upper: 100,
-          lower: 0,
-          warnHigh: null,
-          warnLow: null,
-          hardMax: null,
-          hardMin: null,
-          zeroSuppress,
-          shortLabel: '0–100',
-          longLabel: 'Rentang 0–100',
-          detailNote: 'Rentang referensi kelembaban (0–100%)',
-        };
-      }
-      return null;
-    },
-    resolveRegulatoryLimit(param) {
-      const lim = this.resolveBentoParamLimits(param);
-      return lim && lim.upper !== null ? lim.upper : null;
-    },
-    isDeviceActiveOnline(dev) {
-      if (!dev) return false;
-      const status = dev.connection_status || dev.status;
-      if (
-        status === 'OFFLINE' ||
-        status === 'DISCONNECTED' ||
-        status === 'ERROR' ||
-        status === 'FAILED' ||
-        status === 'DISABLED' ||
-        dev.enabled === false
-      ) {
-        return false;
-      }
-      const devStaleTimeout = this.getDeviceStaleTimeoutSeconds ? this.getDeviceStaleTimeoutSeconds(dev) : 120;
-      // Depend on staleCheckTimeMs (10s cadence) instead of currentTimeMs (1s clock cadence)
-      // so the 1-second digital clock never forces full 31-card + 61-alarm grid recomputation.
-      const nowMs = this.staleCheckTimeMs || Date.now();
-      if (status === 'ONLINE' || status === 'CONNECTED') {
-        const params = dev.parameters || [];
-        if (params.length > 0) {
-          const hasAnyFreshData = params.some((p) => {
-            const live = this.liveMap && this.liveMap[p.id];
-            const q = (live && live.quality) || p.current_quality;
-            const ts = (live && live.received_at) || p.current_received_at;
-            const ageSec = ts ? (nowMs - new Date(ts).getTime()) / 1000 : Infinity;
-            const staleLimit = this.isDevicePassivePush && this.isDevicePassivePush(dev)
-              ? Math.max(Number(p.stale_timeout_seconds || 0), devStaleTimeout)
-              : (p.stale_timeout_seconds || 120);
-            return q !== 'STALE' && q !== 'BAD' && ageSec < staleLimit;
-          });
-          if (!hasAnyFreshData) {
-            return false;
-          }
-        }
-        return true;
-      }
-      const fallbackLimitSec = this.isDevicePassivePush && this.isDevicePassivePush(dev) ? devStaleTimeout : 15;
-      return (dev.parameters || []).some((p) => {
-        const live = this.liveMap && this.liveMap[p.id];
-        const ts = (live && live.received_at) || p.current_received_at;
-        if (!ts) return false;
-        const ageSec = (nowMs - new Date(ts).getTime()) / 1000;
-        const q = (live && live.quality) || p.current_quality;
-        return ageSec < fallbackLimitSec && q === 'GOOD';
-      });
-    },
-    getBentoCardRenderMemo(param) {
-      if (!param || typeof param !== 'object' || typeof WeakMap === 'undefined') return null;
-      if (!Object.prototype.hasOwnProperty.call(this, '_bentoCardRenderMemo') || !this._bentoCardRenderMemo) {
-        Object.defineProperty(this, '_bentoCardRenderMemo', {
-          value: new WeakMap(),
-          writable: true,
-          configurable: true,
-          enumerable: false,
-        });
-      }
-      const alarmMapRef = this.bentoParamActiveAlarmMap || null;
-      const relBucket = Math.floor((this.staleCheckTimeMs || Date.now()) / 10000);
-      const canEdit = Boolean(this.canEditConfig);
-      let slot = this._bentoCardRenderMemo.get(param);
-      if (!slot || slot.alarmMapRef !== alarmMapRef || slot.relBucket !== relBucket || slot.canEdit !== canEdit) {
-        slot = {
-          alarmMapRef,
-          relBucket,
-          canEdit,
-          hasActiveAlarm: false,
-          activeAlarm: null,
-          statusBadge: null,
-          progress: null,
-          colorKey: '',
-          colorVal: '',
-        };
-        this._bentoCardRenderMemo.set(param, slot);
-      }
-      return slot;
-    },
-    getBentoParamActiveAlarm(param) {
-      if (!param) return null;
-      const memo = this.getBentoCardRenderMemo(param);
-      if (memo && memo.hasActiveAlarm) {
-        return memo.activeAlarm;
-      }
-      const pid = Number(param.param_id || param.id);
-      const entry = (pid && this.bentoParamActiveAlarmMap && this.bentoParamActiveAlarmMap[pid]) || null;
-      if (!entry || !entry.primary) {
-        if (memo) {
-          memo.hasActiveAlarm = true;
-          memo.activeAlarm = null;
-        }
-        return null;
-      }
-
-      const alm = entry.primary;
-      const code = String(alm.alarm_code || alm.alarm_type || alm.type || '').toUpperCase();
-      const sev = String(alm.severity || 'WARNING').toUpperCase();
-      const isCrit = sev === 'CRITICAL' || code.includes('CRITICAL');
-
-      let badgeLabel = isCrit ? 'Kritis' : '⚠ Alarm';
-      let shortMeta = isCrit ? 'Alarm Kritis' : 'Alarm Aktif';
-
-      if (code.includes('STUCK')) {
-        badgeLabel = '⚠ Stuck';
-        shortMeta = 'Stuck';
-      } else if (code.includes('SPIKE')) {
-        badgeLabel = '⚠ Spike';
-        shortMeta = 'Spike';
-      } else if (code.includes('ZERO_INVALID') || code.includes('ZERO')) {
-        badgeLabel = '⚠ Zero';
-        shortMeta = 'Zero Invalid';
-      } else if (code.includes('STALE')) {
-        badgeLabel = '⚠ Stale';
-        shortMeta = 'Stale';
-      } else if (code.includes('BAD_QUALITY')) {
-        badgeLabel = '⚠ Bad';
-        shortMeta = 'Bad Data';
-      } else if (code.includes('THRESHOLD_WARNING') || code === 'WARNING') {
-        badgeLabel = 'Waspada';
-        shortMeta = 'Warning Limit';
-      } else if (code.includes('THRESHOLD_CRITICAL')) {
-        badgeLabel = 'Kritis';
-        shortMeta = 'Critical Limit';
-      }
-
-      const trigTime = alm.triggered_at || alm.created_at;
-      const ageStr = trigTime ? this.formatRelative(trigTime) : '';
-      const msgStr = alm.message || code || 'Active Alarm';
-      const extraStr = entry.count > 1 ? ' (+' + (entry.count - 1) + ' alarm aktif lainnya)' : '';
-      const tooltipText = 'Alarm Aktif [' + sev + ']: ' + msgStr + (ageStr ? ' · ' + ageStr : '') + extraStr + ' — Klik badge untuk Acknowledge';
-
-      const result = {
-        primary: alm,
-        count: entry.count,
-        all: entry.all,
-        code,
-        severity: isCrit ? 'CRITICAL' : 'WARNING',
-        toneClass: isCrit ? 'badge-rose' : 'badge-amber',
-        badgeLabel,
-        shortMeta,
-        ageStr,
-        tooltipText,
-      };
-      if (memo) {
-        memo.hasActiveAlarm = true;
-        memo.activeAlarm = result;
-      }
-      return result;
-    },
-    getBentoDotColor(param) {
-      if (this.isBentoParamCommOffline(param)) return '#F43F5E';
-      const tone = this.getBentoStatusBadge(param).toneClass;
-      if (tone === 'badge-rose') return '#F43F5E';
-      if (tone === 'badge-amber') return '#F59E0B';
-      return '#10B981';
-    },
-    getBentoParamCardTitle(param) {
-      const baseTitle = typeof this.getParamTimingTitle === 'function' ? this.getParamTimingTitle(param) : '';
-      const activeInfo = this.getBentoParamActiveAlarm(param);
-      if (!activeInfo) return baseTitle;
-      return baseTitle ? (activeInfo.tooltipText + '\n' + baseTitle) : activeInfo.tooltipText;
-    },
-    onBentoStatusBadgeClick(param) {
-      const badge = this.getBentoStatusBadge(param);
-      if (badge && badge.isAlarm && badge.alarm && typeof this.openAckModal === 'function') {
-        this.openAckModal(badge.alarm);
-      }
-    },
-    getBentoCardAlertClass(param) {
       const tone = this.getBentoStatusBadge(param).toneClass;
       if (tone === 'badge-rose') return 's-card-fault';
       if (tone === 'badge-amber') return 's-card-warn';
@@ -10968,14 +10911,55 @@ export default {
   gap: 10px;
   align-items: stretch;
 }
+.bento-mid.bento-mid-both {
+  grid-template-columns: 280px minmax(0, 1fr) 272px;
+}
+.bento-mid.bento-mid-weather-only {
+  grid-template-columns: minmax(0, 1fr) 276px;
+}
 .bento-mid.bento-mid-single {
   grid-template-columns: minmax(0, 1fr);
 }
 .bento-mid.is-compact-mid {
   gap: 7px;
 }
+.bento-mid.is-compact-mid > .bento-ispu-root {
+  order: 1;
+}
+.bento-mid.is-compact-mid > .bento-weather-root {
+  order: 2;
+}
+.bento-mid.is-compact-mid > .right-params-wrap {
+  order: 3;
+}
 .bento-mid.is-trend-hidden {
   align-items: start;
+}
+
+.weather-dedup-pill {
+  height: 21px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(14, 165, 233, 0.11);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: #0284C7;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.weather-dedup-pill:hover {
+  background: rgba(14, 165, 233, 0.18);
+  border-color: rgba(14, 165, 233, 0.5);
+}
+.is-night .weather-dedup-pill {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.32);
+  color: #7DD3FC;
 }
 
 .right-params-wrap {
