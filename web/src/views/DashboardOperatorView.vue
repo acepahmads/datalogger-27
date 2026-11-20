@@ -2664,9 +2664,9 @@
         'is-trend-hidden': !perfSettings.trendAnalysisEnabled
       }"
     >
-      <!-- ISPU Component: Automatically switches between Compact Bar & Full Left Hero Card -->
+      <!-- ISPU Component: Full Left Hero Card on Wide Desktop; hidden on compact/small screens so layout stays clean -->
       <BentoISPUHeroCard
-        v-if="isAQMSDomain && isIspuBarVisible"
+        v-if="!isCompactScreen && isAQMSDomain && isIspuBarVisible"
         :device-id="0"
         :devices-list="devicesList"
         :is-dark="isDark"
@@ -7985,7 +7985,7 @@ export default {
       const minH = isCatCards
         ? (this.isCompactScreen ? 340 : 385)
         : (isTableOrGrouped ? (this.isCompactScreen ? 325 : 365) : (this.isCompactScreen ? 268 : 332));
-      const topIspuOffset = (this.isCompactScreen && this.isAQMSDomain && this.isIspuBarVisible) ? 62 : 0;
+      const topIspuOffset = 0;
       const topWqmsOffset = (this.isWQMSDomain && this.isIspuBarVisible) ? 62 : 0;
       const chromeOffset = isCatCards ? 212 : 230;
       const reservedPx = Math.round((Number(this.bentoTrendCanvasHeight) || 205) + chromeOffset + topIspuOffset + topWqmsOffset);
