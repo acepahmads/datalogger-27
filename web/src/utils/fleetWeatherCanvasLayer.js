@@ -46,9 +46,9 @@ export function resolveWindVisualStyle(speedMs, isDark = false) {
       tier: 'VERY_STRONG',
       rgb: isDark ? [251, 113, 133] : [225, 29, 72],
       hex: isDark ? '#fb7185' : '#e11d48',
-      stepPx: 5.4,
-      trailLen: 20,
-      lineWidth: 2.35,
+      stepPx: 1.75,
+      trailLen: 46,
+      lineWidth: 2.25,
     };
   }
   if (ms >= 5) {
@@ -56,9 +56,9 @@ export function resolveWindVisualStyle(speedMs, isDark = false) {
       tier: 'STRONG',
       rgb: isDark ? [251, 191, 36] : [217, 119, 6],
       hex: isDark ? '#fbbf24' : '#d97706',
-      stepPx: 3.8 + ((ms - 5) / 5) * 1.3,
-      trailLen: 16,
-      lineWidth: 2.05,
+      stepPx: 1.08 + ((ms - 5) / 5) * 0.56,
+      trailLen: 40,
+      lineWidth: 2.0,
     };
   }
   if (ms >= 2) {
@@ -66,18 +66,18 @@ export function resolveWindVisualStyle(speedMs, isDark = false) {
       tier: 'MODERATE',
       rgb: isDark ? [52, 211, 153] : [5, 150, 105],
       hex: isDark ? '#34d399' : '#059669',
-      stepPx: 2.2 + ((ms - 2) / 3) * 1.3,
-      trailLen: 13,
-      lineWidth: 1.8,
+      stepPx: 0.62 + ((ms - 2) / 3) * 0.42,
+      trailLen: 34,
+      lineWidth: 1.75,
     };
   }
   return {
     tier: 'LIGHT',
     rgb: isDark ? [56, 189, 248] : [2, 132, 199],
     hex: isDark ? '#38bdf8' : '#0284c7',
-    stepPx: 1.15 + (ms / 2) * 0.9,
-    trailLen: 10,
-    lineWidth: 1.55,
+    stepPx: 0.34 + (ms / 2) * 0.24,
+    trailLen: 28,
+    lineWidth: 1.5,
   };
 }
 
@@ -89,11 +89,11 @@ export function classifyRainIntensity(rainFallMm) {
       label: 'Lebat',
       baseRadius: 68,
       dropCount: 34,
-      streakLen: 16,
-      dropSpeed: 2.4,
+      streakLen: 15,
+      dropSpeed: 0.85,
       coreAlpha: 0.40,
       midAlpha: 0.22,
-      dropWidth: 2.15,
+      dropWidth: 2.1,
     };
   }
   if (mm >= 2) {
@@ -102,11 +102,11 @@ export function classifyRainIntensity(rainFallMm) {
       label: 'Sedang',
       baseRadius: 54,
       dropCount: 22,
-      streakLen: 12.5,
-      dropSpeed: 1.9,
+      streakLen: 12,
+      dropSpeed: 0.62,
       coreAlpha: 0.32,
       midAlpha: 0.16,
-      dropWidth: 1.85,
+      dropWidth: 1.8,
     };
   }
   return {
@@ -114,11 +114,11 @@ export function classifyRainIntensity(rainFallMm) {
     label: 'Ringan',
     baseRadius: 42,
     dropCount: 14,
-    streakLen: 9,
-    dropSpeed: 1.45,
+    streakLen: 8.5,
+    dropSpeed: 0.42,
     coreAlpha: 0.24,
     midAlpha: 0.11,
-    dropWidth: 1.55,
+    dropWidth: 1.5,
   };
 }
 
@@ -536,7 +536,7 @@ export class FleetWeatherCanvasOverlay {
       y = anchor.y + Math.sin(theta) * spread;
     }
 
-    const maxAge = 46 + Math.floor(Math.random() * 58);
+    const maxAge = 140 + Math.floor(Math.random() * 110);
     const age = randomizeAge ? Math.floor(Math.random() * maxAge) : 0;
     return {
       x,
@@ -593,7 +593,7 @@ export class FleetWeatherCanvasOverlay {
     if (!ctx || this.width <= 0 || this.height <= 0) return;
 
     ctx.clearRect(0, 0, this.width, this.height);
-    this.pulsePhase += 0.032 * dtFactor;
+    this.pulsePhase += 0.014 * dtFactor;
 
     // 1. Render Rain Radar Auras underneath Wind Streamlines
     if (this.showRain && this.rainStations.length > 0) {
@@ -716,12 +716,12 @@ export class FleetWeatherCanvasOverlay {
       ctx.stroke();
 
       // Subtle directional chevron arrowhead at head so flow direction is unmistakable (BMKG style)
-      if (baseAlpha > 0.28 && len >= 4) {
-        const prev = p.trail[len - 2];
+      if (baseAlpha > 0.28 && len >= 5) {
+        const prev = p.trail[Math.max(0, len - 4)];
         const dx = head.x - prev.x;
         const dy = head.y - prev.y;
         const dMag = Math.hypot(dx, dy);
-        if (dMag > 0.35) {
+        if (dMag > 0.25) {
           const ux = dx / dMag;
           const uy = dy / dMag;
           const arrowLen = style.lineWidth * 2.55;
@@ -751,8 +751,8 @@ export class FleetWeatherCanvasOverlay {
       // Perpendicular unit vector to wind direction for spreading raindrops cleanly across the cell
       const perpU = -dirV;
       const perpV = dirU;
-      const speedBoost = 1 + Math.min(1.15, windSpeedMs * 0.14);
-      const streakBoost = 1 + Math.min(0.55, windSpeedMs * 0.06);
+      const speedBoost = 1 + Math.min(0.65, windSpeedMs * 0.08);
+      const streakBoost = 1 + Math.min(0.5, windSpeedMs * 0.05);
 
       for (let j = 0; j < drops.length; j += 1) {
         const d = drops[j];
