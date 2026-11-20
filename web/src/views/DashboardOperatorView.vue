@@ -9342,6 +9342,300 @@ export default {
       const warnHigh = toFinite(raw.warning_high ?? raw.critical_high ?? raw.high_warning ?? raw.high_critical);
       const warnLow = toFinite(raw.warning_low ?? raw.critical_low ?? raw.low_warning ?? raw.low_critical);
       const maxVal = toFinite(raw.max_value ?? raw.high_limit);
+      const minVal = toFinite(raw.min_value ?? raw.low_limit);
+      const zeroSuppress = (raw.zero_value_alarm_policy || param.zero_value_alarm_policy) === 'SUPPRESS_THRESHOLD';
+
+      // 1. Direct Database Configuration from ParameterModal (Edit Config)
+      if (warnHigh !== null || maxVal !== null || warnLow !== null || minVal !== null) {
+        if (warnHigh !== null) {
+          const lower = warnLow !== null ? warnLow : minVal;
+          const hasLow = lower !== null && lower !== 0;
+          const fmtUp = this.formatBentoLimitNum(warnHigh);
+          const fmtLow = hasLow ? this.formatBentoLimitNum(lower) : '0';
+          return {
+            source: 'configured',
+            upper: warnHigh,
+            lower: lower !== null ? lower : 0,
+            warnHigh,
+            warnLow,
+            hardMax: maxVal,
+            hardMin: minVal,
+            zeroSuppress,
+            shortLabel: hasLow ? `${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            longLabel: hasLow ? `Batas ${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            detailNote: `Warning High: ${fmtUp}${maxVal !== null ? ' · Max Limit: ' + this.formatBentoLimitNum(maxVal) : ''}`,
+          };
+        }
+        if (maxVal !== null) {
+          const lower = warnLow !== null ? warnLow : minVal;
+          const isRange = lower !== null;
+          const fmtUp = this.formatBentoLimitNum(maxVal);
+          const fmtLow = isRange ? this.formatBentoLimitNum(lower) : '0';
+          return {
+            source: 'configured',
+            upper: maxVal,
+            lower: isRange ? lower : 0,
+            warnHigh: null,
+            warnLow,
+            hardMax: maxVal,
+            hardMin: minVal,
+            zeroSuppress,
+            shortLabel: isRange ? `${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            longLabel: isRange ? `Rentang ${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            detailNote: isRange ? `Min–Max Limit: ${fmtLow} s/d ${fmtUp}` : `Max Limit: ${fmtUp}`,
+          };
+        }
+        const onlyLow = warnLow !== null ? warnLow : minVal;
+        const fmtOnlyLow = this.formatBentoLimitNum(onlyLow);
+        return {
+          source: 'configured',
+          upper: null,
+          lower: onlyLow,
+          warnHigh: null,
+          warnLow,
+          hardMax: null,
+          hardMin: minVal,
+          zeroSuppress,
+          shortLabel: `Min ${fmtOnlyLow}`,
+          longLabel: `Batas Min ${fmtOnlyLow}`,
+          detailNote: `Batas Minimum: ${fmtOnlyLow}`,
+        };
+      }
+
+      // 2. Fallback Reference ONLY when parameter has no configured limits in Edit Config
+      const keyStr = ((param.param_code || '') + ' ' + (param.param_name || '')).toUpperCase();
+      let refUpper = null;
+      if (keyStr.includes('PM2.5') || keyStr.includes('PM25') || keyStr.includes('PM 2.5')) refUpper = REGULATORY_REF_LIMITS.PM25;
+      else if (keyStr.includes('PM10') || keyStr.includes('PM 10')) refUpper = REGULATORY_REF_LIMITS.PM10;
+      else if (keyStr.includes('SO2') || keyStr.includes('SULFUR')) refUpper = REGULATORY_REF_LIMITS.SO2;
+      else if (keyStr.includes('NO2') || keyStr.includes('NITROGEN')) refUpper = REGULATORY_REF_LIMITS.NO2;
+      else if (keyStr.includes('O3') || keyStr.includes('OZON')) refUpper = REGULATORY_REF_LIMITS.O3;
+      else if (keyStr.includes('CO') || keyStr.includes('KARBON')) refUpper = REGULATORY_REF_LIMITS.CO;
+      else if (keyStr.includes('HC') || keyStr.includes('HIDROKARBON')) refUpper = REGULATORY_REF_LIMITS.HC;
+
+      if (refUpper !== null) {
+        const fmtRef = this.formatBentoLimitNum(refUpper);
+        return {
+          source: 'default',
+          upper: refUpper,
+          lower: 0,
+          warnHigh: null,
+          warnLow: null,
+          hardMax: null,
+          hardMin: null,
+          zeroSuppress,
+          shortLabel: `Limit ${fmtRef}`,
+          longLabel: `Baku mutu ${fmtRef}`,
+          detailNote: `Referensi default (${fmtRef})`,
+        };
+      }
+
+      const unitStr = (param.unit || '').trim().toLowerCase();
+      const isRainParam = keyStr.includes('RAIN') || keyStr.includes('HUJAN') || keyStr.includes('CURAH');
+      const isTempUnit = unitStr === 'c' || unitStr === '°c' || unitStr === 'celcius' || unitStr === 'celsius';
+      if (!isRainParam && (keyStr.includes('TEMP') || keyStr.includes('SUHU') || isTempUnit)) {
+        return {
+          source: 'default',
+          upper: 50,
+          lower: 0,
+          warnHigh: null,
+          warnLow: null,
+          hardMax: null,
+          hardMin: null,
+          zeroSuppress,
+          shortLabel: '0–50',
+          longLabel: 'Rentang 0–50',
+          detailNote: 'Rentang referensi suhu (0–50)',
+        };
+      }
+      if (unitStr === '%' || keyStr.includes('HUMID') || keyStr.includes('LEMBAB')) {
+        return {
+          source: 'default',
+          upper: 100,
+          lower: 0,
+          warnHigh: null,
+          warnLow: null,
+          hardMax: null,
+          hardMin: null,
+          zeroSuppress,
+          shortLabel: '0–100',
+          longLabel: 'Rentang 0–100',
+          detailNote: 'Rentang referensi kelembaban (0–100%)',
+        };
+      }
+      return null;
+    },
+    resolveRegulatoryLimit(param) {
+      const lim = this.resolveBentoParamLimits(param);
+      return lim && lim.upper !== null ? lim.upper : null;
+    },
+    isDeviceActiveOnline(dev) {
+      if (!dev) return false;
+      const status = dev.connection_status || dev.status;
+      if (
+        status === 'OFFLINE' ||
+        status === 'DISCONNECTED' ||
+        status === 'ERROR' ||
+        status === 'FAILED' ||
+        status === 'DISABLED' ||
+        dev.enabled === false
+      ) {
+        return false;
+      }
+      const devStaleTimeout = this.getDeviceStaleTimeoutSeconds ? this.getDeviceStaleTimeoutSeconds(dev) : 120;
+      // Depend on staleCheckTimeMs (10s cadence) instead of currentTimeMs (1s clock cadence)
+      // so the 1-second digital clock never forces full 31-card + 61-alarm grid recomputation.
+      const nowMs = this.staleCheckTimeMs || Date.now();
+      if (status === 'ONLINE' || status === 'CONNECTED') {
+        const params = dev.parameters || [];
+        if (params.length > 0) {
+          const hasAnyFreshData = params.some((p) => {
+            const live = this.liveMap && this.liveMap[p.id];
+            const q = (live && live.quality) || p.current_quality;
+            const ts = (live && live.received_at) || p.current_received_at;
+            const ageSec = ts ? (nowMs - new Date(ts).getTime()) / 1000 : Infinity;
+            const staleLimit = this.isDevicePassivePush && this.isDevicePassivePush(dev)
+              ? Math.max(Number(p.stale_timeout_seconds || 0), devStaleTimeout)
+              : (p.stale_timeout_seconds || 120);
+            return q !== 'STALE' && q !== 'BAD' && ageSec < staleLimit;
+          });
+          if (!hasAnyFreshData) {
+            return false;
+          }
+        }
+        return true;
+      }
+      const fallbackLimitSec = this.isDevicePassivePush && this.isDevicePassivePush(dev) ? devStaleTimeout : 15;
+      return (dev.parameters || []).some((p) => {
+        const live = this.liveMap && this.liveMap[p.id];
+        const ts = (live && live.received_at) || p.current_received_at;
+        if (!ts) return false;
+        const ageSec = (nowMs - new Date(ts).getTime()) / 1000;
+        const q = (live && live.quality) || p.current_quality;
+        return ageSec < fallbackLimitSec && q === 'GOOD';
+      });
+    },
+    getBentoCardRenderMemo(param) {
+      if (!param || typeof param !== 'object' || typeof WeakMap === 'undefined') return null;
+      if (!Object.prototype.hasOwnProperty.call(this, '_bentoCardRenderMemo') || !this._bentoCardRenderMemo) {
+        Object.defineProperty(this, '_bentoCardRenderMemo', {
+          value: new WeakMap(),
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      }
+      const alarmMapRef = this.bentoParamActiveAlarmMap || null;
+      const relBucket = Math.floor((this.staleCheckTimeMs || Date.now()) / 10000);
+      const canEdit = Boolean(this.canEditConfig);
+      let slot = this._bentoCardRenderMemo.get(param);
+      if (!slot || slot.alarmMapRef !== alarmMapRef || slot.relBucket !== relBucket || slot.canEdit !== canEdit) {
+        slot = {
+          alarmMapRef,
+          relBucket,
+          canEdit,
+          hasActiveAlarm: false,
+          activeAlarm: null,
+          statusBadge: null,
+          progress: null,
+          colorKey: '',
+          colorVal: '',
+        };
+        this._bentoCardRenderMemo.set(param, slot);
+      }
+      return slot;
+    },
+    getBentoParamActiveAlarm(param) {
+      if (!param) return null;
+      const memo = this.getBentoCardRenderMemo(param);
+      if (memo && memo.hasActiveAlarm) {
+        return memo.activeAlarm;
+      }
+      const pid = Number(param.param_id || param.id);
+      const entry = (pid && this.bentoParamActiveAlarmMap && this.bentoParamActiveAlarmMap[pid]) || null;
+      if (!entry || !entry.primary) {
+        if (memo) {
+          memo.hasActiveAlarm = true;
+          memo.activeAlarm = null;
+        }
+        return null;
+      }
+
+      const alm = entry.primary;
+      const code = String(alm.alarm_code || alm.alarm_type || alm.type || '').toUpperCase();
+      const sev = String(alm.severity || 'WARNING').toUpperCase();
+      const isCrit = sev === 'CRITICAL' || code.includes('CRITICAL');
+
+      let badgeLabel = isCrit ? 'Kritis' : '⚠ Alarm';
+      let shortMeta = isCrit ? 'Alarm Kritis' : 'Alarm Aktif';
+
+      if (code.includes('STUCK')) {
+        badgeLabel = '⚠ Stuck';
+        shortMeta = 'Stuck';
+      } else if (code.includes('SPIKE')) {
+        badgeLabel = '⚠ Spike';
+        shortMeta = 'Spike';
+      } else if (code.includes('ZERO_INVALID') || code.includes('ZERO')) {
+        badgeLabel = '⚠ Zero';
+        shortMeta = 'Zero Invalid';
+      } else if (code.includes('STALE')) {
+        badgeLabel = '⚠ Stale';
+        shortMeta = 'Stale';
+      } else if (code.includes('BAD_QUALITY')) {
+        badgeLabel = '⚠ Bad';
+        shortMeta = 'Bad Data';
+      } else if (code.includes('THRESHOLD_WARNING') || code === 'WARNING') {
+        badgeLabel = 'Waspada';
+        shortMeta = 'Warning Limit';
+      } else if (code.includes('THRESHOLD_CRITICAL')) {
+        badgeLabel = 'Kritis';
+        shortMeta = 'Critical Limit';
+      }
+
+      const trigTime = alm.triggered_at || alm.created_at;
+      const ageStr = trigTime ? this.formatRelative(trigTime) : '';
+      const msgStr = alm.message || code || 'Active Alarm';
+      const extraStr = entry.count > 1 ? ' (+' + (entry.count - 1) + ' alarm aktif lainnya)' : '';
+      const tooltipText = 'Alarm Aktif [' + sev + ']: ' + msgStr + (ageStr ? ' · ' + ageStr : '') + extraStr + ' — Klik badge untuk Acknowledge';
+
+      const result = {
+        primary: alm,
+        count: entry.count,
+        all: entry.all,
+        code,
+        severity: isCrit ? 'CRITICAL' : 'WARNING',
+        toneClass: isCrit ? 'badge-rose' : 'badge-amber',
+        badgeLabel,
+        shortMeta,
+        ageStr,
+        tooltipText,
+      };
+      if (memo) {
+        memo.hasActiveAlarm = true;
+        memo.activeAlarm = result;
+      }
+      return result;
+    },
+    getBentoDotColor(param) {
+      if (this.isBentoParamCommOffline(param)) return '#F43F5E';
+      const tone = this.getBentoStatusBadge(param).toneClass;
+      if (tone === 'badge-rose') return '#F43F5E';
+      if (tone === 'badge-amber') return '#F59E0B';
+      return '#10B981';
+    },
+    getBentoParamCardTitle(param) {
+      const baseTitle = typeof this.getParamTimingTitle === 'function' ? this.getParamTimingTitle(param) : '';
+      const activeInfo = this.getBentoParamActiveAlarm(param);
+      if (!activeInfo) return baseTitle;
+      return baseTitle ? (activeInfo.tooltipText + '\n' + baseTitle) : activeInfo.tooltipText;
+    },
+    onBentoStatusBadgeClick(param) {
+      const badge = this.getBentoStatusBadge(param);
+      if (badge && badge.isAlarm && badge.alarm && typeof this.openAckModal === 'function') {
+        this.openAckModal(badge.alarm);
+      }
+    },
+    getBentoCardAlertClass(param) {
       const tone = this.getBentoStatusBadge(param).toneClass;
       if (tone === 'badge-rose') return 's-card-fault';
       if (tone === 'badge-amber') return 's-card-warn';

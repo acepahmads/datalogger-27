@@ -147,6 +147,9 @@ check('6. DashboardOperatorView integrates symmetric 3-column Bento layout, comp
   assert(dashViewCode.includes("localStorage.getItem('datalogger_bento_show_weather_card')") && dashViewCode.includes("localStorage.getItem('datalogger_bento_hide_dup_weather')"), 'Must persist weather visibility & deduplication preferences in localStorage');
   assert(dashViewCode.includes('shouldDeduplicateWeatherInGrid()') && dashViewCode.includes('nonWeatherCount > 0'), 'Must protect pure AWS stations from ending up with an empty center grid');
   assert(dashViewCode.includes('focusBentoWeatherTrend('), 'Must implement focusBentoWeatherTrend handler');
+  for (const methodSig of ['getBentoCardRenderMemo(param) {', 'resolveBentoParamLimits(param) {', 'getBentoParamActiveAlarm(param) {', 'getBentoCardAlertClass(param) {', 'onBentoStatusBadgeClick(param) {']) {
+    assert(dashViewCode.includes(methodSig), `DashboardOperatorView must preserve method definition: ${methodSig}`);
+  }
 });
 
 console.log('========================================================================');
