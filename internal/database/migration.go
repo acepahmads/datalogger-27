@@ -198,6 +198,14 @@ func RunMigrations(db *gorm.DB) error {
 			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "dispatch_interval_seconds")
 		}
 		_ = db.Model(&model.OutputDestination{}).Where("dispatch_interval_seconds IS NULL").Update("dispatch_interval_seconds", 0).Error
+		if !db.Migrator().HasColumn(&model.OutputDestination{}, "auto_retry_interval_minutes") {
+			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "auto_retry_interval_minutes")
+			_ = db.Model(&model.OutputDestination{}).Where("auto_retry_interval_minutes IS NULL").Update("auto_retry_interval_minutes", 5).Error
+		}
+		if !db.Migrator().HasColumn(&model.OutputDestination{}, "auto_retry_retention_hours") {
+			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "auto_retry_retention_hours")
+			_ = db.Model(&model.OutputDestination{}).Where("auto_retry_retention_hours IS NULL").Update("auto_retry_retention_hours", 168).Error
+		}
 	}
 	if db.Migrator().HasTable(&model.DestinationPayloadConfig{}) {
 		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "timestamp_timezone") {

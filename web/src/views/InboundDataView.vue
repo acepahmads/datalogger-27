@@ -123,6 +123,57 @@
 
       <!-- Compact Multi-Facet Filter Bar -->
       <div class="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-[#0B0F19]/60 space-y-2">
+        <!-- Primary View Tabs: Stream Raw JSON vs Kevalidan Data -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200/70 dark:border-slate-800/80">
+          <div class="inline-flex items-center p-0.5 rounded-xl bg-slate-200/75 dark:bg-[#0E1626] border border-slate-200/90 dark:border-slate-800 gap-0.5">
+            <button
+              id="tab-inbound-stream"
+              type="button"
+              @click="activeTab = 'stream'"
+              class="px-3 py-1.5 rounded-lg text-2xs font-bold transition cursor-pointer flex items-center gap-1.5"
+              :class="activeTab === 'stream'
+                ? 'bg-cyan-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'"
+            >
+              <span>📄 Stream Raw JSON</span>
+              <span
+                class="px-1.5 py-0.2 rounded-full text-4xs font-mono"
+                :class="activeTab === 'stream' ? 'bg-white/20 text-white badge-text font-semibold' : 'bg-slate-300/70 dark:bg-slate-700 text-slate-700 dark:text-slate-200'"
+              >{{ items.length }}</span>
+            </button>
+            <button
+              id="tab-inbound-validity"
+              type="button"
+              @click="activeTab = 'validity'"
+              class="px-3 py-1.5 rounded-lg text-2xs font-bold transition cursor-pointer flex items-center gap-1.5"
+              :class="activeTab === 'validity'
+                ? 'bg-emerald-600 text-white btn-text shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'"
+            >
+              <span>🛡️ Kevalidan Data</span>
+              <span
+                v-if="validityStats.invalid > 0"
+                class="px-1.5 py-0.2 rounded-full text-4xs font-mono font-extrabold bg-rose-500 text-white badge-text"
+                title="Jumlah payload tidak valid pada halaman ini"
+              >{{ validityStats.invalid }}</span>
+              <span
+                v-else-if="validityStats.warning > 0"
+                class="px-1.5 py-0.2 rounded-full text-4xs font-mono font-extrabold bg-amber-500 text-white badge-text"
+                title="Jumlah payload dengan peringatan pada halaman ini"
+              >{{ validityStats.warning }}</span>
+              <span
+                v-else
+                class="px-1.5 py-0.2 rounded-full text-4xs font-mono"
+                :class="activeTab === 'validity' ? 'bg-white/20 text-white badge-text font-semibold' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'"
+              >{{ validityStats.avgScore }}%</span>
+            </button>
+          </div>
+
+          <div v-if="activeTab === 'validity'" class="flex flex-wrap items-center gap-1.5 text-3xs font-mono">
+            <span class="text-slate-500 dark:text-slate-400">Audit Format · Nilai · Kelengkapan (incl. SPARING 00–58)</span>
+          </div>
+        </div>
+
         <div class="flex flex-wrap items-center gap-2">
           <!-- Search -->
           <div class="relative flex-1 min-w-[200px]">
@@ -225,8 +276,10 @@
       <button type="button" @click="toastMessage = ''" class="text-sm leading-none cursor-pointer">&times;</button>
     </div>
 
-    <!-- Split-Pane Master (Compact Table) + Detail (Sticky Raw JSON Inspector) -->
-    <div class="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
+    <!-- =================================================================== -->
+    <!-- TAB 1: SPLIT-PANE STREAM RAW JSON + STICKY INSPECTOR                -->
+    <!-- =================================================================== -->
+    <div v-if="activeTab === 'stream'" class="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
       <!-- LEFT: Compact Stream Table -->
       <div class="xl:col-span-7 bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
@@ -321,6 +374,16 @@
                       JSON →
                     </template>
                   </div>
+                  <div v-if="auditById[item.id]" class="mt-0.5 flex justify-end">
+                    <span
+                      class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-4xs font-bold border"
+                      :class="validityBadgeClass(auditById[item.id].overallStatus)"
+                      :title="'Skor validitas: ' + auditById[item.id].score + '% · ' + auditById[item.id].completeness.label"
+                    >
+                      <span>{{ validityShortIcon(auditById[item.id].overallStatus) }}</span>
+                      <span>{{ auditById[item.id].isSparing ? auditById[item.id].completeness.label : (auditById[item.id].score + '%') }}</span>
+                    </span>
+                  </div>
                 </td>
               </tr>
 
@@ -391,6 +454,16 @@
                   <span class="text-xs font-extrabold text-slate-900 dark:text-white truncate">
                     {{ selectedLog.tenant_name || (selectedLog.tenant_id ? ('Tenant #' + selectedLog.tenant_id) : 'Unauthenticated') }}
                   </span>
+                  <button
+                    v-if="selectedAudit"
+                    type="button"
+                    @click="activeTab = 'validity'"
+                    class="px-2 py-0.5 rounded-full text-4xs font-mono font-bold border transition cursor-pointer"
+                    :class="validityBadgeClass(selectedAudit.overallStatus)"
+                    title="Buka tab Kevalidan Data untuk detail audit format, nilai & kelengkapan"
+                  >
+                    {{ validityShortIcon(selectedAudit.overallStatus) }} Validitas {{ selectedAudit.score }}% →
+                  </button>
                 </div>
                 <div class="text-3xs font-mono text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span>{{ formatFullTime(selectedLog.received_at) }}</span>
@@ -493,6 +566,550 @@
       </div>
     </div>
 
+    <!-- =================================================================== -->
+    <!-- TAB 2: KEVALIDAN DATA (FORMAT, NILAI & KELENGKAPAN + SPARING 00-58) -->
+    <!-- =================================================================== -->
+    <div v-else id="panel-inbound-validity" class="space-y-3">
+      <!-- Clickable Validity KPI & Filter Strip -->
+      <div
+        id="validity-kpi-strip"
+        class="bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-2.5 shadow-sm flex flex-wrap items-center justify-between gap-2"
+      >
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            @click="validityFilter = 'ALL'"
+            class="px-2.5 py-1.5 rounded-xl border text-2xs font-bold transition cursor-pointer flex items-center gap-1.5"
+            :class="validityFilter === 'ALL'
+              ? 'bg-cyan-600 text-white btn-text border-cyan-600 shadow-2xs'
+              : 'bg-slate-50 dark:bg-[#0B0F19] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-cyan-400'"
+          >
+            <span>Semua</span>
+            <span class="font-mono font-extrabold">{{ validityStats.total }}</span>
+            <span
+              class="px-1.5 py-0.2 rounded-full text-4xs font-mono"
+              :class="validityFilter === 'ALL' ? 'bg-white/20 text-white badge-text font-semibold' : 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300'"
+            >Avg {{ validityStats.avgScore }}%</span>
+          </button>
+
+          <button
+            type="button"
+            @click="validityFilter = 'VALID'"
+            class="px-2.5 py-1.5 rounded-xl border text-2xs font-bold transition cursor-pointer flex items-center gap-1.5"
+            :class="validityFilter === 'VALID'
+              ? 'bg-emerald-600 text-white btn-text border-emerald-600 shadow-2xs'
+              : 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200/80 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 hover:border-emerald-400'"
+          >
+            <span>✓ Valid</span>
+            <span class="font-mono font-extrabold">{{ validityStats.valid }}</span>
+          </button>
+
+          <button
+            type="button"
+            @click="validityFilter = 'WARNING'"
+            class="px-2.5 py-1.5 rounded-xl border text-2xs font-bold transition cursor-pointer flex items-center gap-1.5"
+            :class="validityFilter === 'WARNING'
+              ? 'bg-amber-600 text-white btn-text border-amber-600 shadow-2xs'
+              : 'bg-amber-50/70 dark:bg-amber-950/25 border-amber-200/80 dark:border-amber-800/60 text-amber-700 dark:text-amber-300 hover:border-amber-400'"
+          >
+            <span>⚠ Peringatan</span>
+            <span class="font-mono font-extrabold">{{ validityStats.warning }}</span>
+          </button>
+
+          <button
+            type="button"
+            @click="validityFilter = 'INVALID'"
+            class="px-2.5 py-1.5 rounded-xl border text-2xs font-bold transition cursor-pointer flex items-center gap-1.5"
+            :class="validityFilter === 'INVALID'
+              ? 'bg-rose-600 text-white btn-text border-rose-600 shadow-2xs'
+              : 'bg-rose-50/70 dark:bg-rose-950/25 border-rose-200/80 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 hover:border-rose-400'"
+          >
+            <span>✕ Tidak Valid</span>
+            <span class="font-mono font-extrabold">{{ validityStats.invalid }}</span>
+          </button>
+        </div>
+
+        <button
+          id="btn-validity-sparing-only"
+          type="button"
+          @click="validitySparingOnly = !validitySparingOnly"
+          class="px-2.5 py-1.5 rounded-xl border text-2xs font-bold transition cursor-pointer flex items-center gap-1.5"
+          :class="validitySparingOnly
+            ? 'bg-amber-600 text-white btn-text border-amber-600 shadow-2xs'
+            : 'bg-slate-50 dark:bg-[#0B0F19] border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-400'"
+          title="Filter khusus payload SPARING (audit kelengkapan 30 slot menit 00–58)"
+        >
+          <span>⏱ Khusus SPARING (00–58)</span>
+          <span
+            class="px-1.5 py-0.2 rounded-full text-4xs font-mono"
+            :class="validitySparingOnly ? 'bg-white/20 text-white badge-text font-semibold' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'"
+          >{{ validityStats.sparingComplete }}/{{ validityStats.sparingTotal }}</span>
+        </button>
+      </div>
+
+      <!-- Split-Pane Validity Audit Table + Sticky Detailed Inspector -->
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
+        <!-- LEFT: Compact Audit Matrix Table -->
+        <div class="xl:col-span-7 bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 dark:bg-[#0B0F19]/60 text-4xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th class="px-3 py-2.5">Waktu &amp; Tenant</th>
+                  <th class="px-2 py-2.5">Format</th>
+                  <th class="px-2 py-2.5">Nilai</th>
+                  <th class="px-2 py-2.5">Kelengkapan</th>
+                  <th class="px-3 py-2.5 text-right">Validitas</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tr
+                  v-for="row in filteredAuditedItems"
+                  :key="'val-' + row.item.id"
+                  @click="selectValidityRow(row.item)"
+                  class="transition-colors cursor-pointer"
+                  :class="selectedLog && Number(selectedLog.id) === Number(row.item.id)
+                    ? 'bg-emerald-50/60 dark:bg-emerald-950/25'
+                    : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'"
+                >
+                  <!-- Waktu & Tenant -->
+                  <td class="px-3 py-2 max-w-[220px]">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-mono text-2xs font-bold text-slate-800 dark:text-slate-100">{{ formatClock(row.item.received_at) }}</span>
+                      <span
+                        v-if="row.audit.isSparing"
+                        class="px-1.5 py-0.2 rounded-full text-4xs font-mono font-bold bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                      >SPARING</span>
+                      <span
+                        v-else-if="row.item.logger_type"
+                        class="px-1.5 py-0.2 rounded-full text-4xs font-mono font-bold border"
+                        :class="domainBadgeClass(row.item.logger_type)"
+                      >{{ row.item.logger_type }}</span>
+                    </div>
+                    <div class="font-bold text-2xs text-slate-900 dark:text-white truncate mt-0.5">
+                      {{ row.item.tenant_name || (row.item.tenant_id ? ('Tenant #' + row.item.tenant_id) : 'Unauthenticated') }}
+                    </div>
+                    <div class="text-4xs font-mono text-slate-400 truncate">
+                      {{ row.item.site_code || row.item.device_code || row.item.endpoint }}
+                    </div>
+                  </td>
+
+                  <!-- Format Pillar -->
+                  <td class="px-2 py-2 whitespace-nowrap">
+                    <span
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-4xs font-mono font-bold border"
+                      :class="pillarBadgeClass(row.audit.format.status)"
+                    >
+                      <span>{{ pillarIcon(row.audit.format.status) }}</span>
+                      <span>{{ row.audit.format.label }}</span>
+                    </span>
+                    <div class="text-4xs font-mono text-slate-400 truncate max-w-[110px] mt-0.5" :title="row.audit.schemaLabel">
+                      {{ row.item.detected_format || row.audit.schemaLabel }}
+                    </div>
+                  </td>
+
+                  <!-- Nilai Pillar -->
+                  <td class="px-2 py-2 whitespace-nowrap">
+                    <span
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-4xs font-mono font-bold border"
+                      :class="pillarBadgeClass(row.audit.values.status)"
+                    >
+                      <span>{{ pillarIcon(row.audit.values.status) }}</span>
+                      <span>{{ row.audit.values.label }}</span>
+                    </span>
+                    <div class="text-4xs font-mono text-slate-400 mt-0.5">
+                      {{ row.audit.values.parameterStats.length }} kanal
+                    </div>
+                  </td>
+
+                  <!-- Kelengkapan Pillar (highlights SPARING 00-58 explicitly) -->
+                  <td class="px-2 py-2 whitespace-nowrap">
+                    <span
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-4xs font-mono font-bold border"
+                      :class="pillarBadgeClass(row.audit.completeness.status)"
+                    >
+                      <span>{{ pillarIcon(row.audit.completeness.status) }}</span>
+                      <span>{{ row.audit.completeness.label }}</span>
+                    </span>
+                    <div
+                      v-if="row.audit.isSparing && row.audit.completeness.sparing"
+                      class="text-4xs font-mono mt-0.5"
+                      :class="row.audit.completeness.sparing.missingMinutes.length > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-400'"
+                    >
+                      <template v-if="row.audit.completeness.sparing.missingMinutes.length > 0">
+                        {{ row.audit.completeness.sparing.missingMinutes.length }} menit hilang
+                      </template>
+                      <template v-else-if="row.audit.completeness.sparing.partialSlots > 0">
+                        {{ row.audit.completeness.sparing.partialSlots }} slot parsial/null
+                      </template>
+                      <template v-else>
+                        00–58 lengkap penuh
+                      </template>
+                    </div>
+                    <div v-else class="text-4xs font-mono text-slate-400 mt-0.5">
+                      {{ row.audit.completeness.recordCount }} rec
+                    </div>
+                  </td>
+
+                  <!-- Overall Verdict + Score -->
+                  <td class="px-3 py-2 text-right whitespace-nowrap font-mono">
+                    <span
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold border"
+                      :class="validityBadgeClass(row.audit.overallStatus)"
+                    >
+                      <span>{{ validityShortIcon(row.audit.overallStatus) }}</span>
+                      <span>{{ validityLabel(row.audit.overallStatus) }}</span>
+                    </span>
+                    <div class="text-4xs font-bold text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">
+                      Skor {{ row.audit.score }}%
+                    </div>
+                  </td>
+                </tr>
+
+                <tr v-if="!loading && filteredAuditedItems.length === 0">
+                  <td colspan="5" class="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+                    <div class="text-2xl mb-1">🛡️</div>
+                    <div class="font-bold text-xs text-slate-700 dark:text-slate-300">Tidak ada data inbound yang cocok pada filter validitas ini</div>
+                    <p class="text-2xs text-slate-400 mt-0.5">
+                      Ubah filter status validitas atau rentang waktu di atas untuk melihat hasil audit lainnya.
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Bar (shared with Tab 1) -->
+          <div class="px-3.5 py-2.5 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-[#0B0F19]/50 flex flex-wrap items-center justify-between gap-2 text-2xs">
+            <div class="text-slate-500 dark:text-slate-400 font-mono">
+              Audit {{ filteredAuditedItems.length }} dari {{ items.length }} log halaman {{ page }}/{{ totalPages }}
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                :disabled="page <= 1"
+                @click="goToPage(page - 1)"
+                class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer disabled:opacity-40"
+              >
+                ← Prev
+              </button>
+              <button
+                type="button"
+                :disabled="page >= totalPages"
+                @click="goToPage(page + 1)"
+                class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Sticky Validity Audit Inspector (Desktop xl+) -->
+        <div class="hidden xl:flex xl:col-span-5 bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex-col sticky top-3">
+          <template v-if="selectedLog && selectedAudit">
+            <!-- Verdict Header -->
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0B0F19]/60 space-y-2.5">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      class="px-2 py-0.5 rounded-full text-4xs font-mono font-bold border"
+                      :class="validityBadgeClass(selectedAudit.overallStatus)"
+                    >
+                      {{ validityShortIcon(selectedAudit.overallStatus) }} {{ validityLabel(selectedAudit.overallStatus) }} · {{ selectedAudit.score }}%
+                    </span>
+                    <span class="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                      {{ selectedLog.tenant_name || (selectedLog.tenant_id ? ('Tenant #' + selectedLog.tenant_id) : 'Unauthenticated') }}
+                    </span>
+                  </div>
+                  <div class="text-3xs font-mono text-slate-500 dark:text-slate-400 mt-1">
+                    {{ formatFullTime(selectedLog.received_at) }} · {{ selectedAudit.schemaLabel }}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  @click="activeTab = 'stream'"
+                  class="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white btn-text text-3xs font-bold shadow-2xs transition cursor-pointer flex-shrink-0"
+                >
+                  Lihat Raw JSON →
+                </button>
+              </div>
+
+              <!-- 3-Pillar Status Summary Grid -->
+              <div class="grid grid-cols-3 gap-1.5">
+                <div class="p-2 rounded-xl border" :class="pillarCardClass(selectedAudit.format.status)">
+                  <div class="text-4xs font-bold uppercase tracking-wider opacity-75">1. Format</div>
+                  <div class="text-xs font-extrabold mt-0.5">{{ pillarIcon(selectedAudit.format.status) }} {{ selectedAudit.format.label }}</div>
+                  <div class="text-4xs font-mono truncate opacity-80 mt-0.5" :title="selectedAudit.format.summary">{{ selectedAudit.format.summary }}</div>
+                </div>
+                <div class="p-2 rounded-xl border" :class="pillarCardClass(selectedAudit.values.status)">
+                  <div class="text-4xs font-bold uppercase tracking-wider opacity-75">2. Nilai</div>
+                  <div class="text-xs font-extrabold mt-0.5">{{ pillarIcon(selectedAudit.values.status) }} {{ selectedAudit.values.label }}</div>
+                  <div class="text-4xs font-mono truncate opacity-80 mt-0.5" :title="selectedAudit.values.summary">{{ selectedAudit.values.summary }}</div>
+                </div>
+                <div class="p-2 rounded-xl border" :class="pillarCardClass(selectedAudit.completeness.status)">
+                  <div class="text-4xs font-bold uppercase tracking-wider opacity-75">3. Kelengkapan</div>
+                  <div class="text-xs font-extrabold mt-0.5">{{ pillarIcon(selectedAudit.completeness.status) }} {{ selectedAudit.completeness.label }}</div>
+                  <div class="text-4xs font-mono truncate opacity-80 mt-0.5" :title="selectedAudit.completeness.summary">{{ selectedAudit.completeness.summary }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Scrollable Audit Body -->
+            <div class="p-3.5 space-y-3 overflow-y-auto max-h-[590px]">
+              <!-- SPARING 30-Slot Minute Matrix (00 - 58) -->
+              <div
+                v-if="selectedAudit.isSparing && selectedAudit.completeness.sparing"
+                id="sparing-minute-matrix"
+                class="p-3 rounded-xl bg-slate-50/90 dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-800 space-y-2"
+              >
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <div class="text-2xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span>⏱ Matrix Menit SPARING (00–58)</span>
+                    </div>
+                    <div class="text-4xs font-mono text-slate-500 dark:text-slate-400">
+                      {{ selectedAudit.completeness.sparing.windowLabel }}
+                    </div>
+                  </div>
+                  <span
+                    class="px-2 py-0.5 rounded-full text-4xs font-mono font-bold border"
+                    :class="pillarBadgeClass(selectedAudit.completeness.status)"
+                  >
+                    {{ selectedAudit.completeness.sparing.completeSlots }}/30 Penuh · {{ selectedAudit.completeness.sparing.missingMinutes.length }} Hilang
+                  </span>
+                </div>
+
+                <!-- 10x3 Minute Slot Grid (:00 .. :58) -->
+                <div class="grid grid-cols-10 gap-1">
+                  <button
+                    v-for="slot in selectedAudit.completeness.sparing.slots"
+                    :key="'slot-' + slot.label"
+                    type="button"
+                    @click="selectedSparingMinute = slot.minute"
+                    class="py-1 rounded-md text-4xs font-mono font-bold border text-center transition cursor-pointer"
+                    :class="[
+                      sparingSlotClass(slot),
+                      selectedSparingMinute === slot.minute ? 'ring-2 ring-cyan-500 ring-offset-1 dark:ring-offset-slate-900' : ''
+                    ]"
+                    :title="sparingSlotTooltip(slot)"
+                  >
+                    :{{ slot.label }}
+                  </button>
+                </div>
+
+                <!-- Legend -->
+                <div class="flex flex-wrap items-center justify-between gap-2 text-4xs text-slate-500 dark:text-slate-400 pt-0.5">
+                  <div class="flex items-center gap-2.5">
+                    <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-xs bg-emerald-500"></span>Lengkap ({{ selectedAudit.completeness.sparing.completeSlots }})</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-xs bg-amber-500"></span>Null/Parsial ({{ selectedAudit.completeness.sparing.partialSlots }})</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-xs bg-rose-500"></span>Hilang ({{ selectedAudit.completeness.sparing.missingMinutes.length }})</span>
+                  </div>
+                  <span class="font-mono">Klik slot untuk detail</span>
+                </div>
+
+                <!-- Selected Minute Slot Detail Box -->
+                <div
+                  v-if="activeSparingSlot"
+                  class="p-2 rounded-lg bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-3xs font-mono space-y-1"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-bold text-slate-800 dark:text-slate-100">
+                      Slot :{{ activeSparingSlot.label }}
+                      <template v-if="activeSparingSlot.timestampText"> · {{ activeSparingSlot.timestampText }}</template>
+                    </span>
+                    <span
+                      class="px-1.5 py-0.2 rounded text-4xs font-bold border"
+                      :class="activeSparingSlot.state === 'COMPLETE'
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                        : activeSparingSlot.state === 'PARTIAL'
+                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'"
+                    >
+                      {{ activeSparingSlot.state === 'COMPLETE' ? 'LENGKAP' : activeSparingSlot.state === 'PARTIAL' ? 'PARSIAL / NULL' : 'TIDAK TERKIRIM' }}
+                    </span>
+                  </div>
+                  <div v-if="activeSparingSlot.state === 'MISSING'" class="text-rose-600 dark:text-rose-400">
+                    Slot menit :{{ activeSparingSlot.label }} tidak ditemukan pada array payload SPARING.
+                  </div>
+                  <div v-else class="flex flex-wrap gap-1.5 pt-0.5">
+                    <span
+                      v-for="(val, k) in activeSparingSlot.values"
+                      :key="'sv-' + k"
+                      class="px-1.5 py-0.5 rounded border text-4xs"
+                      :class="val === null
+                        ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
+                        : activeSparingSlot.invalidKeys.includes(k)
+                          ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 font-bold'
+                          : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'"
+                    >
+                      {{ k }}: <strong>{{ val === null ? 'null' : val }}</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Checklist Temuan (Format · Nilai · Kelengkapan) -->
+              <div class="space-y-1.5">
+                <div class="text-3xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Hasil Evaluasi Format, Nilai &amp; Kelengkapan
+                </div>
+                <div class="space-y-1">
+                  <div
+                    v-for="(chk, cIdx) in combinedAuditChecks"
+                    :key="'chk-' + cIdx"
+                    class="px-2.5 py-1.5 rounded-xl border flex items-start gap-2 text-3xs"
+                    :class="chk.level === 'FAIL'
+                      ? 'bg-rose-50/80 dark:bg-rose-950/25 border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300'
+                      : chk.level === 'WARN'
+                        ? 'bg-amber-50/80 dark:bg-amber-950/25 border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-300'
+                        : 'bg-slate-50/70 dark:bg-[#0B0F19] border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-300'"
+                  >
+                    <span class="font-bold flex-shrink-0 mt-0.2">{{ pillarIcon(chk.level) }}</span>
+                    <div class="min-w-0 flex-1">
+                      <div class="font-bold flex items-center gap-1.5 flex-wrap">
+                        <span class="px-1 py-0.2 rounded text-4xs font-mono bg-white/70 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700">{{ chk.pillar }}</span>
+                        <span>{{ chk.label }}</span>
+                      </div>
+                      <div class="text-4xs opacity-90 mt-0.5 break-words">{{ chk.detail }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Compact Parameter Values Inspection Table -->
+              <div v-if="selectedAudit.values.parameterStats.length > 0" class="space-y-1.5">
+                <div class="text-3xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Inspeksi Nilai Parameter ({{ selectedAudit.values.parameterStats.length }} Kanal)
+                </div>
+                <div class="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  <table class="w-full text-left text-3xs font-mono">
+                    <thead class="bg-slate-50 dark:bg-[#0B0F19] text-4xs uppercase text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th class="px-2.5 py-1.5">Parameter</th>
+                        <th class="px-2 py-1.5 text-right">Nilai / Rentang</th>
+                        <th class="px-2 py-1.5 text-center">Null</th>
+                        <th class="px-2.5 py-1.5 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      <tr v-for="ps in selectedAudit.values.parameterStats" :key="'ps-' + ps.code">
+                        <td class="px-2.5 py-1.5 font-bold text-slate-800 dark:text-slate-100">
+                          {{ ps.code }}
+                          <span class="text-4xs font-normal text-slate-400">({{ ps.count }}×)</span>
+                        </td>
+                        <td class="px-2 py-1.5 text-right text-slate-700 dark:text-slate-200 tabular-nums">
+                          <template v-if="ps.min === null">—</template>
+                          <template v-else-if="ps.count === 1 || ps.min === ps.max">{{ ps.lastValue }}</template>
+                          <template v-else>{{ ps.min }} – {{ ps.max }}</template>
+                        </td>
+                        <td class="px-2 py-1.5 text-center tabular-nums" :class="ps.nullCount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400'">
+                          {{ ps.nullCount }}
+                        </td>
+                        <td class="px-2.5 py-1.5 text-right">
+                          <span
+                            class="px-1.5 py-0.2 rounded text-4xs font-bold border"
+                            :class="validityBadgeClass(ps.status)"
+                            :title="ps.issueText || 'Nilai valid'"
+                          >
+                            {{ ps.status === 'VALID' ? 'OK' : ps.status === 'WARNING' ? 'NULL' : 'ANOMALI' }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="p-10 text-center text-slate-400">
+            <div class="text-3xl mb-2">🛡️</div>
+            <div class="text-xs font-bold text-slate-600 dark:text-slate-300">Pilih Baris untuk Inspeksi Validitas</div>
+            <p class="text-2xs mt-1">Klik salah satu log inbound di kiri untuk melihat detail format, nilai, dan matrix menit SPARING 00–58.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile / Tablet Validity Audit Modal (< xl) -->
+    <div
+      v-if="mobileValidityModalOpen && selectedLog && selectedAudit"
+      @click.self="mobileValidityModalOpen = false"
+      class="xl:hidden fixed inset-0 z-[75] flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs"
+    >
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="px-2 py-0.5 rounded-full text-4xs font-mono font-bold border" :class="validityBadgeClass(selectedAudit.overallStatus)">
+                {{ validityLabel(selectedAudit.overallStatus) }} · {{ selectedAudit.score }}%
+              </span>
+              <span class="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                {{ selectedLog.tenant_name || ('Tenant #' + selectedLog.tenant_id) }}
+              </span>
+            </div>
+            <div class="text-4xs font-mono text-slate-400 mt-0.5">
+              {{ formatFullTime(selectedLog.received_at) }} · {{ selectedAudit.schemaLabel }}
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              @click="mobileValidityModalOpen = false; activeTab = 'stream'; mobileInspectorOpen = true"
+              class="px-2.5 py-1 rounded-lg bg-cyan-600 text-white btn-text text-3xs font-bold cursor-pointer"
+            >
+              Raw JSON
+            </button>
+            <button
+              type="button"
+              @click="mobileValidityModalOpen = false"
+              class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <div class="p-3.5 space-y-3 overflow-y-auto flex-1">
+          <div v-if="selectedAudit.isSparing && selectedAudit.completeness.sparing" class="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 space-y-2">
+            <div class="flex items-center justify-between text-2xs font-bold">
+              <span>⏱ Menit SPARING (00–58)</span>
+              <span class="font-mono">{{ selectedAudit.completeness.sparing.completeSlots }}/30 Penuh</span>
+            </div>
+            <div class="grid grid-cols-6 sm:grid-cols-10 gap-1">
+              <span
+                v-for="slot in selectedAudit.completeness.sparing.slots"
+                :key="'mslot-' + slot.label"
+                class="py-1 rounded-md text-4xs font-mono font-bold border text-center"
+                :class="sparingSlotClass(slot)"
+              >:{{ slot.label }}</span>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <div
+              v-for="(chk, idx) in combinedAuditChecks"
+              :key="'mchk-' + idx"
+              class="px-2.5 py-1.5 rounded-xl border text-3xs flex items-start gap-2"
+              :class="chk.level === 'FAIL'
+                ? 'bg-rose-50 dark:bg-rose-950/25 border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300'
+                : chk.level === 'WARN'
+                  ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-300'
+                  : 'bg-slate-50 dark:bg-[#0B0F19] border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-300'"
+            >
+              <span class="font-bold">{{ pillarIcon(chk.level) }}</span>
+              <div>
+                <div class="font-bold">{{ chk.pillar }} · {{ chk.label }}</div>
+                <div class="text-4xs opacity-90">{{ chk.detail }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Mobile / Tablet Raw JSON Inspector Modal (< xl) -->
     <div
       v-if="mobileInspectorOpen && selectedLog"
@@ -538,11 +1155,18 @@
 
 <script>
 import axios from 'axios';
+import { validateInboundLog } from '../utils/inboundValidator';
 
 export default {
   name: 'InboundDataView',
   data() {
     return {
+      activeTab: 'stream',
+      validityFilter: 'ALL',
+      validitySparingOnly: false,
+      selectedSparingMinute: null,
+      mobileValidityModalOpen: false,
+
       loading: false,
       autoRefresh: true,
       refreshTimer: null,
@@ -612,6 +1236,82 @@ export default {
         this.filters.source ||
         this.activeTimePreset !== '24h'
       );
+    },
+    auditedItems() {
+      return (this.items || []).map(item => ({
+        item,
+        audit: validateInboundLog(item),
+      }));
+    },
+    auditById() {
+      const map = {};
+      for (const row of this.auditedItems) {
+        map[row.item.id] = row.audit;
+      }
+      return map;
+    },
+    validityStats() {
+      const rows = this.auditedItems;
+      let valid = 0;
+      let warning = 0;
+      let invalid = 0;
+      let scoreSum = 0;
+      let sparingTotal = 0;
+      let sparingComplete = 0;
+      for (const r of rows) {
+        scoreSum += r.audit.score;
+        if (r.audit.overallStatus === 'VALID') valid += 1;
+        else if (r.audit.overallStatus === 'WARNING') warning += 1;
+        else invalid += 1;
+        if (r.audit.isSparing) {
+          sparingTotal += 1;
+          const sp = r.audit.completeness && r.audit.completeness.sparing;
+          if (sp && sp.completeSlots === 30 && sp.missingMinutes.length === 0) {
+            sparingComplete += 1;
+          }
+        }
+      }
+      return {
+        total: rows.length,
+        valid,
+        warning,
+        invalid,
+        avgScore: rows.length > 0 ? Math.round(scoreSum / rows.length) : 100,
+        sparingTotal,
+        sparingComplete,
+      };
+    },
+    filteredAuditedItems() {
+      return this.auditedItems.filter(row => {
+        if (this.validitySparingOnly && !row.audit.isSparing) return false;
+        if (this.validityFilter !== 'ALL' && row.audit.overallStatus !== this.validityFilter) return false;
+        return true;
+      });
+    },
+    selectedAudit() {
+      if (!this.selectedLog) return null;
+      return this.auditById[this.selectedLog.id] || validateInboundLog(this.selectedLog);
+    },
+    activeSparingSlot() {
+      const sp = this.selectedAudit && this.selectedAudit.completeness && this.selectedAudit.completeness.sparing;
+      if (!sp || !Array.isArray(sp.slots)) return null;
+      if (this.selectedSparingMinute !== null) {
+        const hit = sp.slots.find(s => s.minute === this.selectedSparingMinute);
+        if (hit) return hit;
+      }
+      // Auto-focus first missing or partial slot for immediate troubleshooting, else slot :00
+      return sp.slots.find(s => s.state === 'MISSING') || sp.slots.find(s => s.state === 'PARTIAL') || sp.slots[0] || null;
+    },
+    combinedAuditChecks() {
+      const a = this.selectedAudit;
+      if (!a) return [];
+      const list = [
+        ...(a.format.checks || []).map(c => ({ ...c, pillar: 'FORMAT' })),
+        ...(a.values.checks || []).map(c => ({ ...c, pillar: 'NILAI' })),
+        ...(a.completeness.checks || []).map(c => ({ ...c, pillar: 'KELENGKAPAN' })),
+      ];
+      const rank = { FAIL: 0, WARN: 1, PASS: 2 };
+      return list.sort((x, y) => (rank[x.level] ?? 9) - (rank[y.level] ?? 9));
     },
     formattedSelectedPayload() {
       if (!this.selectedLog) return '';
@@ -781,9 +1481,79 @@ export default {
     },
     selectLogItem(item) {
       this.selectedLog = item;
+      this.selectedSparingMinute = null;
       if (typeof window !== 'undefined' && window.innerWidth < 1280) {
         this.mobileInspectorOpen = true;
       }
+    },
+    selectValidityRow(item) {
+      this.selectedLog = item;
+      this.selectedSparingMinute = null;
+      if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+        this.mobileValidityModalOpen = true;
+      }
+    },
+    validityLabel(status) {
+      if (status === 'VALID') return 'VALID';
+      if (status === 'WARNING') return 'PERINGATAN';
+      return 'TIDAK VALID';
+    },
+    validityShortIcon(status) {
+      if (status === 'VALID') return '✓';
+      if (status === 'WARNING') return '⚠';
+      return '✕';
+    },
+    validityBadgeClass(status) {
+      if (status === 'VALID') {
+        return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+      }
+      if (status === 'WARNING') {
+        return 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/35';
+      }
+      return 'bg-rose-500/12 text-rose-600 dark:text-rose-400 border-rose-500/35';
+    },
+    pillarIcon(status) {
+      if (status === 'PASS') return '✓';
+      if (status === 'WARN') return '⚠';
+      return '✕';
+    },
+    pillarBadgeClass(status) {
+      if (status === 'PASS') {
+        return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+      }
+      if (status === 'WARN') {
+        return 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/35';
+      }
+      return 'bg-rose-500/12 text-rose-600 dark:text-rose-400 border-rose-500/35';
+    },
+    pillarCardClass(status) {
+      if (status === 'PASS') {
+        return 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200/80 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-200';
+      }
+      if (status === 'WARN') {
+        return 'bg-amber-50/70 dark:bg-amber-950/25 border-amber-200/80 dark:border-amber-800/50 text-amber-800 dark:text-amber-200';
+      }
+      return 'bg-rose-50/70 dark:bg-rose-950/25 border-rose-200/80 dark:border-rose-800/50 text-rose-800 dark:text-rose-200';
+    },
+    sparingSlotClass(slot) {
+      if (!slot || slot.state === 'MISSING') {
+        return 'bg-rose-100 dark:bg-rose-950/45 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300';
+      }
+      if (slot.state === 'PARTIAL') {
+        return 'bg-amber-100 dark:bg-amber-950/45 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300';
+      }
+      return 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300';
+    },
+    sparingSlotTooltip(slot) {
+      if (!slot) return '';
+      if (slot.state === 'MISSING') return `Menit :${slot.label} — HILANG (tidak dikirim)`;
+      if (slot.state === 'PARTIAL') {
+        const parts = [];
+        if (slot.nullKeys.length) parts.push('null: ' + slot.nullKeys.join(', '));
+        if (slot.invalidKeys.length) parts.push('anomali: ' + slot.invalidKeys.join(', '));
+        return `Menit :${slot.label} (${slot.timestampText}) — PARSIAL (${parts.join('; ')})`;
+      }
+      return `Menit :${slot.label} (${slot.timestampText}) — LENGKAP`;
     },
     async purgeLogs(clearAll, days) {
       this.showPurgeMenu = false;

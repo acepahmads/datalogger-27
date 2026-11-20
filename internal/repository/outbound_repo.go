@@ -53,10 +53,14 @@ type OutboundRepository interface {
 	GetQueueItems(ctx context.Context, filter QueueFilter) ([]model.OutboundDeliveryQueue, int64, error)
 	GetQueueSummary(ctx context.Context) (*model.DeliveryQueueSummary, error)
 	FetchPendingQueueItems(ctx context.Context, limit int) ([]model.OutboundDeliveryQueue, error)
+	FetchAutoRetryFailedItems(ctx context.Context, limit int) ([]model.OutboundDeliveryQueue, error)
 	GetUndeliveredQueueItemsByDestination(ctx context.Context, destinationID uint) ([]model.OutboundDeliveryQueue, error)
 	GetUndeliveredQueueItemsOverlappingWindow(ctx context.Context, startTime, endTime time.Time) ([]model.OutboundDeliveryQueue, error)
 	UpdateQueueItemPayloadAndRequeue(ctx context.Context, item *model.OutboundDeliveryQueue, requeue bool) error
 	ClaimQueueItemForDelivery(ctx context.Context, id uint64) (bool, error)
+	ClaimFailedItemForAutoRetry(ctx context.Context, id uint64) (bool, error)
+	ScheduleFailedItemNextRetry(ctx context.Context, id uint64, nextRetryAt *time.Time) error
+	DeferFailedItemsForDestination(ctx context.Context, destinationID uint, nextRetryAt time.Time, retentionHours int) error
 	UpdateDeliveryResult(ctx context.Context, item *model.OutboundDeliveryQueue) error
 	CancelQueueItem(ctx context.Context, id uint64) error
 	ResetQueueItemForRetry(ctx context.Context, id uint64) error
@@ -686,6 +690,25 @@ func (r *outboundRepository) FetchPendingQueueItems(ctx context.Context, limit i
 	return items, err
 }
 
+// FetchAutoRetryFailedItems fetches FAILED queue items eligible for periodic auto-recovery check
+// (either due now via next_retry_at <= now, or legacy FAILED rows with next_retry_at IS NULL).
+func (r *outboundRepository) FetchAutoRetryFailedItems(ctx context.Context, limit int) ([]model.OutboundDeliveryQueue, error) {
+	var items []model.OutboundDeliveryQueue
+	now := time.Now()
+
+	err := r.db.WithContext(ctx).
+		Preload("Destination").
+		Preload("Destination.PayloadConfig").
+		Preload("Device").
+		Where("status = ?", model.DeliveryFailed).
+		Where("next_retry_at IS NULL OR next_retry_at <= ?", now).
+		Order("id ASC").
+		Limit(limit).
+		Find(&items).Error
+
+	return items, err
+}
+
 // ClaimQueueItemForDelivery atomically claims a queue item from PENDING/RETRYING to SENDING
 func (r *outboundRepository) ClaimQueueItemForDelivery(ctx context.Context, id uint64) (bool, error) {
 	now := time.Now()
@@ -702,6 +725,51 @@ func (r *outboundRepository) ClaimQueueItemForDelivery(ctx context.Context, id u
 		return false, res.Error
 	}
 	return res.RowsAffected > 0, nil
+}
+
+// ClaimFailedItemForAutoRetry atomically claims a FAILED queue item for a single periodic recovery probe
+func (r *outboundRepository) ClaimFailedItemForAutoRetry(ctx context.Context, id uint64) (bool, error) {
+	now := time.Now()
+	res := r.db.WithContext(ctx).
+		Model(&model.OutboundDeliveryQueue{}).
+		Where("id = ? AND status = ?", id, model.DeliveryFailed).
+		Updates(map[string]interface{}{
+			"status":          model.DeliverySending,
+			"last_attempt_at": &now,
+			"attempts":        gorm.Expr("attempts + 1"),
+		})
+
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// ScheduleFailedItemNextRetry updates or clears next_retry_at on a single FAILED queue item
+func (r *outboundRepository) ScheduleFailedItemNextRetry(ctx context.Context, id uint64, nextRetryAt *time.Time) error {
+	return r.db.WithContext(ctx).
+		Model(&model.OutboundDeliveryQueue{}).
+		Where("id = ? AND status = ?", id, model.DeliveryFailed).
+		Update("next_retry_at", nextRetryAt).Error
+}
+
+// DeferFailedItemsForDestination bumps next_retry_at on eligible transient FAILED batches for a destination
+// after a recovery probe confirms the upstream/network is still unreachable, while clearing next_retry_at
+// on batches that have exceeded the offline buffer retention window.
+func (r *outboundRepository) DeferFailedItemsForDestination(ctx context.Context, destinationID uint, nextRetryAt time.Time, retentionHours int) error {
+	q := r.db.WithContext(ctx).
+		Model(&model.OutboundDeliveryQueue{}).
+		Where("destination_id = ? AND status = ?", destinationID, model.DeliveryFailed).
+		Where("last_http_code = 0 OR last_http_code IN ? OR last_http_code >= 500", []int{408, 429})
+	if retentionHours > 0 {
+		cutoff := time.Now().Add(-time.Duration(retentionHours) * time.Hour)
+		_ = r.db.WithContext(ctx).
+			Model(&model.OutboundDeliveryQueue{}).
+			Where("destination_id = ? AND status = ? AND created_at < ?", destinationID, model.DeliveryFailed, cutoff).
+			Update("next_retry_at", nil).Error
+		q = q.Where("created_at >= ?", cutoff)
+	}
+	return q.Update("next_retry_at", &nextRetryAt).Error
 }
 
 // UpdateDeliveryResult updates the outcome of an attempted transmission

@@ -406,6 +406,12 @@
                   <div v-if="item.next_retry_at && item.status === 'RETRYING'" class="text-4xs font-mono text-orange-500 dark:text-orange-400 mt-0.5">
                     Retry at {{ formatTime(item.next_retry_at) }}
                   </div>
+                  <div v-else-if="item.next_retry_at && item.status === 'FAILED'" class="text-4xs font-mono text-cyan-600 dark:text-cyan-400 font-semibold mt-0.5" title="Auto-retry berkala aktif — sistem akan mencoba kirim ulang otomatis saat jadwal ini tiba">
+                    ↻ Auto-retry {{ formatTime(item.next_retry_at) }}
+                  </div>
+                  <div v-else-if="item.status === 'FAILED'" class="text-4xs font-mono text-slate-400 mt-0.5">
+                    Manual retry (permanen / nonaktif)
+                  </div>
                   <div v-if="item.last_error" class="text-4xs font-mono text-rose-500 dark:text-rose-400 truncate mt-0.5" :title="item.last_error">
                     {{ item.last_error }}
                   </div>
@@ -615,6 +621,15 @@
                 <span class="text-slate-400">Auth Mode:</span>
                 <span :class="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP' || dest.auth_type === 'SPARING_JWT_STATIC' || dest.auth_type === 'KLHK_ONLIMO_BODY') ? 'text-cyan-600 dark:text-cyan-400 font-semibold' : 'font-medium'">
                   {{ formatAuthModeLabel(dest.auth_type) }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Auto-Retry:</span>
+                <span
+                  class="font-mono text-3xs font-semibold"
+                  :class="dest.auto_retry_interval_minutes > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'"
+                >
+                  {{ formatAutoRetryLabel(dest) }}
                 </span>
               </div>
               <div class="flex items-center justify-between">
@@ -2386,6 +2401,93 @@
               placeholder='{"X-Client-ID": "cbi-aqms"}'
             />
           </div>
+
+          <!-- Auto-Retry & Offline Buffer Recovery Settings -->
+          <div id="dest-auto-retry-settings" class="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/25 space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider text-3xs">
+                ↻ Auto-Retry Berkala (Saat Koneksi Pulih)
+              </span>
+              <span class="text-4xs font-mono text-slate-500 dark:text-slate-400">
+                Khusus error jaringan / timeout / 5xx
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div>
+                <label class="block text-slate-500 mb-1">Interval Auto-Retry (Menit)</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    id="input-dest-auto-retry-minutes"
+                    v-model.number="editingDest.auto_retry_interval_minutes"
+                    type="number"
+                    min="0"
+                    max="1440"
+                    class="w-full bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-mono font-bold text-xs"
+                    placeholder="5"
+                  />
+                  <span class="text-3xs text-slate-500 font-semibold">mnt</span>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-slate-500 mb-1">Batas Retensi Buffer</label>
+                <select
+                  id="select-dest-auto-retry-retention"
+                  v-model.number="editingDest.auto_retry_retention_hours"
+                  class="w-full bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-medium text-2xs"
+                >
+                  <option :value="24">24 Jam (1 Hari)</option>
+                  <option :value="72">72 Jam (3 Hari)</option>
+                  <option :value="168">168 Jam (7 Hari · Default)</option>
+                  <option :value="720">720 Jam (30 Hari)</option>
+                  <option :value="0">Tanpa Batas</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-500 mb-1">Retry Cepat Awal</label>
+                <input
+                  id="input-dest-retry-limit"
+                  v-model.number="editingDest.retry_limit"
+                  type="number"
+                  min="1"
+                  max="20"
+                  class="w-full bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-mono font-bold text-xs"
+                  placeholder="5"
+                />
+              </div>
+            </div>
+
+            <!-- Quick Minute Presets -->
+            <div class="flex flex-wrap items-center gap-1">
+              <span class="text-4xs text-slate-500 mr-1">Preset cepat:</span>
+              <button
+                v-for="m in [0, 1, 3, 5, 10, 15, 30, 60]"
+                :key="'retry-preset-' + m"
+                type="button"
+                @click="editingDest.auto_retry_interval_minutes = m"
+                class="px-2 py-0.5 rounded-md text-4xs font-mono font-bold border transition cursor-pointer"
+                :class="Number(editingDest.auto_retry_interval_minutes) === m
+                  ? 'bg-emerald-600 text-white btn-text border-emerald-600'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'"
+              >
+                {{ m === 0 ? 'Off (Manual)' : (m + 'm') }}
+              </button>
+            </div>
+
+            <p class="text-4xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              <template v-if="Number(editingDest.auto_retry_interval_minutes) > 0">
+                Jika batch gagal karena putus jaringan / timeout / HTTP 5xx setelah {{ editingDest.retry_limit || 5 }}× retry cepat, sistem otomatis mencoba kirim ulang tiap
+                <strong class="text-emerald-600 dark:text-emerald-400">{{ editingDest.auto_retry_interval_minutes }} menit</strong>
+                {{ Number(editingDest.auto_retry_retention_hours) > 0 ? ('selama usia batch ≤ ' + formatRetentionLabel(editingDest.auto_retry_retention_hours)) : 'tanpa batas usia buffer' }}.
+                Begitu koneksi pulih, seluruh antrean tertunda langsung dikirim berurutan. Error permanen (HTTP 400/401/403/404) tetap manual.
+              </template>
+              <template v-else>
+                Auto-retry berkala <strong class="text-amber-600 dark:text-amber-400">NONAKTIF</strong> — batch yang berstatus FAILED hanya dikirim ulang lewat tombol Retry manual.
+              </template>
+            </p>
+          </div>
         </div>
 
         <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800 text-2xs">
@@ -2495,6 +2597,8 @@ export default {
         username: '',
         password: '',
         retry_limit: 5,
+        auto_retry_interval_minutes: 5,
+        auto_retry_retention_hours: 168,
         enabled: true,
       },
 
@@ -4016,6 +4120,8 @@ export default {
         password: '',
         custom_headers: '',
         retry_limit: 5,
+        auto_retry_interval_minutes: 5,
+        auto_retry_retention_hours: 168,
         enabled: true,
       };
       this.showDestModal = true;
@@ -4028,9 +4134,27 @@ export default {
         auth_cache_seconds: 0,
         api_key_header: 'X-API-Key',
         custom_headers: '',
+        retry_limit: 5,
+        auto_retry_interval_minutes: 5,
+        auto_retry_retention_hours: 168,
         ...JSON.parse(JSON.stringify(dest)),
       };
       this.showDestModal = true;
+    },
+    formatRetentionLabel(hours) {
+      const h = Number(hours || 0);
+      if (h <= 0) return 'tanpa batas';
+      if (h % 24 === 0) return `${h / 24} hari`;
+      return `${h} jam`;
+    },
+    formatAutoRetryLabel(dest) {
+      if (!dest || Number(dest.auto_retry_interval_minutes || 0) <= 0) {
+        return 'Manual Saja';
+      }
+      const mins = Number(dest.auto_retry_interval_minutes);
+      const ret = Number(dest.auto_retry_retention_hours || 0);
+      const retShort = ret <= 0 ? '∞' : (ret % 24 === 0 ? `≤${ret / 24}h` : `≤${ret}j`);
+      return `Tiap ${mins}m (${retShort})`;
     },
     onEditingAuthTypeChange() {
       if (this.editingDest.auth_type === 'SPARING_JWT_2STEP') {

@@ -43,9 +43,11 @@ type OutputDestination struct {
 	IntervalSeconds         int                      `gorm:"default:0" json:"interval_seconds"`                      // Source aggregation interval: 0 = all configured intervals, or 120, 300, 1800, 3600
 	DispatchIntervalSeconds int                      `gorm:"default:0" json:"dispatch_interval_seconds"`             // 0 = send immediately per bucket; >0 (e.g. 3600) = bundle source buckets and send per cycle
 	DeviceID                *uint                    `gorm:"index" json:"device_id,omitempty"`                       // nil = all stations
-	BatchSize               int                      `gorm:"default:100" json:"batch_size"`
-	RetryLimit              int                      `gorm:"default:5" json:"retry_limit"`
-	QueueLimit              int                      `gorm:"default:10000" json:"queue_limit"`
+	BatchSize                int    `gorm:"default:100" json:"batch_size"`
+	RetryLimit               int    `gorm:"default:5" json:"retry_limit"`
+	AutoRetryIntervalMinutes int    `gorm:"default:5" json:"auto_retry_interval_minutes"`  // 0 = disabled (manual only); >0 = periodic auto-retry interval (minutes) for transient FAILED batches
+	AutoRetryRetentionHours  int    `gorm:"default:168" json:"auto_retry_retention_hours"` // Offline buffer retention window (hours) eligible for auto-retry (default 168h = 7 days; 0 = unlimited)
+	QueueLimit               int    `gorm:"default:10000" json:"queue_limit"`
 	Status                  string                   `gorm:"size:32;default:'IDLE'" json:"status"` // IDLE, ACTIVE, ERROR, DISABLED
 
 	// Authentication & Security (redacted on API response)

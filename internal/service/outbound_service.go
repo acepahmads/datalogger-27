@@ -259,10 +259,13 @@ func (s *outboundService) StopWorker() {
 	logger.Info("[Outbound] Background delivery worker stopped")
 }
 
-// workerLoop polls for pending/retryable items and processes them
+// workerLoop polls for pending/retryable items and periodically checks FAILED items for auto-recovery
 func (s *outboundService) workerLoop() {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
+
+	autoRetryTicker := time.NewTicker(15 * time.Second)
+	defer autoRetryTicker.Stop()
 
 	for {
 		select {
@@ -272,6 +275,8 @@ func (s *outboundService) workerLoop() {
 			s.processPendingQueue()
 		case <-ticker.C:
 			s.processPendingQueue()
+		case <-autoRetryTicker.C:
+			s.processAutoRetryFailedItems()
 		}
 	}
 }
@@ -290,6 +295,123 @@ func (s *outboundService) notifyWorker() {
 // ProcessPendingQueueOnce synchronously executes one pass of pending queue dispatch
 func (s *outboundService) ProcessPendingQueueOnce() {
 	s.processPendingQueue()
+}
+
+// ProcessAutoRetryOnce synchronously executes one pass of periodic auto-recovery for transient FAILED batches
+func (s *outboundService) ProcessAutoRetryOnce() {
+	s.processAutoRetryFailedItems()
+}
+
+// IsTransientDeliveryFailure returns true when a failed delivery was caused by a recoverable
+// network/timeout/rate-limit/5xx upstream error rather than a permanent 4xx schema/auth error.
+func IsTransientDeliveryFailure(httpCode int, lastError string) bool {
+	if httpCode == 400 || httpCode == 401 || httpCode == 403 || httpCode == 404 || httpCode == 405 || httpCode == 422 {
+		return false
+	}
+	lowerErr := strings.ToLower(strings.TrimSpace(lastError))
+	if strings.Contains(lowerErr, "unsupported destination type") ||
+		strings.Contains(lowerErr, "destination not found") ||
+		strings.Contains(lowerErr, "cannot be empty") ||
+		strings.Contains(lowerErr, "invalid json") ||
+		strings.Contains(lowerErr, "missing api key") ||
+		strings.Contains(lowerErr, "invalid url") {
+		return false
+	}
+	if httpCode == 0 || httpCode == 408 || httpCode == 429 || httpCode >= 500 {
+		return true
+	}
+	return false
+}
+
+func computeAutoRetryNextTime(dest *model.OutputDestination, item *model.OutboundDeliveryQueue, now time.Time) *time.Time {
+	if dest == nil || !dest.Enabled || dest.AutoRetryIntervalMinutes <= 0 {
+		return nil
+	}
+	if dest.AutoRetryRetentionHours > 0 && item != nil && !item.CreatedAt.IsZero() {
+		if now.Sub(item.CreatedAt) > time.Duration(dest.AutoRetryRetentionHours)*time.Hour {
+			return nil
+		}
+	}
+	next := now.Add(time.Duration(dest.AutoRetryIntervalMinutes) * time.Minute)
+	return &next
+}
+
+// processAutoRetryFailedItems probes and flushes transient FAILED batches once their destination's
+// configured AutoRetryIntervalMinutes has elapsed and while within AutoRetryRetentionHours.
+func (s *outboundService) processAutoRetryFailedItems() {
+	if database.IsRestoreMode() {
+		return
+	}
+	s.dispatchMu.Lock()
+	defer s.dispatchMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	items, err := s.repo.FetchAutoRetryFailedItems(ctx, 50)
+	if err != nil || len(items) == 0 {
+		return
+	}
+
+	now := time.Now()
+	stillOfflineDest := make(map[uint]bool)
+
+	for _, item := range items {
+		dest := item.Destination
+		if dest == nil || !dest.Enabled {
+			continue
+		}
+		if stillOfflineDest[item.DestinationID] {
+			continue
+		}
+		if dest.AutoRetryIntervalMinutes <= 0 {
+			if item.NextRetryAt != nil {
+				_ = s.repo.ScheduleFailedItemNextRetry(ctx, item.ID, nil)
+			}
+			continue
+		}
+		if !IsTransientDeliveryFailure(item.LastHTTPCode, item.LastError) {
+			if item.NextRetryAt != nil {
+				_ = s.repo.ScheduleFailedItemNextRetry(ctx, item.ID, nil)
+			}
+			continue
+		}
+		if dest.AutoRetryRetentionHours > 0 && !item.CreatedAt.IsZero() &&
+			now.Sub(item.CreatedAt) > time.Duration(dest.AutoRetryRetentionHours)*time.Hour {
+			if item.NextRetryAt != nil {
+				_ = s.repo.ScheduleFailedItemNextRetry(ctx, item.ID, nil)
+			}
+			continue
+		}
+
+		// Legacy FAILED rows (next_retry_at == nil) respect interval elapsed since last_attempt_at/updated_at
+		if item.NextRetryAt == nil {
+			refTime := item.UpdatedAt
+			if item.LastAttemptAt != nil && !item.LastAttemptAt.IsZero() {
+				refTime = *item.LastAttemptAt
+			}
+			dueAt := refTime.Add(time.Duration(dest.AutoRetryIntervalMinutes) * time.Minute)
+			if dueAt.After(now) {
+				_ = s.repo.ScheduleFailedItemNextRetry(ctx, item.ID, &dueAt)
+				continue
+			}
+		}
+
+		claimed, err := s.repo.ClaimFailedItemForAutoRetry(ctx, item.ID)
+		if err != nil || !claimed {
+			continue
+		}
+		item.Attempts++
+
+		succeeded, isPerm := s.deliverItem(ctx, &item)
+		if !succeeded && !isPerm {
+			// Upstream/network is still unreachable: defer remaining FAILED batches for this destination
+			// until the next configured interval so we only send 1 probe per cycle while offline.
+			stillOfflineDest[item.DestinationID] = true
+			nextAt := time.Now().Add(time.Duration(dest.AutoRetryIntervalMinutes) * time.Minute)
+			_ = s.repo.DeferFailedItemsForDestination(ctx, item.DestinationID, nextAt, dest.AutoRetryRetentionHours)
+		}
+	}
 }
 
 // processPendingQueue retrieves and dispatches pending deliveries
@@ -325,15 +447,17 @@ func (s *outboundService) processPendingQueue() {
 	}
 }
 
-// deliverItem transmits a single queue item to its target destination
-func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundDeliveryQueue) {
+// deliverItem transmits a single queue item to its target destination.
+// Returns (succeeded, isPermanentError) so callers can decide whether to drain or defer remaining batches.
+func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundDeliveryQueue) (bool, bool) {
 	if item.Destination == nil {
 		dest, err := s.repo.GetDestinationByID(ctx, item.DestinationID)
 		if err != nil || dest == nil {
 			item.Status = model.DeliveryFailed
 			item.LastError = "Destination not found or deleted"
+			item.NextRetryAt = nil
 			_ = s.repo.UpdateDeliveryResult(ctx, item)
-			return
+			return false, true
 		}
 		item.Destination = dest
 	}
@@ -343,7 +467,7 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 		item.Status = model.DeliveryPending
 		item.LastError = "Destination is currently disabled"
 		_ = s.repo.UpdateDeliveryResult(ctx, item)
-		return
+		return false, false
 	}
 
 	// Defense-in-depth: if payload configuration was updated to a newer version after this batch was queued,
@@ -418,7 +542,8 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 				item.NextRetryAt = &retryTime
 			} else {
 				item.Status = model.DeliveryFailed
-				item.NextRetryAt = nil
+				// Schedule periodic auto-recovery if enabled and within offline buffer retention window
+				item.NextRetryAt = computeAutoRetryNextTime(dest, item, now)
 			}
 		}
 	}
@@ -444,6 +569,8 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 		LatencyMs:     latencyMs,
 		DeliveredAt:   now,
 	})
+
+	return err == nil, isPermanentError
 }
 
 // deliverREST executes an outbound HTTP request to a third-party webhook/endpoint,
@@ -1922,6 +2049,16 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 	if dest.RetryLimit <= 0 {
 		dest.RetryLimit = 5
 	}
+	if dest.AutoRetryIntervalMinutes < 0 {
+		dest.AutoRetryIntervalMinutes = 0
+	} else if dest.AutoRetryIntervalMinutes > 1440 {
+		dest.AutoRetryIntervalMinutes = 1440
+	}
+	if dest.AutoRetryRetentionHours < 0 {
+		dest.AutoRetryRetentionHours = 0
+	} else if dest.AutoRetryRetentionHours > 8760 {
+		dest.AutoRetryRetentionHours = 8760
+	}
 	if dest.QueueLimit <= 0 {
 		dest.QueueLimit = 10000
 	}
@@ -2088,6 +2225,16 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 		if dest.RetryLimit <= 0 {
 			dest.RetryLimit = 5
 		}
+	}
+	if dest.AutoRetryIntervalMinutes < 0 {
+		dest.AutoRetryIntervalMinutes = 0
+	} else if dest.AutoRetryIntervalMinutes > 1440 {
+		dest.AutoRetryIntervalMinutes = 1440
+	}
+	if dest.AutoRetryRetentionHours < 0 {
+		dest.AutoRetryRetentionHours = 0
+	} else if dest.AutoRetryRetentionHours > 8760 {
+		dest.AutoRetryRetentionHours = 8760
 	}
 	if dest.QueueLimit <= 0 {
 		dest.QueueLimit = existing.QueueLimit
