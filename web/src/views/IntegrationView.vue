@@ -99,6 +99,44 @@
     <!-- TAB 1: DELIVERY QUEUE & INSPECTION                             -->
     <!-- ============================================================== -->
     <div v-if="activeTab === 'queue'" class="space-y-2.5">
+      <!-- Executive Focus Layout: High-Level SLA & Destination Health Banner -->
+      <div
+        v-if="uiLayout === 'executive'"
+        id="outbound-executive-health-card"
+        class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+      >
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-mono font-extrabold text-base tabular-nums flex-shrink-0">
+            {{ outboundAckRatePct }}%
+          </div>
+          <div>
+            <div class="text-xs font-extrabold text-slate-900 dark:text-white tracking-tight">
+              Ringkasan Kesehatan Pengiriman Outbound (SLA)
+            </div>
+            <div class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <strong>{{ (summary.acknowledged || 0) + (summary.delivered || 0) }}</strong> dari <strong>{{ summary.total || 0 }}</strong> batch terkirim ·
+              <span :class="(summary.failed || 0) > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-semibold'">
+                {{ summary.failed || 0 }} Gagal
+              </span> ·
+              <span class="text-amber-600 dark:text-amber-400 font-semibold">{{ summary.retrying || 0 }} Auto-Retry</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span
+            v-for="d in destinations"
+            :key="'exec-dest-' + d.id"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-3xs font-bold border"
+            :class="d.enabled
+              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'"
+          >
+            <span class="w-1.5 h-1.5 rounded-full" :class="d.enabled ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+            <span>{{ d.name }}</span>
+          </span>
+        </div>
+      </div>
+
       <!-- Compact Eye-Catching Clickable KPI Pill Strip (Half the height, 1-click status filter) -->
       <div id="queue-kpi-compact-strip" class="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
         <!-- PENDING -->
@@ -207,8 +245,13 @@
         </button>
       </div>
 
+      <!-- Master-Detail Container (Full-Width in Classic/Executive, 2-Column Split in Control Room Split) -->
+      <div :class="uiLayout === 'split' ? 'grid grid-cols-1 xl:grid-cols-12 gap-3 items-start' : ''">
       <!-- Unified Queue Table Card with Integrated Compact Filter & Action Strip -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+      <div
+        class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm"
+        :class="uiLayout === 'split' ? 'xl:col-span-7' : ''"
+      >
         <!-- Integrated Compact Filter & Actions Toolbar -->
         <div class="px-3 py-2 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0B0F19]/50 flex flex-wrap items-center justify-between gap-2 text-2xs">
           <div class="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
@@ -379,10 +422,16 @@
               <tr
                 v-for="item in queueItems"
                 :key="item.id"
+                @click="uiLayout === 'split' && selectSplitInspectItem(item.id)"
                 class="transition"
-                :class="isQueueItemSelected(item.id)
-                  ? 'bg-rose-50/60 dark:bg-rose-950/25'
-                  : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'"
+                :class="[
+                  uiLayout === 'split' ? 'cursor-pointer' : '',
+                  uiLayout === 'split' && splitInspectId === item.id
+                    ? 'bg-cyan-50/90 dark:bg-cyan-950/35 border-l-4 border-l-cyan-500'
+                    : isQueueItemSelected(item.id)
+                    ? 'bg-rose-50/60 dark:bg-rose-950/25'
+                    : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                ]"
               >
                 <!-- 0. Multi-Select Checkbox -->
                 <td v-if="canManageQueue" class="py-2 pl-3 pr-1 w-8 text-center">
@@ -572,6 +621,94 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Control Room Split Layout: Permanently Docked Live Payload & Response Inspector -->
+      <div
+        v-if="uiLayout === 'split'"
+        id="outbound-split-inspector-dock"
+        class="xl:col-span-5 xl:sticky xl:top-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-145px)]"
+      >
+        <div class="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#0B0F19]/60 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-xs font-extrabold text-slate-900 dark:text-white tracking-tight truncate">
+              Payload &amp; Response Inspector
+            </div>
+            <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 truncate">
+              {{ splitInspectDetail ? splitInspectDetail.batch_id : 'Klik baris antrean di kiri untuk melihat payload' }}
+            </div>
+          </div>
+          <div v-if="splitInspectDetail" class="flex items-center gap-1 flex-shrink-0">
+            <button
+              v-if="canManageQueue && (splitInspectDetail.status === 'FAILED' || splitInspectDetail.status === 'RETRYING')"
+              type="button"
+              @click="retryQueueItem(splitInspectDetail.id)"
+              class="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-3xs font-bold cursor-pointer"
+            >
+              ↻ Retry
+            </button>
+            <button
+              v-if="canManageQueue && splitInspectDetail.status !== 'SENDING'"
+              type="button"
+              @click="replayQueueItem(splitInspectDetail.id)"
+              class="px-2 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-3xs font-bold cursor-pointer"
+            >
+              Replay
+            </button>
+            <button
+              v-if="canManageQueue"
+              type="button"
+              @click="deleteQueueItem(splitInspectDetail.id)"
+              class="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-3xs font-bold cursor-pointer"
+            >
+              Hapus
+            </button>
+          </div>
+        </div>
+
+        <div v-if="splitInspectLoading" class="p-8 text-center text-xs text-slate-400">
+          Memuat detail payload...
+        </div>
+        <div v-else-if="!splitInspectDetail" class="p-8 text-center text-xs text-slate-400 space-y-1">
+          <div class="text-lg">🔍</div>
+          <div class="font-semibold text-slate-600 dark:text-slate-300">Pilih baris antrean di sebelah kiri</div>
+          <div class="text-3xs">Payload JSON &amp; respon HTTP akan langsung tampil di sini tanpa popup.</div>
+        </div>
+        <div v-else class="p-3.5 space-y-3 overflow-y-auto text-2xs">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded-md text-4xs font-bold" :class="statusBadgeClass(splitInspectDetail.status)">
+              {{ splitInspectDetail.status }}
+            </span>
+            <span v-if="splitInspectDetail.last_http_code > 0" class="font-mono font-bold text-3xs" :class="httpCodeClass(splitInspectDetail.last_http_code)">
+              HTTP {{ splitInspectDetail.last_http_code }}
+            </span>
+            <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">
+              Attempts: {{ splitInspectDetail.attempts }}/{{ splitInspectDetail.max_retries }}
+            </span>
+          </div>
+
+          <div
+            v-if="splitInspectDetail.last_error"
+            class="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-3xs font-mono break-words"
+          >
+            {{ splitInspectDetail.last_error }}
+          </div>
+
+          <div class="space-y-1">
+            <div class="text-4xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              JSON Payload Terkirim
+            </div>
+            <pre class="p-3 rounded-xl bg-slate-100 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800 text-3xs font-mono text-slate-800 dark:text-cyan-200 overflow-x-auto max-h-72 leading-relaxed">{{ formatSplitInspectJson(splitInspectDetail.payload_json) }}</pre>
+          </div>
+
+          <div v-if="splitInspectDetail.response_body" class="space-y-1">
+            <div class="text-4xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              HTTP Response Body
+            </div>
+            <pre class="p-3 rounded-xl bg-slate-100 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800 text-3xs font-mono text-slate-700 dark:text-slate-300 overflow-x-auto max-h-40 leading-relaxed">{{ splitInspectDetail.response_body }}</pre>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
 
@@ -2737,6 +2874,9 @@ export default {
       savingConfig: false,
       testingPayload: false,
       testResult: null,
+      splitInspectId: null,
+      splitInspectDetail: null,
+      splitInspectLoading: false,
     };
   },
   computed: {
@@ -2912,6 +3052,15 @@ export default {
     canManageQueue() {
       // Khusus untuk SUPERADMIN dan ADMIN
       return this.isSuperAdmin || this.isAdmin;
+    },
+    uiLayout() {
+      return (this.$store && this.$store.state && this.$store.state.uiPreferences && this.$store.state.uiPreferences.layout) || 'classic';
+    },
+    outboundAckRatePct() {
+      const total = Number(this.summary && this.summary.total) || 0;
+      if (total <= 0) return 100;
+      const ok = (Number(this.summary.acknowledged) || 0) + (Number(this.summary.delivered) || 0);
+      return Math.min(100, Math.round((ok / total) * 1000) / 10);
     },
     selectableQueueItems() {
       return (this.queueItems || []).filter(item => item && item.status !== 'SENDING');
@@ -3170,7 +3319,35 @@ export default {
         this.bulkDeletingQueue = false;
       }
     },
+    async selectSplitInspectItem(id) {
+      if (!id) return;
+      this.splitInspectId = id;
+      this.splitInspectLoading = true;
+      try {
+        const res = await axios.get(`/api/integration/queue/${id}`);
+        if (res.data && res.data.success) {
+          this.splitInspectDetail = res.data.data;
+        }
+      } catch (_) {
+        this.splitInspectDetail = null;
+      } finally {
+        this.splitInspectLoading = false;
+      }
+    },
+    formatSplitInspectJson(raw) {
+      if (!raw) return '{}';
+      try {
+        const obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return JSON.stringify(obj, null, 2);
+      } catch (_) {
+        return String(raw);
+      }
+    },
     async openInspectModal(id) {
+      if (this.uiLayout === 'split') {
+        await this.selectSplitInspectItem(id);
+        return;
+      }
       try {
         const res = await axios.get(`/api/integration/queue/${id}`);
         if (res.data && res.data.success) {

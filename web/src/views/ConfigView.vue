@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6 font-sans">
+  <div class="space-y-6 font-sans" :class="uiLayout === 'executive' ? 'max-w-4xl mx-auto' : ''">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
@@ -37,7 +37,10 @@
           <span>{{ $t('config.firstRunSetup') || 'First-Run Setup' }}</span>
         </button>
 
-        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-xs">
+        <div
+          class="flex items-center space-x-1 bg-slate-100 dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-xs"
+          :class="uiLayout === 'split' ? 'lg:hidden' : ''"
+        >
           <button @click="activeTab = 'domain'"
                   class="px-3 py-1.5 rounded-md transition-colors flex items-center space-x-1.5"
                   :class="activeTab === 'domain' ? 'bg-cyan-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
@@ -86,6 +89,76 @@
       </div>
     </div>
 
+    <!-- Control Room Split Layout Wrapper: Left Sticky Vertical Section Rail + Right Focused Form -->
+    <div :class="uiLayout === 'split' ? 'grid grid-cols-1 lg:grid-cols-[235px_minmax(0,1fr)] gap-5 items-start' : ''">
+      <aside
+        v-if="uiLayout === 'split'"
+        id="config-split-vertical-rail"
+        class="hidden lg:flex flex-col gap-1 p-2 rounded-2xl saas-card sticky top-3"
+      >
+        <div class="px-2.5 py-1.5 text-4xs font-extrabold uppercase tracking-wider text-slate-400">
+          Menu Konfigurasi
+        </div>
+        <button
+          type="button"
+          @click="activeTab = 'domain'"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+          :class="activeTab === 'domain' ? 'bg-cyan-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+        >
+          <span>🌍</span>
+          <span>{{ $t('config.tabDomain') || 'Monitoring Domain' }}</span>
+        </button>
+        <button
+          type="button"
+          @click="activeTab = 'branding'"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+          :class="activeTab === 'branding' ? 'bg-cyan-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+        >
+          <span>🏢</span>
+          <span>{{ $t('config.tabBranding') || 'Organization & Branding' }}</span>
+        </button>
+        <button
+          v-if="isSuperAdmin || !isCloudActive"
+          type="button"
+          @click="activeTab = 'database'"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+          :class="activeTab === 'database' ? 'bg-blue-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+        >
+          <span>🗄️</span>
+          <span>{{ $t('config.tabDatabase') || 'Database & Migrasi' }}</span>
+        </button>
+        <button
+          v-if="isSuperAdmin || !isCloudActive"
+          type="button"
+          @click="activeTab = 'general'"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+          :class="activeTab === 'general' ? 'bg-blue-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+        >
+          <span>⚙️</span>
+          <span>{{ $t('config.tabGeneral') || 'Server & Runtime' }}</span>
+        </button>
+        <button
+          v-if="isSuperAdmin || !isCloudActive"
+          type="button"
+          @click="activeTab = 'localfirst'"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+          :class="activeTab === 'localfirst' ? 'bg-blue-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+        >
+          <span>💾</span>
+          <span>{{ $t('config.tabLocalFirst') || 'Local-First' }}</span>
+        </button>
+        <div class="my-1 border-t border-slate-200 dark:border-slate-800"></div>
+        <button
+          type="button"
+          @click="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 text-sky-700 dark:text-sky-300 hover:bg-sky-500/10 transition cursor-pointer"
+        >
+          <span>🎨</span>
+          <span>Tampilan &amp; Layout</span>
+        </button>
+      </aside>
+
+      <div class="min-w-0">
     <!-- TAB 0: Monitoring Domain (#83 Single Monitoring Domain Configuration) -->
     <div v-if="activeTab === 'domain'" class="space-y-5 max-w-5xl font-sans">
       <!-- Active Domain Overview Card -->
@@ -1216,6 +1289,8 @@
         The system is designed with a strict local-first architecture. All operational telemetry, user accounts, security roles, alarms, and configuration parameters are persisted directly onto the edge hardware (MariaDB Edge). In the event of network disruption or cloud disconnects, telemetry acquisition, threshold monitoring, and local reporting continue uninterrupted.
       </p>
     </div>
+      </div>
+    </div>
 
     <!-- MODAL 1: Monitoring Domain Transition Validation & Confirmation Modal -->
     <div v-if="showDomainModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
@@ -1584,6 +1659,9 @@ export default {
     },
     isCloudActive() {
       return Boolean(this.form.cloud_mode || String(this.form.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
+    uiLayout() {
+      return (this.$store && this.$store.state && this.$store.state.uiPreferences && this.$store.state.uiPreferences.layout) || 'classic';
     },
     rawMaxRangePresetValue() {
       const presets = [1, 6, 12, 24, 72, 168, 336, 720, 2160, 8760];

@@ -1,7 +1,6 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 import axios from 'axios';
-import { getStoredTheme, resolveEffectiveTheme, applyTheme } from '../utils/theme';
 import {
   getStoredTheme,
   resolveEffectiveTheme,
@@ -10,6 +9,8 @@ import {
   applyThemePreset,
   getStoredDensity,
   applyDensity,
+  getStoredLayout,
+  applyLayout,
 } from '../utils/theme';
 import { i18nState, setLocale } from '../i18n';
 
@@ -78,6 +79,7 @@ export default new Vuex.Store({
       effectiveTheme: resolveEffectiveTheme(getStoredTheme()), // 'light' | 'dark'
       themePreset: getStoredThemePreset(), // 'oceanic' | 'eco-forest' | 'industrial-scada' | 'royal-glass'
       density: getStoredDensity(), // 'comfortable' | 'compact'
+      layout: getStoredLayout(), // 'classic' | 'split' | 'executive'
       language: i18nState.locale, // 'en' | 'id'
       sidebarAutoHide: localStorage.getItem('datalogger_sidebar_autohide') === 'true',
     },
@@ -330,6 +332,11 @@ export default new Vuex.Store({
       if (!state.uiPreferences) Vue.set(state, 'uiPreferences', {});
       Vue.set(state.uiPreferences, 'density', normalized);
     },
+    SET_LAYOUT(state, layoutId) {
+      const normalized = applyLayout(layoutId);
+      if (!state.uiPreferences) Vue.set(state, 'uiPreferences', {});
+      Vue.set(state.uiPreferences, 'layout', normalized);
+    },
     SET_SHOW_THEME_STUDIO_MODAL(state, visible) {
       state.showThemeStudioModal = Boolean(visible);
     },
@@ -478,6 +485,9 @@ export default new Vuex.Store({
     setDensity({ commit }, densityMode) {
       commit('SET_DENSITY', densityMode);
     },
+    setLayout({ commit }, layoutId) {
+      commit('SET_LAYOUT', layoutId);
+    },
     openThemeStudio({ commit }) {
       commit('SET_SHOW_THEME_STUDIO_MODAL', true);
     },
@@ -498,6 +508,7 @@ export default new Vuex.Store({
       commit('SET_THEME', currentTheme);
       commit('SET_THEME_PRESET', getStoredThemePreset());
       commit('SET_DENSITY', getStoredDensity());
+      commit('SET_LAYOUT', getStoredLayout());
       commit('SET_LANGUAGE', i18nState.locale);
       const autoHide = localStorage.getItem('datalogger_sidebar_autohide') === 'true';
       commit('SET_SIDEBAR_AUTOHIDE', autoHide);

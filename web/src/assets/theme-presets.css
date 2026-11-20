@@ -298,3 +298,98 @@ html[data-ui-density="compact"] #queue-kpi-compact-strip > button {
 html[data-ui-density="compact"] .bento-card {
   padding: 0.5rem 0.65rem !important;
 }
+
+/* ============================================================================
+   MULTI-LAYOUT STRUCTURAL PRESETS (Classic Bento | Control Room Split | Executive Focus)
+   ============================================================================ */
+
+/* 1. CONTROL ROOM SPLIT — Dashboard Operator Permanent 2-Column Split-Screen */
+@media (min-width: 1180px) {
+  html[data-ui-layout="split"] .bento-dashboard-page {
+    display: grid !important;
+    grid-template-columns: minmax(380px, 40%) minmax(0, 60%) !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+  }
+  html[data-ui-layout="split"] .bento-dashboard-page > .header-shell {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+  }
+  html[data-ui-layout="split"] .bento-dashboard-page > .bento-mid {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    max-height: calc(100vh - 122px) !important;
+    overflow-y: auto !important;
+    padding-right: 2px;
+  }
+  html[data-ui-layout="split"] .bento-dashboard-page > .bento-mid .right-params-wrap {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  html[data-ui-layout="split"] .bento-dashboard-page > .bento-mid .bento-table-area,
+  html[data-ui-layout="split"] .bento-dashboard-page > .bento-mid .bento-cards-scroll {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+  html[data-ui-layout="split"] .bento-dashboard-page > .trend-studio {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    min-height: calc(100vh - 134px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    margin-top: 0 !important;
+  }
+
+  /* Export Data (ReportsView) Sticky Left Filter Rail + Live Right Preview */
+  html[data-ui-layout="split"] .reports-workbench {
+    display: grid !important;
+    grid-template-columns: 315px minmax(0, 1fr) !important;
+    gap: 12px !important;
+    align-items: start !important;
+  }
+  html[data-ui-layout="split"] .reports-workbench > .reports-split-filter-rail {
+    position: sticky !important;
+    top: 8px !important;
+    max-height: calc(100vh - 82px) !important;
+    overflow-y: auto !important;
+  }
+  html[data-ui-layout="split"] .reports-workbench > .reports-split-filter-rail .reports-filter-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  html[data-ui-layout="split"] .reports-workbench > .reports-split-filter-rail .reports-filter-row > * {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  html[data-ui-layout="split"] .reports-workbench > .reports-split-main-area {
+    min-width: 0 !important;
+  }
+}
+
+/* 2. EXECUTIVE FOCUS — Spacious Spotlight Canvas & Big-Number Telemetry */
+@media (min-width: 1024px) {
+  html[data-ui-layout="executive"] .bento-dashboard-page {
+    max-width: 1460px !important;
+    margin: 0 auto !important;
+    padding: 12px 18px 20px !important;
+    gap: 12px !important;
+  }
+  html[data-ui-layout="executive"] .bento-dashboard-page .s-card {
+    padding: 12px 14px !important;
+    border-radius: 16px !important;
+  }
+  html[data-ui-layout="executive"] .bento-dashboard-page .s-val {
+    font-size: 1.48rem !important;
+    line-height: 1.15 !important;
+  }
+  html[data-ui-layout="executive"] .reports-workbench {
+    max-width: 1380px !important;
+    margin: 0 auto !important;
+  }
+}

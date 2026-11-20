@@ -11,12 +11,41 @@
     <!-- Global Alarm Banner (Directly beneath header) -->
     <GlobalAlarmBanner v-if="!isLoginRoute && isShellReady" v-show="!effectiveTopPanelHidden" />
 
+    <!-- Executive Focus Top-Nav Pill Bar (Replaces Left Sidebar on Desktop when Layout === 'executive') -->
+    <div
+      v-if="!isLoginRoute && isShellReady && uiLayout === 'executive' && !requiresCloudTenantGate"
+      id="executive-top-nav-pill"
+      class="hidden md:flex items-center justify-center gap-2 px-4 py-2 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-[#0B1422]/85 backdrop-blur-md flex-shrink-0 z-30"
+    >
+      <div class="inline-flex items-center gap-1 p-1 rounded-full bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-700/80 shadow-xs">
+        <router-link
+          v-for="nav in executiveTopNavItems"
+          :key="'exec-nav-' + nav.to"
+          :to="nav.to"
+          class="px-3.5 py-1 rounded-full text-xs font-bold transition whitespace-nowrap"
+          :class="$route.path === nav.to || $route.path.startsWith(nav.to + '/')
+            ? 'bg-sky-600 text-white btn-text shadow-xs'
+            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-slate-800'"
+        >
+          {{ nav.label }}
+        </router-link>
+      </div>
+      <button
+        type="button"
+        @click="$store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
+        class="px-3 py-1.5 rounded-full text-3xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-sky-400 transition cursor-pointer shadow-2xs"
+        title="Ganti Layout & Tema"
+      >
+        🎨 Layout: Executive
+      </button>
+    </div>
+
     <!-- Main Content Area with Sidebar -->
     <div class="flex flex-1 overflow-hidden relative" v-if="!isLoginRoute && isShellReady">
-      <!-- 1. Normal Pinned Sidebar (rendered when auto-hide is FALSE — Desktop >= 768px only) -->
-      <div v-if="!sidebarAutoHide" class="hidden md:flex h-full flex-shrink-0">
+      <!-- 1. Normal Pinned Sidebar (Hidden in Executive Top-Nav layout; compact in Split layout) -->
+      <div v-if="!sidebarAutoHide && uiLayout !== 'executive'" class="hidden md:flex h-full flex-shrink-0">
         <Sidebar
-          :is-collapsed="requiresCloudTenantGate ? false : isSidebarCollapsed"
+          :is-collapsed="requiresCloudTenantGate ? false : (isSidebarCollapsed || uiLayout === 'split')"
           :is-auto-hide="false"
           @toggle-autohide="onSidebarAutoHideToggle(false)"
           @request-logout="openLogoutConfirmModal"
@@ -220,6 +249,30 @@ export default {
     },
     canSwitchTenants() {
       return Boolean(this.$store && this.$store.getters && this.$store.getters.canSwitchTenants);
+    },
+    uiLayout() {
+      return (this.$store && this.$store.state && this.$store.state.uiPreferences && this.$store.state.uiPreferences.layout) || 'classic';
+    },
+    executiveTopNavItems() {
+      const getters = (this.$store && this.$store.getters) || {};
+      const isOperator = Boolean(getters.isOperator);
+      const isSuperAdmin = Boolean(getters.isSuperAdmin);
+      const isAdmin = Boolean(getters.isAdmin);
+      const isCS = Boolean(getters.isCustomerService);
+      const items = [
+        { label: 'Dashboard', to: '/monitoring/dashboard-operator' },
+      ];
+      if (isSuperAdmin || isCS) {
+        items.push({ label: 'Fleet Map', to: '/monitoring/fleet-map' });
+      }
+      if (!isOperator) {
+        items.push({ label: 'Export Data', to: '/monitoring/reports' });
+      }
+      items.push({ label: 'Outbound', to: '/integration' });
+      if (isSuperAdmin || isAdmin) {
+        items.push({ label: 'Setup', to: '/system/config' });
+      }
+      return items;
     },
     activeTenantId() {
       return Number((this.$store && this.$store.state && this.$store.state.activeTenantId) || 0);

@@ -17,7 +17,7 @@
     </div>
 
     <!-- TIER 1: UNIFIED COMMAND, SCOPE TABS & INLINE FILTER RIBBON -->
-    <div class="no-print reports-card rounded-xl px-3.5 py-2.5 space-y-2">
+    <div class="no-print reports-card reports-split-filter-rail rounded-xl px-3.5 py-2.5 space-y-2">
       <!-- Top Row: Title + Metadata Pills + Complete Export Suite -->
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2 min-w-0">
@@ -147,7 +147,7 @@
       </div>
 
       <!-- Bottom Row: Single-Line Inline Filter Strip -->
-      <div class="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px]">
+      <div class="reports-filter-row flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px]">
         <!-- Quick Time Presets -->
         <div class="reports-segmented inline-flex items-center p-0.5 rounded-lg font-mono">
           <button
@@ -243,7 +243,59 @@
       </div>
     </div>
 
-    <!-- Error Banner -->
+    <div class="reports-split-main-area space-y-2.5 min-w-0">
+      <!-- Executive Focus Layout: 1-Klik Quick Export Gallery -->
+      <div
+        v-if="uiLayout === 'executive'"
+        id="reports-executive-quick-gallery"
+        class="no-print reports-card rounded-2xl p-4 space-y-3"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-sm font-extrabold reports-heading tracking-tight">Unduh Laporan Cepat (1-Klik)</h2>
+            <p class="text-[11px] reports-muted mt-0.5">
+              Periode aktif: <strong class="font-mono">{{ (reportData && reportData.period_formatted) || activePresetShortLabel }}</strong>
+            </p>
+          </div>
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/25">
+            Layout: Executive Focus
+          </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button
+            type="button"
+            @click="exportXlsReport"
+            :disabled="loading || !reportData"
+            class="p-4 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 transition flex flex-col items-center justify-center gap-1.5 text-center cursor-pointer disabled:opacity-50 shadow-2xs"
+          >
+            <span class="w-10 h-10 rounded-xl bg-emerald-600 text-white btn-text flex items-center justify-center text-lg shadow-xs">📊</span>
+            <span class="text-xs font-extrabold text-slate-900 dark:text-white">Excel (.XLS)</span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400">Spreadsheet lengkap siap olah</span>
+          </button>
+          <button
+            type="button"
+            @click="exportReport('csv')"
+            :disabled="loading || !reportData"
+            class="p-4 rounded-2xl border border-sky-200 dark:border-sky-500/30 bg-sky-50/70 hover:bg-sky-100/80 dark:bg-sky-950/30 dark:hover:bg-sky-950/50 transition flex flex-col items-center justify-center gap-1.5 text-center cursor-pointer disabled:opacity-50 shadow-2xs"
+          >
+            <span class="w-10 h-10 rounded-xl bg-sky-600 text-white btn-text flex items-center justify-center text-lg shadow-xs">📄</span>
+            <span class="text-xs font-extrabold text-slate-900 dark:text-white">CSV Raw Data</span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400">Format ringan untuk analisis data</span>
+          </button>
+          <button
+            type="button"
+            @click="exportPdfReport"
+            :disabled="loading || !reportData"
+            class="p-4 rounded-2xl border border-rose-200 dark:border-rose-500/30 bg-rose-50/70 hover:bg-rose-100/80 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 transition flex flex-col items-center justify-center gap-1.5 text-center cursor-pointer disabled:opacity-50 shadow-2xs"
+          >
+            <span class="w-10 h-10 rounded-xl bg-rose-600 text-white btn-text flex items-center justify-center text-lg shadow-xs">📑</span>
+            <span class="text-xs font-extrabold text-slate-900 dark:text-white">Laporan PDF Resmi</span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400">Siap cetak &amp; pelaporan instansi</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error Banner -->
     <div v-if="error" class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex items-center justify-between">
       <div class="flex items-center gap-2">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -733,6 +785,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -922,6 +975,9 @@ export default {
     activePresetShortLabel() {
       const found = this.presets.find((p) => p.id === this.selectedPreset);
       return found ? found.shortLabel : 'Custom';
+    },
+    uiLayout() {
+      return (this.$store && this.$store.state && this.$store.state.uiPreferences && this.$store.state.uiPreferences.layout) || 'classic';
     },
   },
   watch: {

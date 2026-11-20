@@ -2,6 +2,30 @@ const THEME_KEY = 'datalogger.theme';
 const LEGACY_THEME_KEY = 'datalogger_theme';
 const THEME_PRESET_KEY = 'datalogger.themePreset';
 const DENSITY_KEY = 'datalogger.uiDensity';
+const LAYOUT_KEY = 'datalogger.uiLayout';
+
+export const LAYOUT_PRESETS = [
+  {
+    id: 'classic',
+    name: 'Classic Bento',
+    badge: 'Default',
+    description: 'Sidebar kiri, Hero atas, parameter tengah & grafik bawah.',
+  },
+  {
+    id: 'split',
+    name: 'Control Room Split',
+    badge: 'Split-Screen',
+    description: '2 kolom permanen: Sensor/Tren berdampingan, Master-Detail Outbound & Rail kiri.',
+  },
+  {
+    id: 'executive',
+    name: 'Executive Focus',
+    badge: 'Top-Nav',
+    description: 'Navigasi pill atas tanpa sidebar, angka hero besar & quick gallery 1-klik.',
+  },
+];
+
+export const VALID_LAYOUT_IDS = LAYOUT_PRESETS.map(l => l.id);
 
 export const THEME_PRESETS = [
   {
@@ -93,6 +117,18 @@ export function getStoredDensity() {
   return 'comfortable';
 }
 
+export function getStoredLayout() {
+  try {
+    const saved = localStorage.getItem(LAYOUT_KEY);
+    if (saved && VALID_LAYOUT_IDS.includes(saved)) {
+      return saved;
+    }
+  } catch (e) {
+    console.warn('Failed to access localStorage for ui layout:', e);
+  }
+  return 'classic';
+}
+
 export function getSystemTheme() {
   if (typeof window !== 'undefined' && window.matchMedia) {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -151,6 +187,19 @@ export function applyDensity(densityMode) {
   return normalized;
 }
 
+export function applyLayout(layoutId) {
+  const normalized = VALID_LAYOUT_IDS.includes(layoutId) ? layoutId : 'classic';
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-ui-layout', normalized);
+  }
+  try {
+    localStorage.setItem(LAYOUT_KEY, normalized);
+  } catch (e) {
+    console.warn('Failed to persist ui layout:', e);
+  }
+  return normalized;
+}
+
 export function getThemePresetMeta(presetId) {
   return THEME_PRESETS.find(p => p.id === presetId) || THEME_PRESETS[0];
 }
@@ -160,9 +209,10 @@ let mediaQueryListener = null;
 export function initSystemThemeWatcher(callback) {
   if (typeof window === 'undefined' || !window.matchMedia) return;
 
-  // Ensure preset and density attributes are always synced on boot
+  // Ensure preset, layout and density attributes are always synced on boot
   applyThemePreset(getStoredThemePreset());
   applyDensity(getStoredDensity());
+  applyLayout(getStoredLayout());
 
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   const handler = (e) => {

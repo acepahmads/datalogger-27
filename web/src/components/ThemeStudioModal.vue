@@ -7,7 +7,7 @@
       class="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-950/55 backdrop-blur-xs font-sans"
     >
       <div
-        class="w-full max-w-2xl rounded-2xl bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-700/90 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        class="w-full max-w-3xl rounded-2xl bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-700/90 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
       >
         <!-- Header -->
         <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
@@ -17,10 +17,10 @@
             </span>
             <div class="min-w-0">
               <h2 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight truncate">
-                Tampilan &amp; Tema Aplikasi
+                Tema Warna &amp; Desain Tata Letak (Layout)
               </h2>
               <p class="text-3xs text-slate-500 dark:text-slate-400 truncate">
-                Pilih gaya visual untuk Dashboard Operator, Export Data, Pengiriman Outbound &amp; Setup
+                Kombinasikan struktur layout dan tema visual untuk Dashboard Operator, Export Data, Outbound &amp; Setup
               </p>
             </div>
           </div>
@@ -37,9 +37,97 @@
 
         <!-- Scrollable Body -->
         <div class="p-4 sm:p-5 space-y-5 overflow-y-auto">
-          <!-- Section 1: Lighting Mode (Light / Dark / System) -->
+          <!-- Section 1: Desain Tata Letak (Layout) — 3 Distinct Structural Layouts -->
           <div class="space-y-2">
-            <div class="text-xs font-bold text-slate-800 dark:text-slate-100">Mode Pencahayaan</div>
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-xs font-bold text-slate-800 dark:text-slate-100">1. Pilih Desain Tata Letak (Layout)</div>
+              <span class="text-4xs font-mono font-semibold text-sky-600 dark:text-sky-400">
+                Ubah Struktur Halaman
+              </span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button
+                v-for="lay in layouts"
+                :key="lay.id"
+                type="button"
+                :id="'btn-layout-preset-' + lay.id"
+                @click="selectLayout(lay.id)"
+                class="text-left p-2.5 rounded-2xl border-2 transition cursor-pointer flex flex-col gap-2 bg-white dark:bg-[#0B0F19]"
+                :class="currentLayout === lay.id
+                  ? 'border-sky-500 ring-2 ring-sky-500/20 shadow-md'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'"
+              >
+                <!-- Structural Wireframe Mini-Preview -->
+                <div class="relative w-full h-16 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 p-1.5 overflow-hidden">
+                  <span
+                    v-if="currentLayout === lay.id"
+                    class="absolute top-1 right-1 w-4 h-4 rounded-full bg-sky-600 text-white badge-text text-4xs font-extrabold flex items-center justify-center shadow-sm z-10"
+                  >
+                    ✓
+                  </span>
+
+                  <!-- Wireframe A: Classic Bento -->
+                  <div v-if="lay.id === 'classic'" class="flex gap-1 h-full">
+                    <div class="w-3 rounded bg-slate-300 dark:bg-slate-700 h-full"></div>
+                    <div class="flex-1 flex flex-col gap-1">
+                      <div class="h-3.5 rounded bg-sky-500/35"></div>
+                      <div class="grid grid-cols-3 gap-1 flex-1">
+                        <div class="rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
+                        <div class="rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
+                        <div class="rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
+                      </div>
+                      <div class="h-3 rounded bg-emerald-500/30"></div>
+                    </div>
+                  </div>
+
+                  <!-- Wireframe B: Control Room Split -->
+                  <div v-else-if="lay.id === 'split'" class="grid grid-cols-12 gap-1 h-full">
+                    <div class="col-span-5 flex flex-col gap-1">
+                      <div class="h-2.5 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-cyan-500"></div>
+                      <div class="h-2.5 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-emerald-500"></div>
+                      <div class="h-2.5 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-amber-500"></div>
+                      <div class="flex-1 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-cyan-500"></div>
+                    </div>
+                    <div class="col-span-7 flex flex-col gap-1">
+                      <div class="h-3 rounded-sm bg-cyan-500/30"></div>
+                      <div class="flex-1 rounded-sm bg-white dark:bg-slate-800 border border-cyan-500/40"></div>
+                    </div>
+                  </div>
+
+                  <!-- Wireframe C: Executive Focus -->
+                  <div v-else class="flex flex-col gap-1 h-full items-center">
+                    <div class="h-2 w-20 rounded-full bg-indigo-500/45"></div>
+                    <div class="w-full h-4 rounded-lg bg-emerald-500/30"></div>
+                    <div class="grid grid-cols-4 gap-1 w-full flex-1">
+                      <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                      <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                      <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                      <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="px-0.5 space-y-0.5">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="text-xs font-extrabold text-slate-900 dark:text-white truncate">{{ lay.name }}</span>
+                    <span
+                      class="px-1.5 py-0.2 rounded-full text-4xs font-mono font-bold border flex-shrink-0"
+                      :class="currentLayout === lay.id
+                        ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
+                    >
+                      {{ currentLayout === lay.id ? 'AKTIF' : lay.badge }}
+                    </span>
+                  </div>
+                  <p class="text-4xs text-slate-500 dark:text-slate-400 leading-snug">{{ lay.description }}</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 2: Lighting Mode (Light / Dark / System) -->
+          <div class="space-y-2">
+            <div class="text-xs font-bold text-slate-800 dark:text-slate-100">2. Mode Pencahayaan</div>
             <div class="grid grid-cols-3 gap-2">
               <button
                 v-for="mode in lightingModes"
@@ -58,16 +146,16 @@
             </div>
           </div>
 
-          <!-- Section 2: 2x2 Visual Theme Presets Grid -->
+          <!-- Section 3: 2x2 Visual Theme Presets Grid -->
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-2">
-              <div class="text-xs font-bold text-slate-800 dark:text-slate-100">Pilih Gaya &amp; Tema Desain</div>
+              <div class="text-xs font-bold text-slate-800 dark:text-slate-100">3. Pilih Gaya &amp; Tema Warna</div>
               <span class="text-4xs font-mono font-semibold text-slate-500 dark:text-slate-400">
                 Live Preview Aktif
               </span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 v-for="preset in presets"
                 :key="preset.id"
@@ -81,10 +169,9 @@
               >
                 <!-- Miniature UI Preview Thumbnail -->
                 <div
-                  class="relative w-full h-24 rounded-xl overflow-hidden border border-slate-200/80 dark:border-slate-700/70 p-2 flex flex-col gap-1.5"
+                  class="relative w-full h-20 rounded-xl overflow-hidden border border-slate-200/80 dark:border-slate-700/70 p-2 flex flex-col gap-1.5"
                   :style="{ background: effectiveDark ? preset.previewBgDark : preset.previewBgLight }"
                 >
-                  <!-- Active Checkmark -->
                   <span
                     v-if="currentPreset === preset.id"
                     class="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-600 text-white badge-text text-3xs font-extrabold flex items-center justify-center shadow-sm"
@@ -92,27 +179,19 @@
                     ✓
                   </span>
 
-                  <!-- Mini Header Bar -->
                   <div class="flex items-center gap-1.5">
-                    <span
-                      class="w-3 h-3 rounded-full flex-shrink-0"
-                      :style="{ background: preset.previewAccent }"
-                    ></span>
+                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ background: preset.previewAccent }"></span>
                     <span class="h-1.5 w-14 rounded-full bg-slate-400/40"></span>
                     <span class="ml-auto h-1.5 w-6 rounded-full bg-slate-400/30"></span>
                   </div>
 
-                  <!-- Mini Bento Hero Row -->
                   <div class="grid grid-cols-3 gap-1.5 flex-1">
                     <div
                       class="col-span-2 p-1.5 flex flex-col justify-between shadow-2xs"
-                      :style="{
-                        background: preset.previewAccent,
-                        borderRadius: preset.previewRadius,
-                      }"
+                      :style="{ background: preset.previewAccent, borderRadius: preset.previewRadius }"
                     >
                       <span class="h-1 w-10 rounded-full bg-white/75"></span>
-                      <div class="flex items-end gap-0.5 h-5">
+                      <div class="flex items-end gap-0.5 h-4">
                         <span class="w-1.5 h-2 rounded-xs bg-white/60"></span>
                         <span class="w-1.5 h-3.5 rounded-xs bg-white/85"></span>
                         <span class="w-1.5 h-2.5 rounded-xs bg-white/65"></span>
@@ -128,10 +207,7 @@
                       }"
                     >
                       <span class="h-1 w-6 rounded-full bg-slate-400/50"></span>
-                      <span
-                        class="h-2.5 w-8 rounded-full"
-                        :style="{ background: preset.swatches[1] }"
-                      ></span>
+                      <span class="h-2 w-8 rounded-full" :style="{ background: preset.swatches[1] }"></span>
                     </div>
                   </div>
                 </div>
@@ -140,9 +216,7 @@
                 <div class="px-0.5 space-y-1">
                   <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-1.5 min-w-0">
-                      <span class="text-xs font-extrabold text-slate-900 dark:text-white truncate">
-                        {{ preset.name }}
-                      </span>
+                      <span class="text-xs font-extrabold text-slate-900 dark:text-white truncate">{{ preset.name }}</span>
                       <span
                         class="px-1.5 py-0.2 rounded-full text-4xs font-mono font-bold border flex-shrink-0"
                         :class="currentPreset === preset.id
@@ -152,7 +226,6 @@
                         {{ currentPreset === preset.id ? 'AKTIF' : preset.badge }}
                       </span>
                     </div>
-                    <!-- Color Palette Dots -->
                     <div class="flex items-center gap-1 flex-shrink-0">
                       <span
                         v-for="(hex, idx) in preset.swatches"
@@ -162,18 +235,16 @@
                       ></span>
                     </div>
                   </div>
-                  <p class="text-3xs text-slate-500 dark:text-slate-400 leading-snug">
-                    {{ preset.description }}
-                  </p>
+                  <p class="text-3xs text-slate-500 dark:text-slate-400 leading-snug">{{ preset.description }}</p>
                 </div>
               </button>
             </div>
           </div>
 
-          <!-- Section 3: Density & Scope Notice -->
+          <!-- Section 4: Density & Scope Notice -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
             <div class="space-y-1">
-              <div class="text-xs font-bold text-slate-800 dark:text-slate-100">Kepadatan Tampilan</div>
+              <div class="text-xs font-bold text-slate-800 dark:text-slate-100">4. Kepadatan Tampilan</div>
               <div class="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
@@ -200,8 +271,8 @@
               </div>
             </div>
 
-            <div class="flex-1 sm:max-w-xs px-3 py-2 rounded-xl bg-sky-500/8 dark:bg-sky-500/10 border border-sky-500/20 text-3xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Otomatis tersimpan di browser dan berlaku langsung untuk <strong>Dashboard Operator</strong>, <strong>Export Data</strong>, <strong>Pengiriman Outbound</strong> &amp; <strong>Setup</strong>.
+            <div class="flex-1 sm:max-w-sm px-3 py-2 rounded-xl bg-sky-500/8 dark:bg-sky-500/10 border border-sky-500/20 text-3xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Otomatis tersimpan di browser &amp; langsung diterapkan untuk <strong>Dashboard Operator</strong>, <strong>Export Data</strong>, <strong>Outbound</strong> &amp; <strong>Setup</strong>.
             </div>
           </div>
         </div>
@@ -230,7 +301,7 @@
 </template>
 
 <script>
-import { THEME_PRESETS } from '../utils/theme';
+import { THEME_PRESETS, LAYOUT_PRESETS } from '../utils/theme';
 
 export default {
   name: 'ThemeStudioModal',
@@ -243,6 +314,7 @@ export default {
   data() {
     return {
       presets: THEME_PRESETS,
+      layouts: LAYOUT_PRESETS,
       lightingModes: [
         { id: 'light', label: 'Terang (Light)', icon: '☀' },
         { id: 'dark', label: 'Gelap (Dark)', icon: '🌙' },
@@ -263,6 +335,9 @@ export default {
     currentDensity() {
       return (this.$store && this.$store.state.uiPreferences && this.$store.state.uiPreferences.density) || 'comfortable';
     },
+    currentLayout() {
+      return (this.$store && this.$store.state.uiPreferences && this.$store.state.uiPreferences.layout) || 'classic';
+    },
   },
   methods: {
     selectLightingMode(mode) {
@@ -274,7 +349,11 @@ export default {
     selectDensity(density) {
       this.$store.dispatch('setDensity', density);
     },
+    selectLayout(layoutId) {
+      this.$store.dispatch('setLayout', layoutId);
+    },
     resetToDefault() {
+      this.$store.dispatch('setLayout', 'classic');
       this.$store.dispatch('setThemePreset', 'oceanic');
       this.$store.dispatch('setDensity', 'comfortable');
       this.$store.dispatch('setTheme', 'system');

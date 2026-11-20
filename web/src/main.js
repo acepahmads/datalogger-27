@@ -3,13 +3,14 @@ import App from './App.vue';
 import router from './router';
 import store from './store';
 import i18n from './i18n';
-import { initSystemThemeWatcher, getStoredThemePreset, applyThemePreset, getStoredDensity, applyDensity } from './utils/theme';
+import { initSystemThemeWatcher, getStoredThemePreset, applyThemePreset, getStoredDensity, applyDensity, getStoredLayout, applyLayout } from './utils/theme';
 import axios from 'axios';
 import './assets/main.css';
 import './assets/theme-presets.css';
 
 applyThemePreset(getStoredThemePreset());
 applyDensity(getStoredDensity());
+applyLayout(getStoredLayout());
 
 Vue.config.productionTip = false;
 Vue.use(i18n);

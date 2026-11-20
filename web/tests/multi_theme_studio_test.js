@@ -69,7 +69,22 @@ check('4. Theme Studio triggers exist across Header + all 4 target pages (Dashbo
   assert(configVue.includes('id="btn-config-theme-studio"'), 'Missing Theme Studio trigger in Setup (ConfigView)');
 });
 
-check('5. ThemeStudioModal adheres to Light-Mode text-white CSS hygiene', () => {
+check('5. Multi-Layout Design system supports Classic Bento, Control Room Split & Executive Focus across App + all 4 target pages', () => {
+  for (const id of ['classic', 'split', 'executive']) {
+    assert(themeJs.includes(`id: '${id}'`), `Missing layout preset '${id}' in theme.js`);
+  }
+  assert(themeJs.includes("document.documentElement.setAttribute('data-ui-layout'"), 'Must set data-ui-layout on <html>');
+  assert(storeJs.includes('SET_LAYOUT(state, layoutId)'), 'Missing SET_LAYOUT mutation');
+  assert(modalVue.includes('btn-layout-preset-'), 'ThemeStudioModal must render Layout preset cards');
+  assert(appVue.includes('id="executive-top-nav-pill"'), 'App.vue must render Executive Top-Nav Pill Bar');
+  assert(presetsCss.includes('html[data-ui-layout="split"] .bento-dashboard-page'), 'Missing Split-Screen Dashboard Operator CSS');
+  assert(presetsCss.includes('html[data-ui-layout="executive"] .bento-dashboard-page'), 'Missing Executive Spotlight Dashboard Operator CSS');
+  assert(reportsVue.includes('id="reports-executive-quick-gallery"') && reportsVue.includes('reports-split-filter-rail'), 'ReportsView must support Split Filter Rail & Executive Quick Gallery');
+  assert(integrationVue.includes('id="outbound-split-inspector-dock"') && integrationVue.includes('id="outbound-executive-health-card"'), 'IntegrationView must support Split Master-Detail Inspector & Executive Health Summary');
+  assert(configVue.includes('id="config-split-vertical-rail"'), 'ConfigView must support Split Vertical Section Rail');
+});
+
+check('6. ThemeStudioModal adheres to Light-Mode text-white CSS hygiene', () => {
   const tmpl = modalVue.match(/<template>([\s\S]*?)<\/template>/);
   assert(tmpl, 'Missing <template> in ThemeStudioModal.vue');
   const violations = [];
