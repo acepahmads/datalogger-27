@@ -476,6 +476,7 @@ type SystemConfigDTO struct {
 	BackupCompression           string `json:"backup_compression"`
 	MonitoringDomain            string `json:"monitoring_domain"`
 	CloudMode                   bool   `json:"cloud_mode"`
+	AutoMigrate                 bool   `json:"auto_migrate"`
 	SeedUsers                   bool   `json:"seed_users"`
 	SeedSampleData              bool   `json:"seed_sample_data"`
 	SuperadminUsername          string `json:"superadmin_username,omitempty"`
@@ -512,6 +513,7 @@ type SaveSystemConfigRequest struct {
 	SerialTimeoutMs           int                             `json:"serial_timeout_ms"`
 	MonitoringDomain          string                          `json:"monitoring_domain"`
 	CloudMode                 *bool                           `json:"cloud_mode,omitempty"`
+	AutoMigrate               *bool                           `json:"auto_migrate,omitempty"`
 	SeedUsers                 *bool                           `json:"seed_users,omitempty"`
 	SeedSampleData            *bool                           `json:"seed_sample_data,omitempty"`
 	SuperadminUsername        *string                         `json:"superadmin_username,omitempty"`
@@ -565,6 +567,7 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		BackupCompression:           cfg.BackupCompression,
 		MonitoringDomain:            cfg.MonitoringDomain,
 		CloudMode:                   cfg.IsCloudMode(),
+		AutoMigrate:                 cfg.AutoMigrate,
 		SeedUsers:                   cfg.SeedUsers,
 		SeedSampleData:              cfg.SeedSampleData,
 		SuperadminUsername:          cfg.EffectiveSuperadminUsername(),
@@ -735,7 +738,11 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		cfg.MQTTTopicPrefix = topic
 	}
 
-	// Database Seeding Governance
+	// Database Migration & Seeding Governance
+	if req.AutoMigrate != nil && *req.AutoMigrate != cfg.AutoMigrate {
+		changedNotes = append(changedNotes, fmt.Sprintf("auto_migrate: %t -> %t", cfg.AutoMigrate, *req.AutoMigrate))
+		cfg.AutoMigrate = *req.AutoMigrate
+	}
 	if req.SeedUsers != nil && *req.SeedUsers != cfg.SeedUsers {
 		changedNotes = append(changedNotes, fmt.Sprintf("seed_users: %t -> %t", cfg.SeedUsers, *req.SeedUsers))
 		cfg.SeedUsers = *req.SeedUsers

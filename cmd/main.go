@@ -48,6 +48,17 @@ func main() {
 		cfg = config.DefaultConfig()
 	}
 
+	// Optional CLI flags: --migrate (run schema migrations then start) or --migrate-only (run migrations and exit)
+	migrateOnly := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--migrate" || arg == "-migrate" {
+			cfg.AutoMigrate = true
+		} else if arg == "--migrate-only" || arg == "-migrate-only" {
+			cfg.AutoMigrate = true
+			migrateOnly = true
+		}
+	}
+
 	// 2. Initialize Structured Logger
 	log, err := logger.Init(cfg.LogDir, cfg.LogLevel)
 	if err != nil {
@@ -72,6 +83,10 @@ func main() {
 	if err != nil {
 		logger.Error("Database initialization permanently failed: %v", err)
 		os.Exit(1)
+	}
+	if migrateOnly {
+		logger.Info("Schema migration completed (--migrate-only). Exiting cleanly.")
+		return
 	}
 
 	// 4. Seed Database (10 phases, tasks, admin user, sample devices)

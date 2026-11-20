@@ -1371,6 +1371,7 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 		req.MQTTIngestEnabled != nil ||
 		req.MQTTBrokerURL != nil ||
 		req.MQTTTopicPrefix != nil ||
+		req.AutoMigrate != nil ||
 		req.SeedUsers != nil ||
 		req.SeedSampleData != nil ||
 		req.SuperadminUsername != nil ||

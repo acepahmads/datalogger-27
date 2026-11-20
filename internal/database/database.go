@@ -243,10 +243,17 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 
 	logger.Info("Connected to MariaDB (%s) at: %s:%s/%s in %.2fms", dbVersion, dbHost, dbPort, dbName, latency)
 
-	// 5. Run schema migrations and synchronization
-	if err := RunMigrations(gormDB); err != nil {
-		logger.Error("Database schema migration error: %v", err)
-		return nil, fmt.Errorf("failed to auto-migrate MariaDB schema: %w", err)
+	// 5. Run schema migrations and synchronization only when explicitly enabled (default auto_migrate=false)
+	if cfg != nil && cfg.AutoMigrate {
+		if err := RunMigrations(gormDB); err != nil {
+			logger.Error("Database schema migration error: %v", err)
+			return nil, fmt.Errorf("failed to auto-migrate MariaDB schema: %w", err)
+		}
+	} else {
+		logger.Info("Skipping automatic MariaDB schema migrations (auto_migrate=false). Enable \"auto_migrate\": true in config.json, set AUTO_MIGRATE=true, or run with --migrate when upgrading schema.")
+		if !gormDB.Migrator().HasTable("users") {
+			logger.Warn("Core table 'users' was not found while auto_migrate=false. Run once with AUTO_MIGRATE=true or --migrate to initialize schema.")
+		}
 	}
 
 	DB = gormDB

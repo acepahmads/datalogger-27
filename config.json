@@ -20,6 +20,7 @@
   "cloud_endpoint": "",
   "monitoring_domain": "AQMS",
   "cloud_mode": false,
+  "auto_migrate": false,
   "seed_users": true,
   "seed_sample_data": true,
   "superadmin_username": "admin",

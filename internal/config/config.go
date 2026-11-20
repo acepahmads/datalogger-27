@@ -53,7 +53,8 @@ type Config struct {
 	MonitoringDomain string `json:"monitoring_domain"`
 	CloudMode        bool   `json:"cloud_mode"`
 
-	// Database Seeding Governance (Default ON in Edge mode, Default OFF in Cloud mode)
+	// Database Seeding & Migration Governance
+	AutoMigrate         bool   `json:"auto_migrate"` // Default FALSE: skip heavy MariaDB AutoMigrate on startup unless explicitly enabled
 	SeedUsers           bool   `json:"seed_users"`
 	SeedSampleData      bool   `json:"seed_sample_data"`
 	BootstrapSuperadmin *bool  `json:"bootstrap_superadmin,omitempty"`
@@ -124,6 +125,7 @@ func DefaultConfig() *Config {
 		BackupMinFreeSpaceMB:        500,
 		BackupMaxKeepCount:          10,
 		MonitoringDomain:            "AQMS",
+		AutoMigrate:                 false,
 		SeedUsers:                   true,
 		SeedSampleData:              true,
 		SuperadminUsername:          "admin",
@@ -309,6 +311,12 @@ func Load(configPath string) (*Config, error) {
 		cfg.ShowDevelopmentMenu = parseBoolEnvValue(showDev)
 	} else if showDev2 := strings.TrimSpace(os.Getenv("DATALOGGER_SHOW_DEVELOPMENT_MENU")); showDev2 != "" {
 		cfg.ShowDevelopmentMenu = parseBoolEnvValue(showDev2)
+	}
+
+	if envMig := strings.TrimSpace(os.Getenv("AUTO_MIGRATE")); envMig != "" {
+		cfg.AutoMigrate = parseBoolEnvValue(envMig)
+	} else if envMig2 := strings.TrimSpace(os.Getenv("DATALOGGER_AUTO_MIGRATE")); envMig2 != "" {
+		cfg.AutoMigrate = parseBoolEnvValue(envMig2)
 	}
 
 	hasEnvSeedUsers := false

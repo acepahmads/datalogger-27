@@ -1043,7 +1043,20 @@
               </span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
+                <input id="cfg-auto-migrate" type="checkbox" v-model="form.auto_migrate" class="mt-0.5 rounded text-indigo-600" />
+                <div>
+                  <div class="font-semibold text-slate-900 dark:text-white">
+                    Auto-Migrate Schema (<code class="font-mono text-2xs">auto_migrate</code>)
+                    <span v-if="!form.auto_migrate" class="ml-1 text-3xs font-mono text-emerald-600 dark:text-emerald-400">(Default OFF)</span>
+                  </div>
+                  <div class="text-3xs text-slate-500 mt-0.5">
+                    Default <strong>OFF (No)</strong> agar restart cepat tanpa memindai tabel besar. Aktifkan hanya saat upgrade versi skema atau jalankan binary dengan flag <code class="font-mono">--migrate</code>.
+                  </div>
+                </div>
+              </label>
+
               <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" v-model="form.seed_users" class="mt-0.5 rounded text-indigo-600" />
                 <div>
@@ -1545,6 +1558,7 @@ export default {
         mqtt_ingest_enabled: true,
         mqtt_broker_url: '',
         mqtt_topic_prefix: 'datalogger/ingest/+',
+        auto_migrate: false,
         seed_users: true,
         seed_sample_data: true,
         show_operator_console: false,
@@ -1801,6 +1815,7 @@ export default {
         if (this.isSuperAdmin) {
           payload.sensor_polling_enabled = nextIsCloud ? false : this.form.sensor_polling_enabled;
           payload.mqtt_ingest_enabled = nextIsCloud ? false : this.form.mqtt_ingest_enabled;
+          payload.auto_migrate = Boolean(this.form.auto_migrate);
           payload.seed_users = nextIsCloud ? false : this.form.seed_users;
           payload.seed_sample_data = nextIsCloud ? false : this.form.seed_sample_data;
           payload.show_operator_console = Boolean(this.form.show_operator_console);
@@ -1810,6 +1825,7 @@ export default {
           delete payload.mqtt_ingest_enabled;
           delete payload.mqtt_broker_url;
           delete payload.mqtt_topic_prefix;
+          delete payload.auto_migrate;
           delete payload.seed_users;
           delete payload.seed_sample_data;
           delete payload.show_operator_console;
@@ -1907,6 +1923,7 @@ export default {
             mqtt_ingest_enabled: cfg.mqtt_ingest_enabled !== false,
             mqtt_broker_url: cfg.mqtt_broker_url || '',
             mqtt_topic_prefix: cfg.mqtt_topic_prefix || 'datalogger/ingest/+',
+            auto_migrate: Boolean(cfg.auto_migrate === true),
             seed_users: typeof cfg.seed_users === 'boolean' ? cfg.seed_users : !isCloudCfg,
             seed_sample_data: typeof cfg.seed_sample_data === 'boolean' ? cfg.seed_sample_data : !isCloudCfg,
             show_operator_console: Boolean(cfg.show_operator_console === true),
@@ -1981,6 +1998,7 @@ export default {
           delete payload.mqtt_ingest_enabled;
           delete payload.mqtt_broker_url;
           delete payload.mqtt_topic_prefix;
+          delete payload.auto_migrate;
           delete payload.seed_users;
           delete payload.seed_sample_data;
           delete payload.show_operator_console;
