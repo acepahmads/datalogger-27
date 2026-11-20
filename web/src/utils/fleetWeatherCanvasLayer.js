@@ -362,22 +362,6 @@ export class FleetWeatherCanvasOverlay {
         const zoomScale = Math.max(0.78, Math.min(1.45, 0.72 + zoom * 0.065));
         const radius = Math.round(intensity.baseRadius * zoomScale);
 
-        let rainDirU = 0;
-        let rainDirV = 1; // fallback straight downward
-        let hasWindAngle = false;
-        let windSpeedMs = 0;
-        if (w.wind_angle != null) {
-          const vel = windAngleToCanvasVelocity(w.wind_angle, 1);
-          if (vel.valid) {
-            rainDirU = vel.ux;
-            rainDirV = vel.uy;
-            hasWindAngle = true;
-          }
-        }
-        if (w.wind_speed != null) {
-          windSpeedMs = normalizeWindSpeedMs(w.wind_speed, w.wind_speed_unit);
-        }
-
         rainStations.push({
           siteId: s.site_id,
           x: pt.x,
@@ -385,10 +369,8 @@ export class FleetWeatherCanvasOverlay {
           rainFall: Number(w.rain_fall) || 0,
           intensity,
           radius,
-          dirU: rainDirU,
-          dirV: rainDirV,
-          hasWindAngle,
-          windSpeedMs,
+          dirU: 0,
+          dirV: 1, // Always fall straight downward (independent of wind_angle)
           drops: this.createRainDrops(intensity.dropCount, radius),
         });
       }
@@ -420,19 +402,6 @@ export class FleetWeatherCanvasOverlay {
           this.gridV[idx] = sample.v;
           this.gridSpeed[idx] = sample.speedMs;
           this.gridInfluence[idx] = sample.influence;
-        }
-      }
-
-      // If any raining station lacks its own wind_angle, borrow local interpolated wind direction!
-      for (let i = 0; i < rainStations.length; i += 1) {
-        const rs = rainStations[i];
-        if (!rs.hasWindAngle) {
-          const fld = this.lookupGrid(rs.x, rs.y);
-          if (fld.influence > 0.15 && Math.hypot(fld.u, fld.v) > 0.2) {
-            rs.dirU = fld.u;
-            rs.dirV = fld.v;
-            rs.windSpeedMs = fld.speedMs;
-          }
         }
       }
 
@@ -747,18 +716,16 @@ export class FleetWeatherCanvasOverlay {
     ctx.lineCap = 'round';
     for (let i = 0; i < this.rainStations.length; i += 1) {
       const rs = this.rainStations[i];
-      const { x, y, radius, intensity, dirU, dirV, windSpeedMs, drops } = rs;
-      // Perpendicular unit vector to wind direction for spreading raindrops cleanly across the cell
+      const { x, y, radius, intensity, dirU, dirV, drops } = rs;
+      // Perpendicular unit vector to vertical downward fall (dirU = 0, dirV = 1)
       const perpU = -dirV;
       const perpV = dirU;
-      const speedBoost = 1 + Math.min(0.65, windSpeedMs * 0.08);
-      const streakBoost = 1 + Math.min(0.5, windSpeedMs * 0.05);
 
       for (let j = 0; j < drops.length; j += 1) {
         const d = drops[j];
-        d.prog += intensity.dropSpeed * d.speedFactor * speedBoost * dtFactor;
+        d.prog += intensity.dropSpeed * d.speedFactor * dtFactor;
 
-        // Compute max travel extent inside circular rain cell for this perpendicular lane
+        // Compute max travel extent inside circular rain cell for this horizontal lane
         const maxChord = Math.sqrt(Math.max(64, radius * radius - d.perp * d.perp)) * 0.92;
         if (d.prog > maxChord) {
           d.prog = -maxChord;
@@ -767,7 +734,7 @@ export class FleetWeatherCanvasOverlay {
 
         const hx = x + perpU * d.perp + dirU * d.prog;
         const hy = y + perpV * d.perp + dirV * d.prog;
-        const sLen = intensity.streakLen * d.lenFactor * streakBoost;
+        const sLen = intensity.streakLen * d.lenFactor;
         const tx = hx - dirU * sLen;
         const ty = hy - dirV * sLen;
 
@@ -785,7 +752,7 @@ export class FleetWeatherCanvasOverlay {
           grad.addColorStop(1, `rgba(29, 78, 216, ${alpha.toFixed(3)})`);
         }
 
-        // Tapered raindrop streak tilted in the exact wind_angle direction
+        // Tapered vertical raindrop streak falling straight downward
         ctx.beginPath();
         ctx.moveTo(tx, ty);
         ctx.lineTo(hx, hy);

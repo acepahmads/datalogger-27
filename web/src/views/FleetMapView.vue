@@ -1051,7 +1051,7 @@
             class="flex items-center gap-2 flex-wrap"
             :class="{ 'pt-0.5 border-t border-slate-100 dark:border-slate-800': showWindLayer }"
           >
-            <span class="font-extrabold text-blue-700 dark:text-blue-300">🌧 Hujan (Ikut Wind Angle):</span>
+            <span class="font-extrabold text-blue-700 dark:text-blue-300">🌧 Hujan:</span>
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400"></span>Ringan &lt;2</span>
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-600"></span>Sedang 2–10</span>
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-700"></span>Lebat &gt;10 mm</span>

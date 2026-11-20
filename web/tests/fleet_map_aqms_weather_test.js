@@ -89,7 +89,7 @@ check('4. IDW wind field interpolation accurately preserves local station direct
   assert.strictEqual(farAway.influence, 0, 'Influence far outside station reach must attenuate to 0');
 });
 
-check('5. Rain intensity classification scales radar radius, droplet density & streak length cleanly', () => {
+check('5. Rain intensity classification scales radar radius, droplet density & falls straight downward (independent of wind_angle)', () => {
   const rLight = mathApi.classifyRainIntensity(0.8);
   const rMod = mathApi.classifyRainIntensity(5.4);
   const rHeavy = mathApi.classifyRainIntensity(15.2);
@@ -98,7 +98,10 @@ check('5. Rain intensity classification scales radar radius, droplet density & s
   assert.strictEqual(rHeavy.level, 'HEAVY');
   assert(rLight.dropCount < rMod.dropCount && rMod.dropCount < rHeavy.dropCount, 'Raindrop count must scale with intensity');
   assert(rLight.baseRadius < rMod.baseRadius && rMod.baseRadius < rHeavy.baseRadius, 'Rain radar radius must scale with intensity');
-  assert(canvasCode.includes('renderRainAuras') && canvasCode.includes('renderRainDrops'), 'Canvas engine must render both radar aura and wind-slanted rain streaks');
+  assert(canvasCode.includes('renderRainAuras') && canvasCode.includes('renderRainDrops'), 'Canvas engine must render both radar aura and raindrop streaks');
+  assert(canvasCode.includes('dirU: 0,') && canvasCode.includes('dirV: 1, // Always fall straight downward'), 'Raindrops must always fall straight downward (dirU=0, dirV=1)');
+  assert(!canvasCode.includes('rs.dirU = fld.u'), 'Raindrops must NOT borrow direction from wind grid');
+  assert(!fleetCode.includes('Ikut Wind Angle'), 'Legend must not claim rain follows wind_angle');
 });
 
 check('6. FleetMapView integrates FleetWeatherCanvasOverlay with toggles, localStorage persistence, cleanup & legend isolation', () => {
