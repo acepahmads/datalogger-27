@@ -362,3 +362,128 @@ func TestGetFleetOverview_EnvironmentalIndicesISPUAndWQMS(t *testing.T) {
 	}
 }
 
+func TestGetFleetOverview_AQMSWeatherWindAndRain(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_fleet_aqms_weather_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("failed to open sqlite db: %v", err)
+	}
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("failed to run migrations: %v", err)
+	}
+
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Parameter{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Device{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Site{})
+	db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&model.Tenant{})
+
+	tenantRepo := repository.NewTenantRepository(db)
+	sysRepo := repository.NewSystemRepository(db)
+	tenantService := service.NewTenantService(tenantRepo, sysRepo)
+
+	ten := model.Tenant{Code: "dlh-weather", Name: "DLH Weather Test", Status: model.TenantStatusActive, ProjectYear: 2026}
+	db.Create(&ten)
+
+	lat1, lng1 := -7.425, 111.022
+	aqmsRainSite := model.Site{
+		TenantID: ten.ID, Code: "aqms-rain", Name: "AQMS Sragen Rain",
+		MonitoringDomain: "AQMS", Latitude: &lat1, Longitude: &lng1, Enabled: true,
+	}
+	db.Create(&aqmsRainSite)
+
+	lat2, lng2 := -6.178, 106.512
+	aqmsDrySite := model.Site{
+		TenantID: ten.ID, Code: "aqms-dry", Name: "AQMS Tangerang Dry",
+		MonitoringDomain: "AQMS", Latitude: &lat2, Longitude: &lng2, Enabled: true,
+	}
+	db.Create(&aqmsDrySite)
+
+	lat3, lng3 := -6.917, 107.619
+	sparingSite := model.Site{
+		TenantID: ten.ID, Code: "sparing-bandung", Name: "SPARING Bandung",
+		MonitoringDomain: "SPARING", Latitude: &lat3, Longitude: &lng3, Enabled: true,
+	}
+	db.Create(&sparingSite)
+
+	now := time.Now().UTC()
+	devRain := model.Device{
+		TenantID: ten.ID, SiteID: aqmsRainSite.ID, DeviceCode: "dev-rain", DeviceName: "AQMS Logger Rain",
+		DeviceType: "EDGE_PUSH", Enabled: true, Status: model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline, LastDataAt: &now,
+	}
+	db.Create(&devRain)
+
+	ws1, wd1, rf1, shelterT, ambT := 3.45, 274.2, 4.8, 39.5, 27.3
+	db.Create(&model.Parameter{DeviceID: devRain.ID, ParameterCode: "ws", ParameterName: "Wind Speed", Unit: "m/s", Enabled: true, CurrentValue: &ws1, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: devRain.ID, ParameterCode: "wd", ParameterName: "Wind Direction", Unit: "deg", Enabled: true, CurrentValue: &wd1, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: devRain.ID, ParameterCode: "rain_fall", ParameterName: "Curah Hujan", Unit: "mm", Enabled: true, CurrentValue: &rf1, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: devRain.ID, ParameterCode: "shelter_temp", ParameterName: "Shelter Temperature", Unit: "°C", Enabled: true, CurrentValue: &shelterT, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: devRain.ID, ParameterCode: "temperature", ParameterName: "Ambient Temperature", Unit: "°C", Enabled: true, CurrentValue: &ambT, LastUpdated: &now})
+
+	devDry := model.Device{
+		TenantID: ten.ID, SiteID: aqmsDrySite.ID, DeviceCode: "dev-dry", DeviceName: "AQMS Logger Dry",
+		DeviceType: "EDGE_PUSH", Enabled: true, Status: model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline, LastDataAt: &now,
+	}
+	db.Create(&devDry)
+
+	ws2, wd2, rf2 := 1.2, -30.0, 0.0 // negative angle normalizes to 330°; rain 0.0 => IsRaining false
+	db.Create(&model.Parameter{DeviceID: devDry.ID, ParameterCode: "wind_speed", ParameterName: "Kecepatan Angin", Unit: "m/s", Enabled: true, CurrentValue: &ws2, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: devDry.ID, ParameterCode: "arah_angin", ParameterName: "Arah Angin", Unit: "°", Enabled: true, CurrentValue: &wd2, LastUpdated: &now})
+	db.Create(&model.Parameter{DeviceID: devDry.ID, ParameterCode: "rain", ParameterName: "Rainfall", Unit: "mm", Enabled: true, CurrentValue: &rf2, LastUpdated: &now})
+
+	devSparing := model.Device{
+		TenantID: ten.ID, SiteID: sparingSite.ID, DeviceCode: "dev-sparing", DeviceName: "SPARING Logger",
+		DeviceType: "EDGE_PUSH", Enabled: true, Status: model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline, LastDataAt: &now,
+	}
+	db.Create(&devSparing)
+	db.Create(&model.Parameter{DeviceID: devSparing.ID, ParameterCode: "ws", ParameterName: "Wind Speed", Unit: "m/s", Enabled: true, CurrentValue: &ws1, LastUpdated: &now})
+
+	ov, err := tenantService.GetFleetOverview()
+	if err != nil {
+		t.Fatalf("GetFleetOverview failed: %v", err)
+	}
+
+	byCode := map[string]service.FleetSiteItem{}
+	for _, s := range ov.Sites {
+		byCode[s.SiteCode] = s
+	}
+
+	rSite := byCode["aqms-rain"]
+	if rSite.Weather == nil || !rSite.Weather.Available {
+		t.Fatalf("expected aqms-rain to have available weather summary, got %+v", rSite.Weather)
+	}
+	if rSite.Weather.WindSpeed == nil || *rSite.Weather.WindSpeed != 3.45 {
+		t.Errorf("expected wind_speed 3.45, got %v", rSite.Weather.WindSpeed)
+	}
+	if rSite.Weather.WindAngle == nil || *rSite.Weather.WindAngle != 274.2 {
+		t.Errorf("expected wind_angle 274.2, got %v", rSite.Weather.WindAngle)
+	}
+	if rSite.Weather.RainFall == nil || *rSite.Weather.RainFall != 4.8 || !rSite.Weather.IsRaining {
+		t.Errorf("expected rain_fall 4.8 & is_raining=true, got %+v", rSite.Weather)
+	}
+	if rSite.Weather.Temperature == nil || *rSite.Weather.Temperature != 27.3 {
+		t.Errorf("expected ambient temperature 27.3 (excluding shelter_temp 39.5), got %v", rSite.Weather.Temperature)
+	}
+
+	dSite := byCode["aqms-dry"]
+	if dSite.Weather == nil || !dSite.Weather.Available {
+		t.Fatalf("expected aqms-dry to have available weather summary")
+	}
+	if dSite.Weather.WindAngle == nil || *dSite.Weather.WindAngle != 330.0 {
+		t.Errorf("expected normalized wind_angle 330.0, got %v", dSite.Weather.WindAngle)
+	}
+	if dSite.Weather.IsRaining {
+		t.Errorf("expected is_raining=false for 0.0mm rainfall")
+	}
+
+	sSite := byCode["sparing-bandung"]
+	if sSite.Weather != nil {
+		t.Errorf("expected SPARING site to omit AQMS weather summary, got %+v", sSite.Weather)
+	}
+}
+
+

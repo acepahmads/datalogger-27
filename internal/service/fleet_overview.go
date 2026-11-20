@@ -2,6 +2,7 @@ package service
 
 import (
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -79,44 +80,60 @@ type FleetSiteWQMSSummary struct {
 	Parameters        []FleetEnvParamMetric `json:"parameters,omitempty"`
 }
 
+// FleetSiteWeatherSummary holds live meteorology telemetry (wind speed/angle, rainfall, temp/RH)
+// extracted in-memory from preloaded AQMS device parameters (zero extra SQL queries).
+type FleetSiteWeatherSummary struct {
+	Available     bool       `json:"available"`
+	WindSpeed     *float64   `json:"wind_speed,omitempty"`
+	WindSpeedUnit string     `json:"wind_speed_unit,omitempty"`
+	WindAngle     *float64   `json:"wind_angle,omitempty"`
+	RainFall      *float64   `json:"rain_fall,omitempty"`
+	RainFallUnit  string     `json:"rain_fall_unit,omitempty"`
+	IsRaining     bool       `json:"is_raining"`
+	Temperature   *float64   `json:"temperature,omitempty"`
+	Humidity      *float64   `json:"humidity,omitempty"`
+	UpdatedAt     *time.Time `json:"updated_at,omitempty"`
+}
+
 // FleetSiteItem represents a single Tenant Station / Site with coordinates, freshness, devices, alarms, and environmental indices.
 type FleetSiteItem struct {
-	SiteID              uint                   `json:"site_id"`
-	SiteCode            string                 `json:"site_code"`
-	SiteName            string                 `json:"site_name"`
-	TenantID            uint                   `json:"tenant_id"`
-	TenantCode          string                 `json:"tenant_code"`
-	TenantName          string                 `json:"tenant_name"`
-	TenantStatus        string                 `json:"tenant_status"`
-	CustomerName        string                 `json:"customer_name"`
-	ProjectYear         int                    `json:"project_year"`
-	MonitoringDomain    string                 `json:"monitoring_domain"`
-	Enabled             bool                   `json:"enabled"`
-	Address             string                 `json:"address"`
-	Timezone            string                 `json:"timezone"`
-	HasCoordinates      bool                   `json:"has_coordinates"`
-	Latitude            *float64               `json:"latitude"`
-	Longitude           *float64               `json:"longitude"`
-	LocationSource      string                 `json:"location_source"`
-	DeviceCount         int                    `json:"device_count"`
-	EnabledDeviceCount  int                    `json:"enabled_device_count"`
-	OnlineDeviceCount   int                    `json:"online_device_count"`
-	OfflineDeviceCount  int                    `json:"offline_device_count"`
-	PrimaryProtocol     string                 `json:"primary_protocol"`
-	EffectiveTimeoutSec int                    `json:"effective_timeout_seconds"`
-	LastDataAt          *time.Time             `json:"last_data_at"`
-	LastSeenAt          *time.Time             `json:"last_seen_at"`
-	LastTransmissionAt  *time.Time             `json:"last_transmission_at"`
-	DataAgeSeconds      *int64                 `json:"data_age_seconds"`
-	DeliveryStatus      string                 `json:"delivery_status"` // ONLINE | DELAYED | OFFLINE | INACTIVE
-	SeverityState       string                 `json:"severity_state"`  // CRITICAL | WARNING | NORMAL | INACTIVE
-	CriticalAlarmCount  int                    `json:"critical_alarm_count"`
-	WarningAlarmCount   int                    `json:"warning_alarm_count"`
-	TotalActiveAlarms   int                    `json:"total_active_alarms"`
-	ActiveAlarms        []FleetSiteAlarmItem   `json:"active_alarms"`
-	Devices             []FleetSiteDeviceBrief `json:"devices"`
-	ISPU                *FleetSiteISPUSummary  `json:"ispu,omitempty"`
-	WQMS                *FleetSiteWQMSSummary  `json:"wqms,omitempty"`
+	SiteID              uint                     `json:"site_id"`
+	SiteCode            string                   `json:"site_code"`
+	SiteName            string                   `json:"site_name"`
+	TenantID            uint                     `json:"tenant_id"`
+	TenantCode          string                   `json:"tenant_code"`
+	TenantName          string                   `json:"tenant_name"`
+	TenantStatus        string                   `json:"tenant_status"`
+	CustomerName        string                   `json:"customer_name"`
+	ProjectYear         int                      `json:"project_year"`
+	MonitoringDomain    string                   `json:"monitoring_domain"`
+	Enabled             bool                     `json:"enabled"`
+	Address             string                   `json:"address"`
+	Timezone            string                   `json:"timezone"`
+	HasCoordinates      bool                     `json:"has_coordinates"`
+	Latitude            *float64                 `json:"latitude"`
+	Longitude           *float64                 `json:"longitude"`
+	LocationSource      string                   `json:"location_source"`
+	DeviceCount         int                      `json:"device_count"`
+	EnabledDeviceCount  int                      `json:"enabled_device_count"`
+	OnlineDeviceCount   int                      `json:"online_device_count"`
+	OfflineDeviceCount  int                      `json:"offline_device_count"`
+	PrimaryProtocol     string                   `json:"primary_protocol"`
+	EffectiveTimeoutSec int                      `json:"effective_timeout_seconds"`
+	LastDataAt          *time.Time               `json:"last_data_at"`
+	LastSeenAt          *time.Time               `json:"last_seen_at"`
+	LastTransmissionAt  *time.Time               `json:"last_transmission_at"`
+	DataAgeSeconds      *int64                   `json:"data_age_seconds"`
+	DeliveryStatus      string                   `json:"delivery_status"` // ONLINE | DELAYED | OFFLINE | INACTIVE
+	SeverityState       string                   `json:"severity_state"`  // CRITICAL | WARNING | NORMAL | INACTIVE
+	CriticalAlarmCount  int                      `json:"critical_alarm_count"`
+	WarningAlarmCount   int                      `json:"warning_alarm_count"`
+	TotalActiveAlarms   int                      `json:"total_active_alarms"`
+	ActiveAlarms        []FleetSiteAlarmItem     `json:"active_alarms"`
+	Devices             []FleetSiteDeviceBrief   `json:"devices"`
+	ISPU                *FleetSiteISPUSummary    `json:"ispu,omitempty"`
+	WQMS                *FleetSiteWQMSSummary    `json:"wqms,omitempty"`
+	Weather             *FleetSiteWeatherSummary `json:"weather,omitempty"`
 }
 
 // FleetTenantOption represents a lightweight tenant summary for filter dropdowns on the Fleet Map.
@@ -682,8 +699,10 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 
 		var siteISPUSummary *FleetSiteISPUSummary
 		var siteWQMSSummary *FleetSiteWQMSSummary
+		var siteWeatherSummary *FleetSiteWeatherSummary
 		if dom == "AQMS" {
 			siteISPUSummary = buildFleetSiteISPUSummary(st.ID, siteDevs, latestISPUBySite, ispuCalc)
+			siteWeatherSummary = buildFleetSiteWeatherSummary(siteDevs)
 		} else if dom == "WQMS" || dom == "ONLIMO" {
 			wc := waterClassBySite[st.ID]
 			if wc == "" {
@@ -729,6 +748,7 @@ func (s *TenantService) GetFleetOverview() (*FleetOverviewResponse, error) {
 			Devices:             devBriefs,
 			ISPU:                siteISPUSummary,
 			WQMS:                siteWQMSSummary,
+			Weather:             siteWeatherSummary,
 		}
 		out.Sites = append(out.Sites, item)
 
@@ -879,8 +899,14 @@ func resolveLiveParamValue(p *model.Parameter) (float64, bool) {
 	if p.CurrentFormulaValue != nil && !math.IsNaN(*p.CurrentFormulaValue) && !math.IsInf(*p.CurrentFormulaValue, 0) {
 		return *p.CurrentFormulaValue, true
 	}
+	if p.CurrentProcessedValue != nil && !math.IsNaN(*p.CurrentProcessedValue) && !math.IsInf(*p.CurrentProcessedValue, 0) {
+		return *p.CurrentProcessedValue, true
+	}
 	if p.CurrentValue != nil && !math.IsNaN(*p.CurrentValue) && !math.IsInf(*p.CurrentValue, 0) {
 		return *p.CurrentValue, true
+	}
+	if p.CurrentValueNumeric != nil && !math.IsNaN(*p.CurrentValueNumeric) && !math.IsInf(*p.CurrentValueNumeric, 0) {
+		return *p.CurrentValueNumeric, true
 	}
 	return 0, false
 }
@@ -1289,4 +1315,231 @@ func buildFleetSiteWQMSSummary(
 		CalculatedAt:      latestParamTime,
 		Parameters:        metrics,
 	}
+}
+
+var (
+	fleetWeatherExcludeRe = regexp.MustCompile(`(?i)(^|[\s_\-.])(cpu|gpu|soc|board|pcb|box|panel|cabinet|shelter|enclosure|rack|indoor|internal|pump|motor|oil|water|wastewater|air[_\s-]?limbah|effluent|inlet|outlet|diff|differential|filter|sample|vacuum|exhaust|battery|charger|inverter)([\s_\-.]|$)`)
+
+	fleetWindSpeedExactRe = regexp.MustCompile(`(?i)^(ws|wspeed|w_speed|wind_speed|windspeed|wind_spd|kec_angin|kecepatan_angin)$`)
+	fleetWindSpeedTokenRe = regexp.MustCompile(`(?i)(^|[\s_\-.])(wspeed|w[_\s-]?speed|wind[_\s-]?speed|windspeed|wind[_\s-]?spd|kecepatan[_\s-]?angin|kec[_\s-]?angin)([\s_\-.]|$)`)
+	fleetWindSpeedUnitRe  = regexp.MustCompile(`(?i)(m/s|km/h|knot|\bkt\b|mph)`)
+
+	fleetWindAngleExactRe = regexp.MustCompile(`(?i)^(wd|wdir|w_dir|wind_dir|winddir|wind_angle|windangle|w_angle|arah_angin|sudut_angin)$`)
+	fleetWindAngleTokenRe = regexp.MustCompile(`(?i)(^|[\s_\-.])(wdir|w[_\s-]?dir|wind[_\s-]?dir|winddir|wind[_\s-]?angle|windangle|w[_\s-]?angle|arah[_\s-]?angin|sudut[_\s-]?angin)([\s_\-.]|$)`)
+	fleetWindAngleUnitRe  = regexp.MustCompile(`(?i)(°|deg)`)
+
+	fleetRainFallExactRe = regexp.MustCompile(`(?i)^(rain|rainfall|rain_fall|curah_hujan|hujan|precip|precipitation|tprecipitation)$`)
+	fleetRainFallTokenRe = regexp.MustCompile(`(?i)(^|[\s_\-.])(rain[_\s-]?fall|rainfall|rain|curah[_\s-]?hujan|hujan|precip|precipitation|tprecipitation)([\s_\-.]|$)`)
+	fleetRainFallUnitRe  = regexp.MustCompile(`(?i)(mm|inch|in/h)`)
+
+	fleetTempExactRe = regexp.MustCompile(`(?i)^(temp|temperature|t_amb|tamb|air_temp|ambient_temp|at|suhu|suhu_udara)$`)
+	fleetTempTokenRe = regexp.MustCompile(`(?i)(^|[\s_\-.])(temp|temperature|suhu|air[_\s-]?temp|ambient[_\s-]?temp)([\s_\-.]|$)`)
+	fleetTempUnitRe  = regexp.MustCompile(`(?i)(°c|degc|celcius|celsius|\bc\b|°f)`)
+
+	fleetHumExactRe = regexp.MustCompile(`(?i)^(rh|hum|humidity|rel_hum|air_hum|kelembaban|kelembapan)$`)
+	fleetHumTokenRe = regexp.MustCompile(`(?i)(^|[\s_\-.])(rh|hum|humidity|kelembaban|kelembapan|rel[_\s-]?hum)([\s_\-.]|$)`)
+	fleetHumUnitRe  = regexp.MustCompile(`(?i)(%|rh)`)
+)
+
+func scoreFleetWeatherSlot(p *model.Parameter, devOnline bool, slot string) int {
+	if p == nil {
+		return -1
+	}
+	code := strings.TrimSpace(p.ParameterCode)
+	if code == "" {
+		code = strings.TrimSpace(p.Code)
+	}
+	name := strings.TrimSpace(p.ParameterName)
+	if name == "" {
+		name = strings.TrimSpace(p.Name)
+	}
+	unit := strings.TrimSpace(p.Unit)
+	combined := strings.TrimSpace(code + " " + name)
+	if combined == "" || fleetWeatherExcludeRe.MatchString(combined) {
+		return -1
+	}
+
+	score := -1
+	switch slot {
+	case "wind_speed":
+		if fleetWindSpeedExactRe.MatchString(code) {
+			score = 100
+		} else if fleetWindSpeedTokenRe.MatchString(combined) {
+			score = 80
+		}
+		if score > 0 && fleetWindSpeedUnitRe.MatchString(unit) {
+			score += 15
+		}
+	case "wind_angle":
+		if fleetWindAngleExactRe.MatchString(code) {
+			score = 100
+		} else if fleetWindAngleTokenRe.MatchString(combined) {
+			score = 80
+		}
+		if score > 0 && fleetWindAngleUnitRe.MatchString(unit) {
+			score += 15
+		}
+	case "rain_fall":
+		if fleetRainFallExactRe.MatchString(code) {
+			score = 100
+		} else if fleetRainFallTokenRe.MatchString(combined) {
+			score = 80
+		}
+		if score > 0 && fleetRainFallUnitRe.MatchString(unit) {
+			score += 15
+		}
+	case "temperature":
+		if fleetTempExactRe.MatchString(code) {
+			score = 100
+		} else if fleetTempTokenRe.MatchString(combined) {
+			score = 80
+		}
+		if score > 0 && fleetTempUnitRe.MatchString(unit) {
+			score += 15
+		}
+	case "humidity":
+		if fleetHumExactRe.MatchString(code) {
+			score = 100
+		} else if fleetHumTokenRe.MatchString(combined) {
+			score = 80
+		}
+		if score > 0 && fleetHumUnitRe.MatchString(unit) {
+			score += 15
+		}
+	}
+
+	if score < 0 {
+		return -1
+	}
+	if devOnline {
+		score += 10
+	}
+	if !strings.EqualFold(string(p.CurrentQuality), string(model.QualityBad)) {
+		score += 5
+	}
+	lowerName := strings.ToLower(name)
+	if strings.Contains(lowerName, "ambient") || strings.Contains(lowerName, "udara") || strings.Contains(lowerName, "air") {
+		score += 4
+	}
+	return score
+}
+
+func buildFleetSiteWeatherSummary(siteDevs []*model.Device) *FleetSiteWeatherSummary {
+	type pickedWeather struct {
+		score int
+		val   float64
+		unit  string
+		ts    *time.Time
+		pid   uint
+	}
+
+	slots := []string{"wind_speed", "wind_angle", "rain_fall", "temperature", "humidity"}
+	best := make(map[string]pickedWeather, len(slots))
+	usedPIDs := make(map[uint]bool, len(slots))
+
+	for _, slot := range slots {
+		var winner pickedWeather
+		winner.score = -1
+		for _, dev := range siteDevs {
+			if isDeviceAdminDisabled(dev) {
+				continue
+			}
+			devOnline := strings.EqualFold(strings.TrimSpace(string(dev.ConnectionStatus)), string(model.DeviceConnOnline))
+			for idx := range dev.Parameters {
+				p := &dev.Parameters[idx]
+				if p.ID > 0 && usedPIDs[p.ID] {
+					continue
+				}
+				val, ok := resolveLiveParamValue(p)
+				if !ok {
+					continue
+				}
+				sc := scoreFleetWeatherSlot(p, devOnline, slot)
+				if sc > winner.score {
+					var ts *time.Time
+					if p.CurrentReceivedAt != nil {
+						tCopy := p.CurrentReceivedAt.UTC()
+						ts = &tCopy
+					} else if p.LastUpdated != nil {
+						tCopy := p.LastUpdated.UTC()
+						ts = &tCopy
+					}
+					winner = pickedWeather{
+						score: sc,
+						val:   val,
+						unit:  strings.TrimSpace(p.Unit),
+						ts:    ts,
+						pid:   p.ID,
+					}
+				}
+			}
+		}
+		if winner.score > 0 {
+			best[slot] = winner
+			if winner.pid > 0 {
+				usedPIDs[winner.pid] = true
+			}
+		}
+	}
+
+	_, hasWS := best["wind_speed"]
+	_, hasWD := best["wind_angle"]
+	_, hasRF := best["rain_fall"]
+	if !hasWS && !hasWD && !hasRF {
+		return nil
+	}
+
+	out := &FleetSiteWeatherSummary{
+		Available: true,
+	}
+	var latestTS *time.Time
+	trackTS := func(ts *time.Time) {
+		if ts == nil {
+			return
+		}
+		if latestTS == nil || ts.After(*latestTS) {
+			tCopy := *ts
+			latestTS = &tCopy
+		}
+	}
+
+	if ws, ok := best["wind_speed"]; ok {
+		v := roundTo(math.Max(0, ws.val), 2)
+		out.WindSpeed = &v
+		if ws.unit != "" {
+			out.WindSpeedUnit = ws.unit
+		} else {
+			out.WindSpeedUnit = "m/s"
+		}
+		trackTS(ws.ts)
+	}
+	if wd, ok := best["wind_angle"]; ok {
+		norm := math.Mod(math.Mod(wd.val, 360)+360, 360)
+		v := roundTo(norm, 1)
+		out.WindAngle = &v
+		trackTS(wd.ts)
+	}
+	if rf, ok := best["rain_fall"]; ok {
+		v := roundTo(math.Max(0, rf.val), 2)
+		out.RainFall = &v
+		if rf.unit != "" {
+			out.RainFallUnit = rf.unit
+		} else {
+			out.RainFallUnit = "mm"
+		}
+		out.IsRaining = v > 0.05
+		trackTS(rf.ts)
+	}
+	if tm, ok := best["temperature"]; ok {
+		v := roundTo(tm.val, 1)
+		out.Temperature = &v
+		trackTS(tm.ts)
+	}
+	if rh, ok := best["humidity"]; ok {
+		v := roundTo(rh.val, 1)
+		out.Humidity = &v
+		trackTS(rh.ts)
+	}
+	out.UpdatedAt = latestTS
+	return out
 }

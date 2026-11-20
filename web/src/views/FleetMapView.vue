@@ -258,8 +258,51 @@
           </button>
         </div>
 
-        <!-- Map Theme Segmented Control (1-Click Layer Selection) -->
-        <div class="flex items-center gap-1 ml-auto flex-shrink-0">
+        <!-- AQMS Weather Overlays (Angin & Hujan) + Map Theme Segmented Control -->
+        <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
+          <div
+            v-if="isAqmsWeatherToggleVisible"
+            id="fleet-aqms-weather-toggles"
+            class="inline-flex items-center gap-1"
+          >
+            <button
+              type="button"
+              id="btn-fleet-toggle-wind"
+              @click="showWindLayer = !showWindLayer"
+              class="h-7 px-2 rounded-lg text-2xs font-bold border inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+              :class="showWindLayer
+                ? 'bg-cyan-600 text-white btn-text border-cyan-600 shadow-2xs'
+                : 'bg-slate-50 hover:bg-cyan-50 dark:bg-[#0B0F19] dark:hover:bg-cyan-950/40 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80'"
+              :title="showWindLayer ? 'Sembunyikan arah & kecepatan angin AQMS di peta' : 'Tampilkan arah & kecepatan angin AQMS langsung di peta'"
+            >
+              <span>🌬</span>
+              <span>Angin</span>
+              <span
+                v-if="aqmsWindAvailableCount > 0"
+                class="px-1 rounded text-4xs font-mono font-extrabold tabular-nums"
+                :class="showWindLayer ? 'bg-white/20 text-white badge-text font-extrabold' : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'"
+              >{{ aqmsWindAvailableCount }}</span>
+            </button>
+            <button
+              type="button"
+              id="btn-fleet-toggle-rain"
+              @click="showRainLayer = !showRainLayer"
+              class="h-7 px-2 rounded-lg text-2xs font-bold border inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+              :class="showRainLayer
+                ? 'bg-blue-600 text-white btn-text border-blue-600 shadow-2xs'
+                : 'bg-slate-50 hover:bg-blue-50 dark:bg-[#0B0F19] dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80'"
+              :title="showRainLayer ? 'Sembunyikan overlay hujan AQMS di peta' : 'Tampilkan lokasi hujan AQMS langsung di peta'"
+            >
+              <span>🌧</span>
+              <span>Hujan</span>
+              <span
+                v-if="aqmsRainingCount > 0"
+                class="px-1 rounded text-4xs font-mono font-extrabold tabular-nums"
+                :class="showRainLayer ? 'bg-white/20 text-white badge-text font-extrabold' : 'bg-blue-600 text-white badge-text font-extrabold animate-pulse'"
+              >{{ aqmsRainingCount }}</span>
+            </button>
+          </div>
+
           <button
             type="button"
             id="btn-fleet-map-style"
@@ -534,19 +577,50 @@
                   id="btn-fleet-tablet-layers"
                   type="button"
                   @click.stop="showLayerPopover = !showLayerPopover"
-                  class="w-7 h-7 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                  :class="{ 'bg-sky-500/15 text-sky-600 dark:text-sky-400': showLayerPopover }"
+                  class="relative w-7 h-7 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  :class="{ 'bg-sky-500/15 text-sky-600 dark:text-sky-400': showLayerPopover || showWindLayer || showRainLayer }"
                   :title="'Layer Peta: ' + mapStyleLabel"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 3 2 8.5 12 14l10-5.5L12 3Zm0 14.5-10-5.5m20 0-10 5.5m0 3.5-10-5.5m20 0-10 5.5" />
                   </svg>
+                  <span
+                    v-if="showWindLayer || showRainLayer"
+                    class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-500"
+                  ></span>
                 </button>
                 <div
                   v-if="showLayerPopover"
                   @click.stop
-                  class="absolute right-0 top-full mt-1.5 w-32 p-1 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-2xl z-[520] space-y-0.5"
+                  class="absolute right-0 top-full mt-1.5 w-44 p-1.5 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-2xl z-[520] space-y-0.5"
                 >
+                  <div v-if="isAqmsWeatherToggleVisible" class="pb-1.5 mb-1 border-b border-slate-100 dark:border-slate-800 space-y-1">
+                    <div class="px-2 pt-0.5 text-4xs font-extrabold uppercase tracking-wider text-slate-400">
+                      Cuaca AQMS
+                    </div>
+                    <button
+                      type="button"
+                      @click="showWindLayer = !showWindLayer"
+                      class="w-full px-2.5 py-1.5 rounded-lg text-left text-2xs font-bold flex items-center justify-between transition cursor-pointer"
+                      :class="showWindLayer
+                        ? 'bg-cyan-600 text-white btn-text shadow-2xs'
+                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                    >
+                      <span>🌬 Arah & Kec. Angin</span>
+                      <span class="text-3xs font-mono">{{ showWindLayer ? 'ON' : 'OFF' }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      @click="showRainLayer = !showRainLayer"
+                      class="w-full px-2.5 py-1.5 rounded-lg text-left text-2xs font-bold flex items-center justify-between transition cursor-pointer"
+                      :class="showRainLayer
+                        ? 'bg-blue-600 text-white btn-text shadow-2xs'
+                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                    >
+                      <span>🌧 Curah Hujan</span>
+                      <span class="text-3xs font-mono">{{ showRainLayer ? 'ON' : 'OFF' }}</span>
+                    </button>
+                  </div>
                   <button
                     v-for="opt in mapStyleOptions"
                     :key="'tab-layer-' + opt.value"
@@ -737,6 +811,37 @@
             </button>
           </div>
 
+          <!-- AQMS Weather Overlay Toggles in Fullscreen -->
+          <div
+            v-if="isAqmsWeatherToggleVisible"
+            class="inline-flex items-center gap-1"
+          >
+            <button
+              type="button"
+              @click="showWindLayer = !showWindLayer"
+              class="h-7 px-2 rounded-lg text-3xs font-bold border inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+              :class="showWindLayer
+                ? 'bg-cyan-600 text-white btn-text border-cyan-600 shadow-2xs'
+                : 'bg-slate-50 dark:bg-[#0B0F19] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'"
+              title="Toggle overlay Angin AQMS"
+            >
+              <span>🌬</span>
+              <span class="hidden sm:inline">Angin</span>
+            </button>
+            <button
+              type="button"
+              @click="showRainLayer = !showRainLayer"
+              class="h-7 px-2 rounded-lg text-3xs font-bold border inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+              :class="showRainLayer
+                ? 'bg-blue-600 text-white btn-text border-blue-600 shadow-2xs'
+                : 'bg-slate-50 dark:bg-[#0B0F19] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'"
+              title="Toggle overlay Hujan AQMS"
+            >
+              <span>🌧</span>
+              <span class="hidden sm:inline">Hujan</span>
+            </button>
+          </div>
+
           <!-- Theme Switcher in Fullscreen -->
           <div class="hidden sm:inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
             <button
@@ -815,6 +920,34 @@
             title="Ganti IP / IKA untuk WQMS & ONLIMO"
           >
             {{ wqmsIndexMode.toUpperCase() }}
+          </button>
+          <button
+            v-if="isAqmsWeatherToggleVisible"
+            type="button"
+            @click="showWindLayer = !showWindLayer"
+            class="w-8 h-8 rounded-xl border shadow-md flex items-center justify-center text-xs font-bold cursor-pointer"
+            :class="showWindLayer
+              ? 'bg-cyan-600 text-white btn-text border-cyan-500'
+              : 'bg-white/95 dark:bg-[#0E1626]/95 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'"
+            title="Toggle Arah & Kecepatan Angin AQMS"
+          >
+            🌬
+          </button>
+          <button
+            v-if="isAqmsWeatherToggleVisible"
+            type="button"
+            @click="showRainLayer = !showRainLayer"
+            class="relative w-8 h-8 rounded-xl border shadow-md flex items-center justify-center text-xs font-bold cursor-pointer"
+            :class="showRainLayer
+              ? 'bg-blue-600 text-white btn-text border-blue-500'
+              : 'bg-white/95 dark:bg-[#0E1626]/95 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'"
+            title="Toggle Curah Hujan AQMS"
+          >
+            🌧
+            <span
+              v-if="aqmsRainingCount > 0 && !showRainLayer"
+              class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-blue-600 text-white badge-text text-4xs font-mono font-extrabold flex items-center justify-center"
+            >{{ aqmsRainingCount }}</span>
           </button>
           <button
             type="button"
@@ -897,6 +1030,29 @@
               <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span>&gt;10 Cemar Berat</span>
             </template>
           </div>
+        </div>
+
+        <!-- Compact AQMS Weather Overlay Legend (ONLY when Angin or Hujan overlay is toggled ON) -->
+        <div
+          v-if="isTilesOnline && isAqmsWeatherToggleVisible && (showWindLayer || showRainLayer)"
+          id="fleet-weather-overlay-legend"
+          class="hidden sm:flex items-center gap-2.5 flex-wrap absolute left-2.5 z-[450] px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-[#0E1626]/95 backdrop-blur-xs border border-slate-200 dark:border-slate-700 text-4xs font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none"
+          :class="pinDisplayMode === 'env' ? 'bottom-[74px]' : 'bottom-2.5'"
+        >
+          <template v-if="showWindLayer">
+            <span class="font-extrabold text-cyan-700 dark:text-cyan-300">🌬 Angin:</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-600"></span>&lt;2 m/s</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>2–5</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-600"></span>5–10</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span>&gt;10 m/s</span>
+          </template>
+          <template v-if="showRainLayer">
+            <span v-if="showWindLayer" class="text-slate-300 dark:text-slate-600">|</span>
+            <span class="font-extrabold text-blue-700 dark:text-blue-300 inline-flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+              🌧 Hujan Aktif ({{ aqmsRainingCount }})
+            </span>
+          </template>
         </div>
 
         <!-- =============================================================== -->
@@ -1352,12 +1508,24 @@
                   {{ site.project_year }}
                 </span>
               </div>
-              <!-- Line 2: Tenant + Last Transmission -->
-              <div class="flex items-center gap-1.5 text-3xs text-slate-500 dark:text-slate-400 mt-0.5 min-w-0">
+              <!-- Line 2: Tenant + Last Transmission (+ Inline Wind/Rain Chips when Overlay ON) -->
+              <div class="flex items-center gap-1.5 text-3xs text-slate-500 dark:text-slate-400 mt-0.5 min-w-0 flex-wrap">
                 <span class="truncate font-medium">{{ site.tenant_name }}</span>
                 <span>·</span>
                 <span class="font-mono whitespace-nowrap" :class="deliveryTextClass(site.delivery_status)">
                   {{ formatRelativeAge(site) }}
+                </span>
+                <span
+                  v-if="showWindLayer && isSiteAqmsWeatherEligible(site) && site.weather && (site.weather.wind_speed != null || site.weather.wind_angle != null)"
+                  class="px-1 py-0.2 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/25 whitespace-nowrap"
+                >
+                  🌬 {{ site.weather.wind_speed != null ? Number(site.weather.wind_speed).toFixed(1) + ' ' + (site.weather.wind_speed_unit || 'm/s') : '' }}{{ site.weather.wind_angle != null ? (site.weather.wind_speed != null ? ' ' : '') + formatWindCompassShort(site.weather.wind_angle).idShort : '' }}
+                </span>
+                <span
+                  v-if="showRainLayer && isSiteAqmsWeatherEligible(site) && site.weather && site.weather.is_raining"
+                  class="px-1 py-0.2 rounded text-4xs font-mono font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 whitespace-nowrap"
+                >
+                  🌧 {{ Number(site.weather.rain_fall || 0).toFixed(1) }} {{ site.weather.rain_fall_unit || 'mm' }}
                 </span>
               </div>
             </div>
@@ -1863,6 +2031,20 @@ export default {
       mapStyle: 'auto', // 'auto' | 'osm' | 'clean' | 'satellite' | 'dark'
       pinDisplayMode: 'status', // 'status' | 'env'
       wqmsIndexMode: 'ip', // 'ip' | 'ika'
+      showWindLayer: (() => {
+        try {
+          return localStorage.getItem('datalogger_fleet_show_wind') === '1';
+        } catch (_) {
+          return false;
+        }
+      })(),
+      showRainLayer: (() => {
+        try {
+          return localStorage.getItem('datalogger_fleet_show_rain') === '1';
+        } catch (_) {
+          return false;
+        }
+      })(),
       spiderfiedClusterKey: '',
       selectedSiteId: 0,
       switchingSiteId: 0,
@@ -2178,6 +2360,19 @@ export default {
       }
       return Array.from(byCode.values()).slice(0, 8);
     },
+    isAqmsWeatherToggleVisible() {
+      return this.domainFilter === 'ALL' || this.domainFilter === 'AQMS';
+    },
+    aqmsWindAvailableCount() {
+      return (this.mappedFilteredSites || []).filter(
+        s => this.isSiteAqmsWeatherEligible(s) && s.weather && (s.weather.wind_speed != null || s.weather.wind_angle != null)
+      ).length;
+    },
+    aqmsRainingCount() {
+      return (this.mappedFilteredSites || []).filter(
+        s => this.isSiteAqmsWeatherEligible(s) && s.weather && s.weather.is_raining
+      ).length;
+    },
     gpsPickerLat() {
       return isValidStationCoordinate(this.gpsForm.latitude, this.gpsForm.longitude)
         ? Number(this.gpsForm.latitude)
@@ -2215,6 +2410,18 @@ export default {
       if (this.pinDisplayMode === 'env') {
         this.syncMapMarkers();
       }
+    },
+    showWindLayer(val) {
+      try {
+        localStorage.setItem('datalogger_fleet_show_wind', val ? '1' : '0');
+      } catch (_) {}
+      this.syncMapMarkers();
+    },
+    showRainLayer(val) {
+      try {
+        localStorage.setItem('datalogger_fleet_show_rain', val ? '1' : '0');
+      } catch (_) {}
+      this.syncMapMarkers();
     },
     mappedFilteredSites() {
       this.syncMapMarkers();
@@ -2601,6 +2808,7 @@ export default {
           total_active_alarms: totalAlarms,
           active_alarms: alarmItems,
           devices: [],
+          weather: this.extractFallbackSiteWeather(sDevs, String(st.monitoring_domain || 'AQMS').toUpperCase()),
         });
 
         summary.total_sites += 1;
@@ -2921,6 +3129,297 @@ export default {
       return fallback;
     },
 
+    isSiteAqmsWeatherEligible(site) {
+      return Boolean(site && String(site.monitoring_domain || '').toUpperCase() === 'AQMS');
+    },
+
+    extractFallbackSiteWeather(siteDevs, domain) {
+      if (domain !== 'AQMS' || !Array.isArray(siteDevs) || siteDevs.length === 0) return null;
+      const excludeRe = /(^|[\s_\-.])(cpu|gpu|soc|board|pcb|box|panel|cabinet|shelter|enclosure|rack|indoor|internal|pump|motor|oil|water|wastewater|effluent|inlet|outlet|diff|filter|sample|vacuum|exhaust|battery)([\s_\-.]|$)/i;
+      const wsRe = /(^|[\s_\-.])(ws|wspeed|w[_\s-]?speed|wind[_\s-]?speed|windspeed|kec[_\s-]?angin|kecepatan[_\s-]?angin)([\s_\-.]|$)/i;
+      const wdRe = /(^|[\s_\-.])(wd|wdir|w[_\s-]?dir|wind[_\s-]?dir|winddir|wind[_\s-]?angle|windangle|arah[_\s-]?angin|sudut[_\s-]?angin)([\s_\-.]|$)/i;
+      const rfRe = /(^|[\s_\-.])(rain|rainfall|rain[_\s-]?fall|curah[_\s-]?hujan|hujan|precip|precipitation)([\s_\-.]|$)/i;
+      let windSpeed = null;
+      let windSpeedUnit = 'm/s';
+      let windAngle = null;
+      let rainFall = null;
+      let rainFallUnit = 'mm';
+      for (const dev of siteDevs) {
+        if (!dev || dev.enabled === false) continue;
+        const params = Array.isArray(dev.parameters) ? dev.parameters : [];
+        for (const p of params) {
+          if (!p || p.enabled === false) continue;
+          const rawVal = p.current_formula_value ?? p.current_processed_value ?? p.current_value ?? p.current_value_numeric;
+          const num = Number(rawVal);
+          if (rawVal == null || rawVal === '' || !Number.isFinite(num)) continue;
+          const combined = `${p.parameter_code || p.code || ''} ${p.parameter_name || p.name || ''}`.trim();
+          if (!combined || excludeRe.test(combined)) continue;
+          if (windSpeed == null && wsRe.test(combined)) {
+            windSpeed = Math.max(0, Math.round(num * 100) / 100);
+            if (p.unit) windSpeedUnit = p.unit;
+          } else if (windAngle == null && wdRe.test(combined)) {
+            windAngle = Math.round((((num % 360) + 360) % 360) * 10) / 10;
+          } else if (rainFall == null && rfRe.test(combined)) {
+            rainFall = Math.max(0, Math.round(num * 100) / 100);
+            if (p.unit) rainFallUnit = p.unit;
+          }
+        }
+      }
+      if (windSpeed == null && windAngle == null && rainFall == null) return null;
+      return {
+        available: true,
+        wind_speed: windSpeed,
+        wind_speed_unit: windSpeedUnit,
+        wind_angle: windAngle,
+        rain_fall: rainFall,
+        rain_fall_unit: rainFallUnit,
+        is_raining: rainFall != null && rainFall > 0.05,
+      };
+    },
+
+    formatWindCompassShort(angle) {
+      const num = Number(angle);
+      if (!Number.isFinite(num)) {
+        return { deg: 0, idShort: '-', label: '—', valid: false };
+      }
+      const norm = ((num % 360) + 360) % 360;
+      const pts = [
+        { idShort: 'U', label: 'Utara' },
+        { idShort: 'TL', label: 'Timur Laut' },
+        { idShort: 'T', label: 'Timur' },
+        { idShort: 'TG', label: 'Tenggara' },
+        { idShort: 'S', label: 'Selatan' },
+        { idShort: 'BD', label: 'Barat Daya' },
+        { idShort: 'B', label: 'Barat' },
+        { idShort: 'BL', label: 'Barat Laut' },
+      ];
+      const pt = pts[Math.round(norm / 45) % 8];
+      return { deg: Math.round(norm), idShort: pt.idShort, label: pt.label, valid: true };
+    },
+
+    resolveWindSpeedMeta(speed, unit = 'm/s') {
+      const num = Number(speed);
+      if (!Number.isFinite(num)) {
+        return { color: '#0284c7', pillBg: 'rgba(2, 132, 199, 0.94)', ms: 0, label: 'Angin' };
+      }
+      const u = String(unit || 'm/s').toLowerCase();
+      let ms = num;
+      if (u.includes('km/h') || u.includes('kmh') || u.includes('kph')) ms = num / 3.6;
+      else if (u.includes('knot') || u === 'kt') ms = num * 0.514444;
+      else if (u.includes('mph')) ms = num * 0.44704;
+
+      if (ms > 10) return { color: '#e11d48', pillBg: 'rgba(225, 29, 72, 0.95)', ms, label: 'Sangat Kencang' };
+      if (ms >= 5) return { color: '#d97706', pillBg: 'rgba(217, 119, 6, 0.95)', ms, label: 'Kencang' };
+      if (ms >= 2) return { color: '#059669', pillBg: 'rgba(5, 150, 105, 0.94)', ms, label: 'Sedang' };
+      return { color: '#0284c7', pillBg: 'rgba(2, 132, 199, 0.94)', ms, label: 'Sepoi' };
+    },
+
+    buildWindArrowSvg(angle, color, pinSize) {
+      const norm = Number.isFinite(Number(angle)) ? ((Number(angle) % 360) + 360) % 360 : 0;
+      const orbitSize = pinSize + 28;
+      return `
+        <div class="fleet-wind-orbit" style="width:${orbitSize}px;height:${orbitSize}px;">
+          <div class="fleet-wind-arrow-rot" style="transform:rotate(${norm}deg);">
+            <svg viewBox="0 0 28 28" width="20" height="20" class="fleet-wind-arrow-svg" aria-hidden="true">
+              <path d="M14 1.5 L21.5 16.5 L14 12.8 L6.5 16.5 Z" fill="${color}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" />
+              <line x1="14" y1="12.5" x2="14" y2="22.5" stroke="${color}" stroke-width="2.6" stroke-linecap="round" />
+            </svg>
+          </div>
+        </div>
+      `;
+    },
+
+    buildSiteWeatherOverlayHtml(site, pinSize) {
+      if (!this.isSiteAqmsWeatherEligible(site) || !site.weather || !site.weather.available) {
+        return { rippleHtml: '', arrowHtml: '', pillStripHtml: '' };
+      }
+      const w = site.weather;
+      let rippleHtml = '';
+      let arrowHtml = '';
+      const pills = [];
+
+      if (this.showWindLayer && (w.wind_speed != null || w.wind_angle != null)) {
+        const wsMeta = this.resolveWindSpeedMeta(w.wind_speed, w.wind_speed_unit);
+        const dir = this.formatWindCompassShort(w.wind_angle);
+        if (dir.valid) {
+          arrowHtml = this.buildWindArrowSvg(dir.deg, wsMeta.color, pinSize);
+        }
+        const speedTxt =
+          w.wind_speed != null
+            ? `${Number(w.wind_speed).toFixed(1)} ${this.escapeHtml(w.wind_speed_unit || 'm/s')}`
+            : '';
+        const dirTxt = dir.valid ? dir.idShort : '';
+        const combinedTxt = [speedTxt, dirTxt].filter(Boolean).join(' · ');
+        if (combinedTxt) {
+          pills.push(
+            `<span class="fleet-weather-pill fleet-weather-pill-wind" style="background:${wsMeta.pillBg};">${combinedTxt}</span>`
+          );
+        }
+      }
+
+      if (this.showRainLayer && w.is_raining) {
+        rippleHtml = `
+          <span class="fleet-rain-ripple"></span>
+          <span class="fleet-rain-ripple fleet-rain-ripple-delay"></span>
+        `;
+        const rfVal = Number(w.rain_fall || 0).toFixed(1);
+        const rfUnit = this.escapeHtml(w.rain_fall_unit || 'mm');
+        pills.push(
+          `<span class="fleet-weather-pill fleet-weather-pill-rain">🌧 ${rfVal} ${rfUnit}</span>`
+        );
+      }
+
+      const pillStripHtml =
+        pills.length > 0
+          ? `<div class="fleet-weather-pill-strip" style="top:${pinSize + 5}px;">${pills.join('')}</div>`
+          : '';
+
+      return { rippleHtml, arrowHtml, pillStripHtml };
+    },
+
+    summarizeClusterWeather(sites) {
+      let windCount = 0;
+      let speedSum = 0;
+      let speedCount = 0;
+      let sinSum = 0;
+      let cosSum = 0;
+      let angleCount = 0;
+      let windUnit = 'm/s';
+
+      let rainingCount = 0;
+      let maxRain = 0;
+      let rainUnit = 'mm';
+
+      for (const s of sites || []) {
+        if (!this.isSiteAqmsWeatherEligible(s) || !s.weather || !s.weather.available) continue;
+        const w = s.weather;
+        if (w.wind_speed != null || w.wind_angle != null) {
+          windCount += 1;
+          if (w.wind_speed != null && Number.isFinite(Number(w.wind_speed))) {
+            speedSum += Number(w.wind_speed);
+            speedCount += 1;
+            if (w.wind_speed_unit) windUnit = w.wind_speed_unit;
+          }
+          if (w.wind_angle != null && Number.isFinite(Number(w.wind_angle))) {
+            const rad = (Number(w.wind_angle) * Math.PI) / 180;
+            sinSum += Math.sin(rad);
+            cosSum += Math.cos(rad);
+            angleCount += 1;
+          }
+        }
+        if (w.is_raining) {
+          rainingCount += 1;
+          const rf = Number(w.rain_fall) || 0;
+          if (rf > maxRain) maxRain = rf;
+          if (w.rain_fall_unit) rainUnit = w.rain_fall_unit;
+        }
+      }
+
+      let avgAngle = null;
+      if (angleCount > 0) {
+        const deg = (Math.atan2(sinSum / angleCount, cosSum / angleCount) * 180) / Math.PI;
+        avgAngle = ((deg % 360) + 360) % 360;
+      }
+      const avgSpeed = speedCount > 0 ? speedSum / speedCount : null;
+
+      return {
+        hasWind: windCount > 0 && (avgSpeed != null || avgAngle != null),
+        windCount,
+        avgSpeed,
+        windUnit,
+        avgAngle,
+        hasRain: rainingCount > 0,
+        rainingCount,
+        maxRain,
+        rainUnit,
+      };
+    },
+
+    buildClusterWeatherOverlayHtml(group, outerSize) {
+      if (!this.showWindLayer && !this.showRainLayer) {
+        return { rippleHtml: '', arrowHtml: '', pillStripHtml: '' };
+      }
+      const cw = this.summarizeClusterWeather(group.sites);
+      let rippleHtml = '';
+      let arrowHtml = '';
+      const pills = [];
+
+      if (this.showWindLayer && cw.hasWind) {
+        const wsMeta = this.resolveWindSpeedMeta(cw.avgSpeed, cw.windUnit);
+        const dir = this.formatWindCompassShort(cw.avgAngle);
+        if (dir.valid) {
+          arrowHtml = this.buildWindArrowSvg(dir.deg, wsMeta.color, outerSize);
+        }
+        const speedTxt =
+          cw.avgSpeed != null
+            ? `${Number(cw.avgSpeed).toFixed(1)} ${this.escapeHtml(cw.windUnit || 'm/s')}`
+            : '';
+        const dirTxt = dir.valid ? dir.idShort : '';
+        const combinedTxt = [speedTxt, dirTxt].filter(Boolean).join(' · ');
+        if (combinedTxt) {
+          pills.push(
+            `<span class="fleet-weather-pill fleet-weather-pill-wind" style="background:${wsMeta.pillBg};">${combinedTxt}</span>`
+          );
+        }
+      }
+
+      if (this.showRainLayer && cw.hasRain) {
+        rippleHtml = `
+          <span class="fleet-rain-ripple"></span>
+          <span class="fleet-rain-ripple fleet-rain-ripple-delay"></span>
+        `;
+        const rfTxt =
+          cw.rainingCount > 1
+            ? `🌧 ${cw.rainingCount} · ${Number(cw.maxRain).toFixed(1)}${this.escapeHtml(cw.rainUnit || 'mm')}`
+            : `🌧 ${Number(cw.maxRain).toFixed(1)} ${this.escapeHtml(cw.rainUnit || 'mm')}`;
+        pills.push(`<span class="fleet-weather-pill fleet-weather-pill-rain">${rfTxt}</span>`);
+      }
+
+      const pillStripHtml =
+        pills.length > 0
+          ? `<div class="fleet-weather-pill-strip" style="top:${outerSize + 4}px;">${pills.join('')}</div>`
+          : '';
+
+      return { rippleHtml, arrowHtml, pillStripHtml };
+    },
+
+    buildSiteWeatherTooltipHtml(site) {
+      if (!this.isSiteAqmsWeatherEligible(site) || !site.weather || !site.weather.available) return '';
+      const w = site.weather;
+      const parts = [];
+      if (w.wind_speed != null || w.wind_angle != null) {
+        const dir = this.formatWindCompassShort(w.wind_angle);
+        const wsStr = w.wind_speed != null ? `${Number(w.wind_speed).toFixed(1)} ${this.escapeHtml(w.wind_speed_unit || 'm/s')}` : '';
+        const wdStr = dir.valid ? `${dir.deg}° (${dir.label})` : '';
+        parts.push(`🌬 ${[wsStr, wdStr].filter(Boolean).join(' · ')}`);
+      }
+      if (w.rain_fall != null) {
+        parts.push(
+          w.is_raining
+            ? `🌧 Hujan ${Number(w.rain_fall).toFixed(1)} ${this.escapeHtml(w.rain_fall_unit || 'mm')}`
+            : `☀ Cerah (0 ${this.escapeHtml(w.rain_fall_unit || 'mm')})`
+        );
+      }
+      if (parts.length === 0) return '';
+      return `<br/><span style="font-size:10px;font-weight:700;color:#0369a1;">${parts.join(' &nbsp;|&nbsp; ')}</span>`;
+    },
+
+    buildClusterWeatherTooltipHtml(group) {
+      const cw = this.summarizeClusterWeather(group.sites);
+      const parts = [];
+      if (cw.hasWind) {
+        const dir = this.formatWindCompassShort(cw.avgAngle);
+        const wsStr = cw.avgSpeed != null ? `Rata2 ${Number(cw.avgSpeed).toFixed(1)} ${this.escapeHtml(cw.windUnit || 'm/s')}` : '';
+        const wdStr = dir.valid ? `${dir.deg}° (${dir.label})` : '';
+        parts.push(`🌬 ${[wsStr, wdStr].filter(Boolean).join(' · ')}`);
+      }
+      if (cw.hasRain) {
+        parts.push(`🌧 ${cw.rainingCount} Stasiun Hujan (maks ${Number(cw.maxRain).toFixed(1)} ${this.escapeHtml(cw.rainUnit || 'mm')})`);
+      }
+      if (parts.length === 0) return '';
+      return `<br/><span style="font-size:10px;font-weight:700;color:#0369a1;">${parts.join(' &nbsp;|&nbsp; ')}</span>`;
+    },
+
     buildPinIcon(site, isSelected) {
       if (this.pinDisplayMode === 'env') {
         const meta = this.resolveSiteEnvPinMeta(site);
@@ -2933,13 +3432,17 @@ export default {
           ? `<span class="fleet-pin-pulse" style="background:${meta.haloBg};"></span>`
           : '';
         const fontSize = meta.label.length >= 4 ? '8.5px' : meta.label.length === 3 ? '9.5px' : '10.5px';
+        const wxOverlay = this.buildSiteWeatherOverlayHtml(site, size);
 
         const html = `
           <div class="fleet-pin-root" style="width:${size}px;height:${size}px;">
+            ${wxOverlay.rippleHtml}
+            ${wxOverlay.arrowHtml}
             ${pulseHtml}
             <div class="fleet-pin-core" style="width:${size}px;height:${size}px;background:${meta.bg};border:2.5px solid ${borderCol};box-shadow:${shadowCss};">
               <span class="fleet-pin-score" style="font-size:${fontSize};">${meta.label}</span>
             </div>
+            ${wxOverlay.pillStripHtml}
           </div>
         `;
 
@@ -2989,14 +3492,18 @@ export default {
         alarmCount > 0
           ? `<span class="fleet-pin-badge">${badgeLabel}</span>`
           : '';
+      const wxOverlay = this.buildSiteWeatherOverlayHtml(site, size);
 
       const html = `
         <div class="fleet-pin-root" style="width:${size}px;height:${size}px;">
+          ${wxOverlay.rippleHtml}
+          ${wxOverlay.arrowHtml}
           ${pulseHtml}
           <div class="fleet-pin-core" style="width:${size}px;height:${size}px;background:${coreBg};border:2.5px solid ${borderCol};box-shadow:${shadowCss};">
             <span class="fleet-pin-letter">${domShort}</span>
           </div>
           ${alarmBadgeHtml}
+          ${wxOverlay.pillStripHtml}
         </div>
       `;
 
@@ -3047,14 +3554,18 @@ export default {
         this.pinDisplayMode === 'status' && alarmCount > 0
           ? `<span class="fleet-pin-badge" title="${alarmCount} Alarm Aktif">!${alarmLabel}</span>`
           : '';
+      const wxOverlay = this.buildClusterWeatherOverlayHtml(group, outerSize);
 
       const html = `
         <div class="fleet-cluster-root" style="width:${outerSize}px;height:${outerSize}px;background:${haloBg};">
+          ${wxOverlay.rippleHtml}
+          ${wxOverlay.arrowHtml}
           ${pulseHtml}
           <div class="fleet-cluster-core" style="width:${coreSize}px;height:${coreSize}px;background:${coreBg};border-color:${borderCol};">
             <span class="fleet-cluster-count">${count}</span>
           </div>
           ${alarmBadgeHtml}
+          ${wxOverlay.pillStripHtml}
         </div>
       `;
 
@@ -3173,8 +3684,10 @@ export default {
         envMeta && envMeta.available
           ? `<br/><span style="font-weight:700;color:#0284c7;">${this.escapeHtml(envMeta.tooltipLine)}</span>`
           : '';
+      const weatherLineHtml =
+        this.showWindLayer || this.showRainLayer ? this.buildSiteWeatherTooltipHtml(site) : '';
       marker.bindTooltip(
-        `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.84;">${safeTenant}${yearSuffix} · ${safeAge}</span>${envLineHtml}</div>`,
+        `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.35;"><strong>${safeName}</strong><br/><span style="opacity:0.84;">${safeTenant}${yearSuffix} · ${safeAge}</span>${envLineHtml}${weatherLineHtml}</div>`,
         { direction: 'top', offset: [0, -14], opacity: 0.96 }
       );
 
@@ -3273,10 +3786,12 @@ export default {
             ? `<br/><span style="opacity:0.75;">+${group.sites.length - 4} stasiun lainnya</span>`
             : '';
 
+        const clusterWeatherHtml =
+          this.showWindLayer || this.showRainLayer ? this.buildClusterWeatherTooltipHtml(group) : '';
         clusterMarker.bindTooltip(
           `<div style="font-family:Inter,sans-serif;font-size:11px;line-height:1.4;">` +
             `<strong>📍 ${group.sites.length} Stasiun Berdekatan</strong> ` +
-            `<span style="opacity:0.85;">(${onlineInCluster} Online · ${issueInCluster} Perhatian)</span><br/>` +
+            `<span style="opacity:0.85;">(${onlineInCluster} Online · ${issueInCluster} Perhatian)</span>${clusterWeatherHtml}<br/>` +
             `<span style="font-size:10px;opacity:0.9;">${previewNames}${moreLine}</span><br/>` +
             `<span style="font-size:10px;color:#0284c7;font-weight:700;">Klik untuk perbesar / mekarkan pin</span>` +
             `</div>`,
@@ -3870,6 +4385,77 @@ export default {
   font-weight: 800;
   font-family: JetBrains Mono, Inter, system-ui, sans-serif;
   line-height: 1;
+}
+/* AQMS Wind Vector Arrow & Rain Ripple Map Overlays (Visible at Overview & Detail Zoom) */
+.fleet-wind-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 4;
+}
+.fleet-wind-arrow-rot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  transform-origin: center center;
+}
+.fleet-wind-arrow-svg {
+  margin-top: -11px;
+  filter: drop-shadow(0 1.5px 2.5px rgba(15, 23, 42, 0.55));
+}
+.fleet-rain-ripple {
+  position: absolute;
+  inset: -10px;
+  border-radius: 9999px;
+  border: 2.5px solid rgba(37, 99, 235, 0.82);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.24) 0%, rgba(37, 99, 235, 0.04) 70%);
+  pointer-events: none;
+  z-index: 1;
+  animation: fleetRainRippleAnim 2.2s cubic-bezier(0.18, 0.72, 0.25, 1) infinite;
+}
+.fleet-rain-ripple-delay {
+  animation-delay: 1.1s;
+}
+@keyframes fleetRainRippleAnim {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.95;
+  }
+  85%,
+  100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+.fleet-weather-pill-strip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+.fleet-weather-pill {
+  padding: 1.5px 5px;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: JetBrains Mono, Inter, system-ui, sans-serif;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.38);
+}
+.fleet-weather-pill-rain {
+  background: rgba(37, 99, 235, 0.95);
 }
 .fleet-map-pane-fullscreen {
   position: fixed !important;
