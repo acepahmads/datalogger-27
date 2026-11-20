@@ -28,8 +28,19 @@
         </div>
       </div>
 
-      <!-- Navigation Tabs (Setup & Queue) -->
-      <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-0.5 rounded-xl border border-slate-300 dark:border-slate-700/80 text-2xs shadow-inner">
+      <!-- Navigation Tabs (Setup & Queue) + Theme Studio Trigger -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <button
+          id="btn-outbound-theme-studio"
+          type="button"
+          @click="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
+          class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700/80 text-2xs font-semibold flex items-center gap-1 transition cursor-pointer"
+          title="Pilih Tema & Gaya Tampilan"
+        >
+          <span>🎨</span>
+          <span class="hidden sm:inline">Tema</span>
+        </button>
+        <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-0.5 rounded-xl border border-slate-300 dark:border-slate-700/80 text-2xs shadow-inner">
         <!-- TAB 1: DESTINATIONS SETUP -->
         <button
           v-if="!isOperator"
@@ -80,6 +91,7 @@
             {{ summary.pending }}
           </span>
         </button>
+        </div>
       </div>
     </div>
 

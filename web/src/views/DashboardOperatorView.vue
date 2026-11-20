@@ -141,6 +141,18 @@
             </svg>
           </button>
 
+          <!-- 2c. Theme Studio Picker Button (Oceanic / Eco Forest / Industrial SCADA / Royal Glass) -->
+          <button
+            type="button"
+            id="btn-bento-theme-studio"
+            @click="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
+            class="op-icon-btn text-indigo-600 dark:text-indigo-400"
+            title="Pilih Tema & Gaya Desain (Oceanic Classic, Eco Forest, Industrial SCADA, Royal Glass)"
+            aria-label="Theme Studio"
+          >
+            <span class="text-sm leading-none">🎨</span>
+          </button>
+
           <div class="op-v-div"></div>
 
           <!-- 3. View & Filter Options Popover (Icon Only + Corner Badge) -->

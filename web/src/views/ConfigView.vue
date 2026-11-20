@@ -20,6 +20,16 @@
 
       <!-- Tab Switcher & First-Run Setup Button -->
       <div class="flex flex-wrap items-center gap-2">
+        <button
+          id="btn-config-theme-studio"
+          type="button"
+          @click="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
+          class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition shadow-xs cursor-pointer"
+          title="Pilih Tema & Gaya Tampilan (Oceanic Classic, Eco Forest, Industrial SCADA, Royal Glass)"
+        >
+          <span>🎨</span>
+          <span>Tema</span>
+        </button>
         <button v-if="isSuperAdmin || !isCloudActive"
                 @click="openSetupWizard"
                 class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-cyan-700 border border-cyan-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-cyan-400 dark:border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition shadow-xs">

@@ -2,6 +2,15 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 import axios from 'axios';
 import { getStoredTheme, resolveEffectiveTheme, applyTheme } from '../utils/theme';
+import {
+  getStoredTheme,
+  resolveEffectiveTheme,
+  applyTheme,
+  getStoredThemePreset,
+  applyThemePreset,
+  getStoredDensity,
+  applyDensity,
+} from '../utils/theme';
 import { i18nState, setLocale } from '../i18n';
 
 Vue.use(Vuex);
@@ -60,16 +69,19 @@ export default new Vuex.Store({
       try {
         const saved = localStorage.getItem('datalogger_user');
         if (saved) return JSON.parse(saved);
-      } catch (e) {}
+      } catch (e) { }
       return null;
     })(),
     wsExplicitClose: false,
     uiPreferences: {
       theme: getStoredTheme(), // 'light' | 'dark' | 'system'
       effectiveTheme: resolveEffectiveTheme(getStoredTheme()), // 'light' | 'dark'
+      themePreset: getStoredThemePreset(), // 'oceanic' | 'eco-forest' | 'industrial-scada' | 'royal-glass'
+      density: getStoredDensity(), // 'comfortable' | 'compact'
       language: i18nState.locale, // 'en' | 'id'
       sidebarAutoHide: localStorage.getItem('datalogger_sidebar_autohide') === 'true',
     },
+    showThemeStudioModal: false,
     theme: resolveEffectiveTheme(getStoredTheme()),
     language: i18nState.locale,
     sidebarAutoHide: localStorage.getItem('datalogger_sidebar_autohide') === 'true',
@@ -191,7 +203,7 @@ export default new Vuex.Store({
         } else {
           localStorage.removeItem('datalogger_token');
         }
-      } catch (e) {}
+      } catch (e) { }
     },
     SET_USER(state, user) {
       state.user = user;
@@ -201,7 +213,7 @@ export default new Vuex.Store({
         } else {
           localStorage.removeItem('datalogger_user');
         }
-      } catch (e) {}
+      } catch (e) { }
     },
     SET_AUTH_SOURCE(state, source) {
       const val = source || '';
@@ -212,7 +224,7 @@ export default new Vuex.Store({
         } else {
           localStorage.removeItem('datalogger_auth_source');
         }
-      } catch (e) {}
+      } catch (e) { }
     },
     SET_CLOUD_SESSION_VERIFIED(state, verified) {
       state._cloudSessionVerified = Boolean(verified);
@@ -235,7 +247,7 @@ export default new Vuex.Store({
         localStorage.removeItem('datalogger_user');
         localStorage.removeItem('datalogger_active_tenant_id');
         localStorage.removeItem('datalogger_active_site_id');
-      } catch (e) {}
+      } catch (e) { }
     },
     SET_TENANTS(state, tenants) {
       state.tenants = Array.isArray(tenants) ? tenants : [];
@@ -275,7 +287,7 @@ export default new Vuex.Store({
         } else {
           localStorage.removeItem('datalogger_active_tenant_id');
         }
-      } catch (e) {}
+      } catch (e) { }
     },
     SET_ACTIVE_SITE_ID(state, siteId) {
       const val = Number(siteId) || 0;
@@ -286,7 +298,7 @@ export default new Vuex.Store({
         } else {
           localStorage.removeItem('datalogger_active_site_id');
         }
-      } catch (e) {}
+      } catch (e) { }
     },
     INCREMENT_CONTEXT_REVISION(state) {
       state.contextRevision = (state.contextRevision || 0) + 1;
@@ -308,6 +320,19 @@ export default new Vuex.Store({
       state.uiPreferences.effectiveTheme = effective;
       state.theme = effective;
     },
+    SET_THEME_PRESET(state, presetId) {
+      const normalized = applyThemePreset(presetId);
+      if (!state.uiPreferences) Vue.set(state, 'uiPreferences', {});
+      Vue.set(state.uiPreferences, 'themePreset', normalized);
+    },
+    SET_DENSITY(state, densityMode) {
+      const normalized = applyDensity(densityMode);
+      if (!state.uiPreferences) Vue.set(state, 'uiPreferences', {});
+      Vue.set(state.uiPreferences, 'density', normalized);
+    },
+    SET_SHOW_THEME_STUDIO_MODAL(state, visible) {
+      state.showThemeStudioModal = Boolean(visible);
+    },
     SET_LANGUAGE(state, lang) {
       setLocale(lang);
       state.uiPreferences.language = lang;
@@ -320,7 +345,7 @@ export default new Vuex.Store({
       state.sidebarAutoHide = val;
       try {
         localStorage.setItem('datalogger_sidebar_autohide', val ? 'true' : 'false');
-      } catch (e) {}
+      } catch (e) { }
     },
     TOGGLE_SIDEBAR_AUTOHIDE(state) {
       const current = (state.uiPreferences && state.uiPreferences.sidebarAutoHide) ?? state.sidebarAutoHide ?? false;
@@ -330,7 +355,7 @@ export default new Vuex.Store({
       state.sidebarAutoHide = next;
       try {
         localStorage.setItem('datalogger_sidebar_autohide', next ? 'true' : 'false');
-      } catch (e) {}
+      } catch (e) { }
     },
     SET_WS_CONNECTED(state, connected) {
       state.wsConnected = connected;
@@ -447,6 +472,18 @@ export default new Vuex.Store({
     setTheme({ commit }, themeSetting) {
       commit('SET_THEME', themeSetting);
     },
+    setThemePreset({ commit }, presetId) {
+      commit('SET_THEME_PRESET', presetId);
+    },
+    setDensity({ commit }, densityMode) {
+      commit('SET_DENSITY', densityMode);
+    },
+    openThemeStudio({ commit }) {
+      commit('SET_SHOW_THEME_STUDIO_MODAL', true);
+    },
+    closeThemeStudio({ commit }) {
+      commit('SET_SHOW_THEME_STUDIO_MODAL', false);
+    },
     setLanguage({ commit }, lang) {
       commit('SET_LANGUAGE', lang);
     },
@@ -459,6 +496,8 @@ export default new Vuex.Store({
     initializePreferences({ commit }) {
       const currentTheme = getStoredTheme();
       commit('SET_THEME', currentTheme);
+      commit('SET_THEME_PRESET', getStoredThemePreset());
+      commit('SET_DENSITY', getStoredDensity());
       commit('SET_LANGUAGE', i18nState.locale);
       const autoHide = localStorage.getItem('datalogger_sidebar_autohide') === 'true';
       commit('SET_SIDEBAR_AUTOHIDE', autoHide);
@@ -580,7 +619,7 @@ export default new Vuex.Store({
       if (state.ws && state.ws.readyState === 1) {
         try {
           state.ws.send(JSON.stringify({ type: 'SET_SCOPE', tenant_id: nextTenantId, site_id: 0 }));
-        } catch (e) {}
+        } catch (e) { }
       }
       await dispatch('fetchTenantContext');
       await Promise.all([
@@ -606,7 +645,7 @@ export default new Vuex.Store({
             tenant_id: Number(state.activeTenantId) || 0,
             site_id: nextSiteId,
           }));
-        } catch (e) {}
+        } catch (e) { }
       }
       await Promise.all([
         dispatch('fetchSystemStatus'),
@@ -638,7 +677,7 @@ export default new Vuex.Store({
             tenant_id: nextTenantId,
             site_id: nextSiteId,
           }));
-        } catch (e) {}
+        } catch (e) { }
       }
       await dispatch('fetchTenantContext');
       if (nextSiteId > 0 && Number(state.activeSiteId) !== nextSiteId) {
@@ -851,7 +890,7 @@ export default new Vuex.Store({
     async logout({ commit, dispatch, state }) {
       try {
         if (state.token) {
-          await axios.post(`${API_BASE}/auth/logout`).catch(() => {});
+          await axios.post(`${API_BASE}/auth/logout`).catch(() => { });
         }
       } catch (e) {
         // ignore logout errors
@@ -866,7 +905,7 @@ export default new Vuex.Store({
       if (state.ws) {
         try {
           state.ws.close();
-        } catch (e) {}
+        } catch (e) { }
         state.ws = null;
       }
       commit('SET_WS_CONNECTED', false);
@@ -1233,7 +1272,7 @@ export default new Vuex.Store({
       if (!state.token) return;
       state.wsExplicitClose = false;
       if (state.ws) {
-        try { state.ws.close(); } catch (e) {}
+        try { state.ws.close(); } catch (e) { }
       }
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1259,7 +1298,7 @@ export default new Vuex.Store({
               tenant_id: Number(state.activeTenantId) || 0,
               site_id: Number(state.activeSiteId) || 0,
             }));
-          } catch (e) {}
+          } catch (e) { }
         }
         // Reconcile active alarms and system status after connection or reconnection
         if (!getters.isCloudGlobalUnscoped) {

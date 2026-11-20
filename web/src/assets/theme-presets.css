@@ -1,0 +1,300 @@
+/* ============================================================================
+   MULTI-THEME & DESIGN PRESET STUDIO ENGINE
+   Supports 4 selectable visual themes (Light & Dark) + 2 Density modes:
+     - oceanic          (Default Sky-Blue Slate Classic)
+     - eco-forest       (DLH / Lingkungan Hijau — Ivory Sage & Emerald Teal)
+     - industrial-scada (Control Room Precision — Obsidian / Steel & Amber-Cyan)
+     - royal-glass      (Modern Executive — Pearl Indigo & Frosted Glassmorphism)
+   Targets Global Shell + Dashboard Operator + Export Data + Outbound + Setup
+   ============================================================================ */
+
+/* ============================================================================
+   THEME 2: ECO FOREST (DLH / LINGKUNGAN HIJAU)
+   ============================================================================ */
+html[data-ui-theme="eco-forest"]:not(.dark) {
+  --theme-bg-gradient: linear-gradient(180deg, #E8F1E7 0%, #F2F6F1 26%, #F7FAF6 100%);
+  --theme-bg-main: #F4F7F3;
+  --theme-bg-tint: #E9F2EB;
+  --theme-primary: #0F766E;
+  --theme-border: #D2E2D7;
+}
+
+html[data-ui-theme="eco-forest"]:not(.dark) body,
+html[data-ui-theme="eco-forest"]:not(.dark) #app,
+html[data-ui-theme="eco-forest"]:not(.dark) main {
+  background: var(--theme-bg-gradient) !important;
+  background-attachment: fixed !important;
+}
+
+html[data-ui-theme="eco-forest"]:not(.dark) .saas-card,
+html[data-ui-theme="eco-forest"]:not(.dark) .reports-card,
+html[data-ui-theme="eco-forest"]:not(.dark) .header-shell,
+html[data-ui-theme="eco-forest"]:not(.dark) .bento-card,
+html[data-ui-theme="eco-forest"]:not(.dark) .bento-trend-card,
+html[data-ui-theme="eco-forest"]:not(.dark) .bento-weather-hero {
+  background-color: #FFFFFF !important;
+  border-color: #CFE0D5 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 3px 14px -3px rgba(15, 118, 110, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+}
+
+html[data-ui-theme="eco-forest"]:not(.dark) .bento-dashboard-page {
+  background: linear-gradient(180deg, #EAF3EA 0%, #F4F8F3 100%) !important;
+}
+
+html[data-ui-theme="eco-forest"]:not(.dark) header,
+html[data-ui-theme="eco-forest"]:not(.dark) aside {
+  border-color: #D2E2D7 !important;
+}
+
+/* Primary interactive accents -> Deep Forest Emerald */
+html[data-ui-theme="eco-forest"] .bg-cyan-600,
+html[data-ui-theme="eco-forest"] .bg-sky-600,
+html[data-ui-theme="eco-forest"] .bg-blue-600 {
+  background-color: #0F766E !important;
+  border-color: #0F766E !important;
+}
+html[data-ui-theme="eco-forest"] .hover\:bg-cyan-500:hover,
+html[data-ui-theme="eco-forest"] .hover\:bg-sky-500:hover,
+html[data-ui-theme="eco-forest"] .hover\:bg-blue-500:hover {
+  background-color: #0D9488 !important;
+}
+html[data-ui-theme="eco-forest"] .reports-btn-emerald {
+  background-color: #0F766E !important;
+  border-color: #0F766E !important;
+  color: #FFFFFF !important;
+}
+
+/* Eco Forest Dark Mode — Deep Botanical Pine */
+html[data-ui-theme="eco-forest"].dark body,
+html[data-ui-theme="eco-forest"].dark #app,
+html[data-ui-theme="eco-forest"].dark main {
+  background: linear-gradient(180deg, #06130F 0%, #0A1B16 100%) !important;
+  color: #E7F6EF;
+}
+html[data-ui-theme="eco-forest"].dark .bento-dashboard-page {
+  background: linear-gradient(180deg, #06130F 0%, #0A1C16 100%) !important;
+}
+html[data-ui-theme="eco-forest"].dark .saas-card,
+html[data-ui-theme="eco-forest"].dark .reports-card,
+html[data-ui-theme="eco-forest"].dark .header-shell,
+html[data-ui-theme="eco-forest"].dark .bento-card,
+html[data-ui-theme="eco-forest"].dark .bento-trend-card,
+html[data-ui-theme="eco-forest"].dark .bento-weather-hero {
+  background-color: #0E221C !important;
+  border-color: #1F4538 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.45) !important;
+}
+html[data-ui-theme="eco-forest"].dark header,
+html[data-ui-theme="eco-forest"].dark aside {
+  background-color: #091914 !important;
+  border-color: #1B3B30 !important;
+}
+html[data-ui-theme="eco-forest"].dark .bg-cyan-600,
+html[data-ui-theme="eco-forest"].dark .bg-sky-600,
+html[data-ui-theme="eco-forest"].dark .bg-blue-600 {
+  background-color: #0D9488 !important;
+  border-color: #14B8A6 !important;
+}
+
+/* ============================================================================
+   THEME 3: INDUSTRIAL SCADA (CONTROL ROOM PRECISION)
+   ============================================================================ */
+html[data-ui-theme="industrial-scada"] .saas-card,
+html[data-ui-theme="industrial-scada"] .reports-card,
+html[data-ui-theme="industrial-scada"] .header-shell,
+html[data-ui-theme="industrial-scada"] .bento-card,
+html[data-ui-theme="industrial-scada"] .bento-trend-card,
+html[data-ui-theme="industrial-scada"] .bento-weather-hero,
+html[data-ui-theme="industrial-scada"] .bento-ispu-hero,
+html[data-ui-theme="industrial-scada"] #queue-kpi-compact-strip > button {
+  border-radius: 6px !important;
+}
+
+html[data-ui-theme="industrial-scada"] button,
+html[data-ui-theme="industrial-scada"] input,
+html[data-ui-theme="industrial-scada"] select {
+  border-radius: 6px !important;
+}
+
+/* Industrial SCADA Light Mode — Brushed Steel Precision */
+html[data-ui-theme="industrial-scada"]:not(.dark) {
+  --theme-bg-gradient: linear-gradient(180deg, #E2E8F0 0%, #EBF0F5 100%);
+  --theme-primary: #0891B2;
+  --theme-border: #B8C4D4;
+}
+html[data-ui-theme="industrial-scada"]:not(.dark) body,
+html[data-ui-theme="industrial-scada"]:not(.dark) #app,
+html[data-ui-theme="industrial-scada"]:not(.dark) main {
+  background: var(--theme-bg-gradient) !important;
+}
+html[data-ui-theme="industrial-scada"]:not(.dark) .bento-dashboard-page {
+  background: #E5EBF1 !important;
+}
+html[data-ui-theme="industrial-scada"]:not(.dark) .saas-card,
+html[data-ui-theme="industrial-scada"]:not(.dark) .reports-card,
+html[data-ui-theme="industrial-scada"]:not(.dark) .header-shell,
+html[data-ui-theme="industrial-scada"]:not(.dark) .bento-card,
+html[data-ui-theme="industrial-scada"]:not(.dark) .bento-trend-card {
+  background-color: #FFFFFF !important;
+  border-color: #B6C3D2 !important;
+  border-left: 3px solid #0891B2 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+}
+html[data-ui-theme="industrial-scada"]:not(.dark) #queue-kpi-compact-strip > button {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 3px rgba(15, 23, 42, 0.08);
+  border-width: 1.5px !important;
+}
+html[data-ui-theme="industrial-scada"]:not(.dark) .bg-cyan-600,
+html[data-ui-theme="industrial-scada"]:not(.dark) .bg-blue-600 {
+  background: linear-gradient(90deg, #0E7490 0%, #0891B2 100%) !important;
+}
+
+/* Industrial SCADA Dark Mode — Deep Obsidian & Amber-Cyan Instrumentation */
+html[data-ui-theme="industrial-scada"].dark body,
+html[data-ui-theme="industrial-scada"].dark #app,
+html[data-ui-theme="industrial-scada"].dark main {
+  background: #090C11 !important;
+  color: #E2E8F0;
+}
+html[data-ui-theme="industrial-scada"].dark .bento-dashboard-page {
+  background: #090C11 !important;
+}
+html[data-ui-theme="industrial-scada"].dark header,
+html[data-ui-theme="industrial-scada"].dark aside {
+  background-color: #0D1118 !important;
+  border-color: #242E3E !important;
+}
+html[data-ui-theme="industrial-scada"].dark .saas-card,
+html[data-ui-theme="industrial-scada"].dark .reports-card,
+html[data-ui-theme="industrial-scada"].dark .header-shell,
+html[data-ui-theme="industrial-scada"].dark .bento-card,
+html[data-ui-theme="industrial-scada"].dark .bento-trend-card,
+html[data-ui-theme="industrial-scada"].dark .bento-weather-hero {
+  background-color: #111620 !important;
+  border-color: #263143 !important;
+  border-left: 3px solid #06B6D4 !important;
+  box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.06), 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+html[data-ui-theme="industrial-scada"].dark #queue-kpi-compact-strip > button {
+  background-color: #121824 !important;
+  border-width: 1.5px !important;
+  box-shadow: inset 0 0 18px rgba(6, 182, 212, 0.06), 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+html[data-ui-theme="industrial-scada"].dark .bg-cyan-600,
+html[data-ui-theme="industrial-scada"].dark .bg-blue-600 {
+  background: linear-gradient(90deg, #D97706 0%, #0891B2 100%) !important;
+  border-color: #06B6D4 !important;
+}
+html[data-ui-theme="industrial-scada"] .tabular-nums {
+  font-family: var(--font-family-mono) !important;
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================================
+   THEME 4: ROYAL GLASS (MODERN EXECUTIVE GLASSMORPHISM)
+   ============================================================================ */
+html[data-ui-theme="royal-glass"]:not(.dark) {
+  --theme-bg-gradient:
+    radial-gradient(circle at 12% 8%, rgba(221, 214, 254, 0.72) 0%, transparent 44%),
+    radial-gradient(circle at 88% 12%, rgba(186, 230, 253, 0.65) 0%, transparent 46%),
+    linear-gradient(180deg, #F5F3FF 0%, #EEF4FF 52%, #F4F8FF 100%);
+  --theme-primary: #4F46E5;
+  --theme-border: rgba(165, 180, 252, 0.45);
+}
+html[data-ui-theme="royal-glass"]:not(.dark) body,
+html[data-ui-theme="royal-glass"]:not(.dark) #app,
+html[data-ui-theme="royal-glass"]:not(.dark) main {
+  background: var(--theme-bg-gradient) !important;
+  background-attachment: fixed !important;
+}
+html[data-ui-theme="royal-glass"]:not(.dark) .bento-dashboard-page {
+  background: var(--theme-bg-gradient) !important;
+}
+html[data-ui-theme="royal-glass"]:not(.dark) .saas-card,
+html[data-ui-theme="royal-glass"]:not(.dark) .reports-card,
+html[data-ui-theme="royal-glass"]:not(.dark) .header-shell,
+html[data-ui-theme="royal-glass"]:not(.dark) .bento-card,
+html[data-ui-theme="royal-glass"]:not(.dark) .bento-trend-card,
+html[data-ui-theme="royal-glass"]:not(.dark) .bento-weather-hero {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(199, 210, 254, 0.75) !important;
+  border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 10px 28px -8px rgba(79, 70, 229, 0.13) !important;
+}
+html[data-ui-theme="royal-glass"]:not(.dark) header,
+html[data-ui-theme="royal-glass"]:not(.dark) aside {
+  background: rgba(255, 255, 255, 0.76) !important;
+  backdrop-filter: blur(14px);
+  border-color: rgba(199, 210, 254, 0.7) !important;
+}
+html[data-ui-theme="royal-glass"] .bg-cyan-600,
+html[data-ui-theme="royal-glass"] .bg-sky-600,
+html[data-ui-theme="royal-glass"] .bg-blue-600 {
+  background: linear-gradient(135deg, #4F46E5 0%, #2563EB 100%) !important;
+  border-color: #4F46E5 !important;
+  box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.35);
+}
+html[data-ui-theme="royal-glass"] .hover\:bg-cyan-500:hover,
+html[data-ui-theme="royal-glass"] .hover\:bg-sky-500:hover,
+html[data-ui-theme="royal-glass"] .hover\:bg-blue-500:hover {
+  background: linear-gradient(135deg, #6366F1 0%, #3B82F6 100%) !important;
+}
+
+/* Royal Glass Dark Mode — Midnight Indigo Frosted Glass */
+html[data-ui-theme="royal-glass"].dark body,
+html[data-ui-theme="royal-glass"].dark #app,
+html[data-ui-theme="royal-glass"].dark main {
+  background:
+    radial-gradient(circle at 14% 8%, rgba(67, 56, 202, 0.35) 0%, transparent 45%),
+    radial-gradient(circle at 86% 18%, rgba(14, 165, 233, 0.22) 0%, transparent 44%),
+    #090818 !important;
+  background-attachment: fixed !important;
+  color: #EEF2FF;
+}
+html[data-ui-theme="royal-glass"].dark .bento-dashboard-page {
+  background: transparent !important;
+}
+html[data-ui-theme="royal-glass"].dark header,
+html[data-ui-theme="royal-glass"].dark aside {
+  background: rgba(14, 14, 34, 0.8) !important;
+  backdrop-filter: blur(14px);
+  border-color: rgba(129, 140, 248, 0.24) !important;
+}
+html[data-ui-theme="royal-glass"].dark .saas-card,
+html[data-ui-theme="royal-glass"].dark .reports-card,
+html[data-ui-theme="royal-glass"].dark .header-shell,
+html[data-ui-theme="royal-glass"].dark .bento-card,
+html[data-ui-theme="royal-glass"].dark .bento-trend-card,
+html[data-ui-theme="royal-glass"].dark .bento-weather-hero {
+  background: rgba(19, 20, 46, 0.72) !important;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(129, 140, 248, 0.28) !important;
+  border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 rgba(199, 210, 254, 0.12), 0 12px 30px -6px rgba(2, 6, 23, 0.6) !important;
+}
+
+/* ============================================================================
+   DENSITY PRESET: COMPACT (Tighter Spacing for High-Density Monitoring)
+   ============================================================================ */
+html[data-ui-density="compact"] .saas-card {
+  padding: 0.75rem !important;
+}
+html[data-ui-density="compact"] .reports-card {
+  padding: 0.55rem 0.75rem !important;
+}
+html[data-ui-density="compact"] table td,
+html[data-ui-density="compact"] table th {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+html[data-ui-density="compact"] #queue-kpi-compact-strip > button {
+  padding: 0.35rem 0.55rem !important;
+}
+html[data-ui-density="compact"] .bento-card {
+  padding: 0.5rem 0.65rem !important;
+}

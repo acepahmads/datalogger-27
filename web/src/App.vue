@@ -131,6 +131,12 @@
       @close="closeOverlayWorkspaceModal"
     />
 
+    <!-- Global Theme & Design Preset Studio Modal -->
+    <ThemeStudioModal
+      :visible="Boolean($store && $store.state && $store.state.showThemeStudioModal)"
+      @close="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', false)"
+    />
+
     <!-- Global Logout Confirmation Modal (Accessible from Sidebar even when Top Header is hidden) -->
     <div
       v-if="showLogoutConfirmModal"
@@ -177,6 +183,7 @@ import Header from './components/Header.vue';
 import Sidebar from './components/Sidebar.vue';
 import GlobalAlarmBanner from './components/GlobalAlarmBanner.vue';
 import CloudTenantWorkspaceModal from './components/CloudTenantWorkspaceModal.vue';
+import ThemeStudioModal from './components/ThemeStudioModal.vue';
 
 export default {
   name: 'App',
@@ -185,6 +192,7 @@ export default {
     Sidebar,
     GlobalAlarmBanner,
     CloudTenantWorkspaceModal,
+    ThemeStudioModal,
   },
   data() {
     return {
