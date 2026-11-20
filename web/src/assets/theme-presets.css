@@ -1,207 +1,254 @@
 /* ============================================================================
-   MULTI-THEME & DESIGN PRESET STUDIO ENGINE
-   Supports 4 selectable visual themes (Light & Dark) + 2 Density modes:
-     - oceanic          (Default Sky-Blue Slate Classic)
-     - eco-forest       (DLH / Lingkungan Hijau — Ivory Sage & Emerald Teal)
-     - industrial-scada (Control Room Precision — Obsidian / Steel & Amber-Cyan)
-     - royal-glass      (Modern Executive — Pearl Indigo & Frosted Glassmorphism)
-   Targets Global Shell + Dashboard Operator + Export Data + Outbound + Setup
+   GLOBAL MULTI-THEME & MULTI-LAYOUT DESIGN ENGINE
+   5 Unmistakably Distinct Visual Themes (Light & Dark) + 3 Structural Layouts + 2 Densities
+     - oceanic          : Classic Cool Sky-Blue & White SaaS
+     - eco-forest       : Deep Forest Green Sidebar + Ivory-Sage Canvas + Emerald Accents
+     - industrial-scada : Charcoal Control-Room Shell + Engineering Grid + Sharp 4px Corners + Amber/Cyan + Monospace
+     - royal-glass      : Violet-Indigo Aurora Mesh + Frosted Translucent Glassmorphism (blur 18px) + Royal Purple
+     - warm-terracotta  : Deep Espresso Sidebar + Warm Sand Cream Paper + Copper-Gold Editorial Accents
    ============================================================================ */
 
 /* ============================================================================
-   THEME 2: ECO FOREST (DLH / LINGKUNGAN HIJAU)
+   THEME 2: ECO FOREST (DEEP FOREST SIDEBAR + IVORY SAGE + EMERALD TEAL)
    ============================================================================ */
 html[data-ui-theme="eco-forest"]:not(.dark) {
-  --theme-bg-gradient: linear-gradient(180deg, #E8F1E7 0%, #F2F6F1 26%, #F7FAF6 100%);
-  --theme-bg-main: #F4F7F3;
-  --theme-bg-tint: #E9F2EB;
+  --theme-bg-gradient: linear-gradient(160deg, #E2EFE3 0%, #EFF6EE 42%, #F6FAF5 100%);
   --theme-primary: #0F766E;
-  --theme-border: #D2E2D7;
+  --theme-border: #C3DBC9;
 }
-
 html[data-ui-theme="eco-forest"]:not(.dark) body,
 html[data-ui-theme="eco-forest"]:not(.dark) #app,
 html[data-ui-theme="eco-forest"]:not(.dark) main {
   background: var(--theme-bg-gradient) !important;
   background-attachment: fixed !important;
 }
-
-html[data-ui-theme="eco-forest"]:not(.dark) .saas-card,
-html[data-ui-theme="eco-forest"]:not(.dark) .reports-card,
-html[data-ui-theme="eco-forest"]:not(.dark) .header-shell,
-html[data-ui-theme="eco-forest"]:not(.dark) .bento-card,
-html[data-ui-theme="eco-forest"]:not(.dark) .bento-trend-card,
-html[data-ui-theme="eco-forest"]:not(.dark) .bento-weather-hero {
-  background-color: #FFFFFF !important;
-  border-color: #CFE0D5 !important;
-  border-radius: 16px !important;
-  box-shadow: 0 3px 14px -3px rgba(15, 118, 110, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+/* Signature Deep Forest Green Sidebar (unmistakable identity!) */
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) {
+  background: linear-gradient(180deg, #0E3B32 0%, #092B24 100%) !important;
+  border-right-color: #164E42 !important;
+  color: #D1FAE5 !important;
 }
-
-html[data-ui-theme="eco-forest"]:not(.dark) .bento-dashboard-page {
-  background: linear-gradient(180deg, #EAF3EA 0%, #F4F8F3 100%) !important;
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .text-slate-900,
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .text-slate-700,
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .text-slate-600 {
+  color: #ECFDF5 !important;
 }
-
-html[data-ui-theme="eco-forest"]:not(.dark) header,
-html[data-ui-theme="eco-forest"]:not(.dark) aside {
-  border-color: #D2E2D7 !important;
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .text-slate-500,
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .text-slate-400 {
+  color: #86EFAC !important;
 }
-
-/* Primary interactive accents -> Deep Forest Emerald */
-html[data-ui-theme="eco-forest"] .bg-cyan-600,
-html[data-ui-theme="eco-forest"] .bg-sky-600,
-html[data-ui-theme="eco-forest"] .bg-blue-600 {
-  background-color: #0F766E !important;
-  border-color: #0F766E !important;
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .nav-item {
+  color: #D1FAE5 !important;
+  border-radius: 12px !important;
 }
-html[data-ui-theme="eco-forest"] .hover\:bg-cyan-500:hover,
-html[data-ui-theme="eco-forest"] .hover\:bg-sky-500:hover,
-html[data-ui-theme="eco-forest"] .hover\:bg-blue-500:hover {
-  background-color: #0D9488 !important;
-}
-html[data-ui-theme="eco-forest"] .reports-btn-emerald {
-  background-color: #0F766E !important;
-  border-color: #0F766E !important;
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .nav-item:hover {
+  background: rgba(20, 184, 166, 0.18) !important;
   color: #FFFFFF !important;
 }
-
-/* Eco Forest Dark Mode — Deep Botanical Pine */
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .nav-active {
+  background: linear-gradient(90deg, #14B8A6 0%, #0D9488 100%) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(153, 246, 228, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35) !important;
+}
+html[data-ui-theme="eco-forest"] aside:not(#config-split-vertical-rail) .nav-active .nav-icon {
+  color: #FFFFFF !important;
+}
+/* Eco Forest Top Header */
+html[data-ui-theme="eco-forest"]:not(.dark) header:not(.header-shell) {
+  background: rgba(246, 251, 246, 0.94) !important;
+  border-bottom: 2px solid #B7D8C2 !important;
+}
+/* Eco Forest Bento Dashboard Operator Variables */
+html[data-ui-theme="eco-forest"]:not(.dark) .bento-dashboard-page {
+  --b-bg: linear-gradient(160deg, #E2EFE3 0%, #EFF6EE 55%, #F6FAF5 100%);
+  --b-card: #FFFFFF;
+  --b-subtle: #EFF7F1;
+  --b-pill: #E2F2E7;
+  --b-border: #C3DBC9;
+  --b-border-soft: #D9EBDF;
+  --b-primary: #0F766E;
+  --b-accent-blue: #0F766E;
+  --b-shadow: 0 4px 16px -4px rgba(15, 118, 110, 0.12);
+}
+html[data-ui-theme="eco-forest"].dark .bento-dashboard-page {
+  --b-bg: linear-gradient(160deg, #051410 0%, #0A201A 100%);
+  --b-card: #0E2620;
+  --b-subtle: #123028;
+  --b-pill: #15382F;
+  --b-border: #204E41;
+  --b-border-soft: #183D33;
+  --b-primary: #10B981;
+  --b-accent-blue: #34D399;
+}
+html[data-ui-theme="eco-forest"] .saas-card,
+html[data-ui-theme="eco-forest"] .reports-card,
+html[data-ui-theme="eco-forest"] .header-shell,
+html[data-ui-theme="eco-forest"] .s-card,
+html[data-ui-theme="eco-forest"] .bento-table-card,
+html[data-ui-theme="eco-forest"] .trend-studio {
+  border-radius: 18px !important;
+}
+html[data-ui-theme="eco-forest"]:not(.dark) .saas-card,
+html[data-ui-theme="eco-forest"]:not(.dark) .reports-card,
+html[data-ui-theme="eco-forest"]:not(.dark) .bg-white.rounded-2xl {
+  background-color: #FFFFFF !important;
+  border-color: #C3DBC9 !important;
+  box-shadow: 0 4px 16px -4px rgba(15, 118, 110, 0.11) !important;
+}
 html[data-ui-theme="eco-forest"].dark body,
 html[data-ui-theme="eco-forest"].dark #app,
 html[data-ui-theme="eco-forest"].dark main {
-  background: linear-gradient(180deg, #06130F 0%, #0A1B16 100%) !important;
+  background: linear-gradient(180deg, #05130F 0%, #0A1E18 100%) !important;
   color: #E7F6EF;
 }
-html[data-ui-theme="eco-forest"].dark .bento-dashboard-page {
-  background: linear-gradient(180deg, #06130F 0%, #0A1C16 100%) !important;
+html[data-ui-theme="eco-forest"].dark header:not(.header-shell) {
+  background: #081C16 !important;
+  border-bottom: 1px solid #1C4538 !important;
 }
 html[data-ui-theme="eco-forest"].dark .saas-card,
 html[data-ui-theme="eco-forest"].dark .reports-card,
-html[data-ui-theme="eco-forest"].dark .header-shell,
-html[data-ui-theme="eco-forest"].dark .bento-card,
-html[data-ui-theme="eco-forest"].dark .bento-trend-card,
-html[data-ui-theme="eco-forest"].dark .bento-weather-hero {
-  background-color: #0E221C !important;
-  border-color: #1F4538 !important;
-  border-radius: 16px !important;
-  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.45) !important;
+html[data-ui-theme="eco-forest"].dark .bg-white.rounded-2xl {
+  background-color: #0E241E !important;
+  border-color: #1F4D3F !important;
 }
-html[data-ui-theme="eco-forest"].dark header,
-html[data-ui-theme="eco-forest"].dark aside {
-  background-color: #091914 !important;
-  border-color: #1B3B30 !important;
+html[data-ui-theme="eco-forest"] .bg-cyan-600,
+html[data-ui-theme="eco-forest"] .bg-sky-600,
+html[data-ui-theme="eco-forest"] .bg-blue-600 {
+  background: linear-gradient(135deg, #0F766E 0%, #059669 100%) !important;
+  border-color: #0F766E !important;
 }
-html[data-ui-theme="eco-forest"].dark .bg-cyan-600,
-html[data-ui-theme="eco-forest"].dark .bg-sky-600,
-html[data-ui-theme="eco-forest"].dark .bg-blue-600 {
-  background-color: #0D9488 !important;
-  border-color: #14B8A6 !important;
+html[data-ui-theme="eco-forest"] .reports-tab-active {
+  color: #0F766E !important;
+  border-color: #0F766E !important;
 }
 
 /* ============================================================================
-   THEME 3: INDUSTRIAL SCADA (CONTROL ROOM PRECISION)
+   THEME 3: INDUSTRIAL SCADA (DARK CONTROL-ROOM SHELL + ENGINEERING GRID + 4PX SHARP + AMBER/CYAN)
    ============================================================================ */
+/* Signature Industrial Precision Geometry: Razor-Sharp 4px Corners Everywhere! */
 html[data-ui-theme="industrial-scada"] .saas-card,
 html[data-ui-theme="industrial-scada"] .reports-card,
 html[data-ui-theme="industrial-scada"] .header-shell,
-html[data-ui-theme="industrial-scada"] .bento-card,
-html[data-ui-theme="industrial-scada"] .bento-trend-card,
-html[data-ui-theme="industrial-scada"] .bento-weather-hero,
-html[data-ui-theme="industrial-scada"] .bento-ispu-hero,
-html[data-ui-theme="industrial-scada"] #queue-kpi-compact-strip > button {
-  border-radius: 6px !important;
-}
-
+html[data-ui-theme="industrial-scada"] .s-card,
+html[data-ui-theme="industrial-scada"] .bento-table-card,
+html[data-ui-theme="industrial-scada"] .trend-studio,
+html[data-ui-theme="industrial-scada"] .rounded-2xl,
+html[data-ui-theme="industrial-scada"] .rounded-xl,
 html[data-ui-theme="industrial-scada"] button,
 html[data-ui-theme="industrial-scada"] input,
 html[data-ui-theme="industrial-scada"] select {
-  border-radius: 6px !important;
+  border-radius: 4px !important;
 }
-
-/* Industrial SCADA Light Mode — Brushed Steel Precision */
-html[data-ui-theme="industrial-scada"]:not(.dark) {
-  --theme-bg-gradient: linear-gradient(180deg, #E2E8F0 0%, #EBF0F5 100%);
-  --theme-primary: #0891B2;
-  --theme-border: #B8C4D4;
+/* Signature Charcoal Control-Room Sidebar & Header (High-Contrast Amber Active Strip) */
+html[data-ui-theme="industrial-scada"] aside:not(#config-split-vertical-rail),
+html[data-ui-theme="industrial-scada"] header:not(.header-shell) {
+  background: #121721 !important;
+  border-color: #2B3648 !important;
+  color: #E2E8F0 !important;
 }
+html[data-ui-theme="industrial-scada"] header:not(.header-shell) {
+  border-bottom: 2px solid #F59E0B !important;
+}
+html[data-ui-theme="industrial-scada"] header:not(.header-shell) h1,
+html[data-ui-theme="industrial-scada"] header:not(.header-shell) .text-slate-900,
+html[data-ui-theme="industrial-scada"] header:not(.header-shell) .text-slate-800,
+html[data-ui-theme="industrial-scada"] header:not(.header-shell) .text-slate-700,
+html[data-ui-theme="industrial-scada"] aside:not(#config-split-vertical-rail) .text-slate-900,
+html[data-ui-theme="industrial-scada"] aside:not(#config-split-vertical-rail) .text-slate-700 {
+  color: #F8FAFC !important;
+}
+html[data-ui-theme="industrial-scada"] aside:not(#config-split-vertical-rail) .nav-item {
+  color: #CBD5E1 !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+html[data-ui-theme="industrial-scada"] aside:not(#config-split-vertical-rail) .nav-active {
+  background: rgba(245, 158, 11, 0.16) !important;
+  color: #FBBF24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.5) !important;
+  border-left: 3px solid #F59E0B !important;
+}
+html[data-ui-theme="industrial-scada"] aside:not(#config-split-vertical-rail) .nav-active .nav-icon {
+  color: #FBBF24 !important;
+}
+/* Engineering Dot-Grid Technical Canvas */
 html[data-ui-theme="industrial-scada"]:not(.dark) body,
 html[data-ui-theme="industrial-scada"]:not(.dark) #app,
 html[data-ui-theme="industrial-scada"]:not(.dark) main {
-  background: var(--theme-bg-gradient) !important;
+  background-color: #DFE6EE !important;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.11) 1px, transparent 1px) !important;
+  background-size: 18px 18px !important;
 }
 html[data-ui-theme="industrial-scada"]:not(.dark) .bento-dashboard-page {
-  background: #E5EBF1 !important;
+  --b-bg: #DFE6EE;
+  --b-card: #FFFFFF;
+  --b-subtle: #EDF2F7;
+  --b-pill: #E2E8F0;
+  --b-border: #94A3B8;
+  --b-border-soft: #CBD5E1;
+  --b-primary: #D97706;
+  --b-accent-blue: #0891B2;
+  --b-shadow: 0 2px 0 rgba(15, 23, 42, 0.14);
 }
-html[data-ui-theme="industrial-scada"]:not(.dark) .saas-card,
-html[data-ui-theme="industrial-scada"]:not(.dark) .reports-card,
-html[data-ui-theme="industrial-scada"]:not(.dark) .header-shell,
-html[data-ui-theme="industrial-scada"]:not(.dark) .bento-card,
-html[data-ui-theme="industrial-scada"]:not(.dark) .bento-trend-card {
-  background-color: #FFFFFF !important;
-  border-color: #B6C3D2 !important;
-  border-left: 3px solid #0891B2 !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
-}
-html[data-ui-theme="industrial-scada"]:not(.dark) #queue-kpi-compact-strip > button {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 3px rgba(15, 23, 42, 0.08);
-  border-width: 1.5px !important;
-}
-html[data-ui-theme="industrial-scada"]:not(.dark) .bg-cyan-600,
-html[data-ui-theme="industrial-scada"]:not(.dark) .bg-blue-600 {
-  background: linear-gradient(90deg, #0E7490 0%, #0891B2 100%) !important;
-}
-
-/* Industrial SCADA Dark Mode — Deep Obsidian & Amber-Cyan Instrumentation */
 html[data-ui-theme="industrial-scada"].dark body,
 html[data-ui-theme="industrial-scada"].dark #app,
 html[data-ui-theme="industrial-scada"].dark main {
-  background: #090C11 !important;
+  background-color: #080B10 !important;
+  background-image: radial-gradient(rgba(6, 182, 212, 0.14) 1px, transparent 1px) !important;
+  background-size: 20px 20px !important;
   color: #E2E8F0;
 }
 html[data-ui-theme="industrial-scada"].dark .bento-dashboard-page {
-  background: #090C11 !important;
+  --b-bg: #080B10;
+  --b-card: #111620;
+  --b-subtle: #161D2B;
+  --b-pill: #1C2536;
+  --b-border: #334155;
+  --b-border-soft: #1E293B;
+  --b-primary: #F59E0B;
+  --b-accent-blue: #22D3EE;
+  --b-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 14px rgba(0, 0, 0, 0.6);
 }
-html[data-ui-theme="industrial-scada"].dark header,
-html[data-ui-theme="industrial-scada"].dark aside {
-  background-color: #0D1118 !important;
-  border-color: #242E3E !important;
+/* High-Contrast Left Instrumentation Accent Stripe on Cards */
+html[data-ui-theme="industrial-scada"] .saas-card,
+html[data-ui-theme="industrial-scada"] .reports-card,
+html[data-ui-theme="industrial-scada"] .bento-table-card,
+html[data-ui-theme="industrial-scada"] .trend-studio {
+  border-left: 3px solid #F59E0B !important;
 }
-html[data-ui-theme="industrial-scada"].dark .saas-card,
-html[data-ui-theme="industrial-scada"].dark .reports-card,
-html[data-ui-theme="industrial-scada"].dark .header-shell,
-html[data-ui-theme="industrial-scada"].dark .bento-card,
-html[data-ui-theme="industrial-scada"].dark .bento-trend-card,
-html[data-ui-theme="industrial-scada"].dark .bento-weather-hero {
-  background-color: #111620 !important;
-  border-color: #263143 !important;
-  border-left: 3px solid #06B6D4 !important;
-  box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.06), 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+html[data-ui-theme="industrial-scada"] .s-card {
+  border-top: 2px solid #06B6D4 !important;
 }
-html[data-ui-theme="industrial-scada"].dark #queue-kpi-compact-strip > button {
-  background-color: #121824 !important;
-  border-width: 1.5px !important;
-  box-shadow: inset 0 0 18px rgba(6, 182, 212, 0.06), 0 2px 10px rgba(0, 0, 0, 0.45);
+html[data-ui-theme="industrial-scada"] .bg-cyan-600,
+html[data-ui-theme="industrial-scada"] .bg-sky-600,
+html[data-ui-theme="industrial-scada"] .bg-blue-600 {
+  background: linear-gradient(90deg, #D97706 0%, #EA580C 100%) !important;
+  border-color: #F59E0B !important;
 }
-html[data-ui-theme="industrial-scada"].dark .bg-cyan-600,
-html[data-ui-theme="industrial-scada"].dark .bg-blue-600 {
-  background: linear-gradient(90deg, #D97706 0%, #0891B2 100%) !important;
-  border-color: #06B6D4 !important;
-}
-html[data-ui-theme="industrial-scada"] .tabular-nums {
+html[data-ui-theme="industrial-scada"] .tabular-nums,
+html[data-ui-theme="industrial-scada"] .s-val {
   font-family: var(--font-family-mono) !important;
   letter-spacing: -0.02em;
 }
+html[data-ui-theme="industrial-scada"].dark #queue-kpi-compact-strip > button {
+  background: #101622 !important;
+  border-width: 1.5px !important;
+  box-shadow: inset 0 0 16px rgba(6, 182, 212, 0.08), 0 0 10px rgba(0, 0, 0, 0.5);
+}
 
 /* ============================================================================
-   THEME 4: ROYAL GLASS (MODERN EXECUTIVE GLASSMORPHISM)
+   THEME 4: ROYAL GLASS (AURORA MESH + FROSTED TRANSLUCENT GLASSMORPHISM + INDIGO-VIOLET)
    ============================================================================ */
 html[data-ui-theme="royal-glass"]:not(.dark) {
   --theme-bg-gradient:
-    radial-gradient(circle at 12% 8%, rgba(221, 214, 254, 0.72) 0%, transparent 44%),
-    radial-gradient(circle at 88% 12%, rgba(186, 230, 253, 0.65) 0%, transparent 46%),
-    linear-gradient(180deg, #F5F3FF 0%, #EEF4FF 52%, #F4F8FF 100%);
+    radial-gradient(circle at 10% 10%, rgba(196, 181, 253, 0.78) 0%, transparent 45%),
+    radial-gradient(circle at 90% 15%, rgba(125, 211, 252, 0.68) 0%, transparent 48%),
+    radial-gradient(circle at 55% 92%, rgba(251, 207, 232, 0.55) 0%, transparent 45%),
+    linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 50%, #ECFEFF 100%);
   --theme-primary: #4F46E5;
-  --theme-border: rgba(165, 180, 252, 0.45);
 }
 html[data-ui-theme="royal-glass"]:not(.dark) body,
 html[data-ui-theme="royal-glass"]:not(.dark) #app,
@@ -210,72 +257,198 @@ html[data-ui-theme="royal-glass"]:not(.dark) main {
   background-attachment: fixed !important;
 }
 html[data-ui-theme="royal-glass"]:not(.dark) .bento-dashboard-page {
-  background: var(--theme-bg-gradient) !important;
+  --b-bg: transparent;
+  --b-card: rgba(255, 255, 255, 0.72);
+  --b-subtle: rgba(238, 242, 255, 0.72);
+  --b-pill: rgba(224, 231, 255, 0.75);
+  --b-border: rgba(165, 180, 252, 0.65);
+  --b-border-soft: rgba(199, 210, 254, 0.55);
+  --b-primary: #4F46E5;
+  --b-accent-blue: #6366F1;
+  --b-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 12px 30px -8px rgba(79, 70, 229, 0.18);
+}
+html[data-ui-theme="royal-glass"]:not(.dark) header:not(.header-shell),
+html[data-ui-theme="royal-glass"]:not(.dark) aside:not(#config-split-vertical-rail) {
+  background: rgba(255, 255, 255, 0.62) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+  border-color: rgba(165, 180, 252, 0.55) !important;
 }
 html[data-ui-theme="royal-glass"]:not(.dark) .saas-card,
 html[data-ui-theme="royal-glass"]:not(.dark) .reports-card,
 html[data-ui-theme="royal-glass"]:not(.dark) .header-shell,
-html[data-ui-theme="royal-glass"]:not(.dark) .bento-card,
-html[data-ui-theme="royal-glass"]:not(.dark) .bento-trend-card,
-html[data-ui-theme="royal-glass"]:not(.dark) .bento-weather-hero {
-  background: rgba(255, 255, 255, 0.78) !important;
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid rgba(199, 210, 254, 0.75) !important;
-  border-radius: 18px !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 10px 28px -8px rgba(79, 70, 229, 0.13) !important;
+html[data-ui-theme="royal-glass"]:not(.dark) .s-card,
+html[data-ui-theme="royal-glass"]:not(.dark) .bento-table-card,
+html[data-ui-theme="royal-glass"]:not(.dark) .trend-studio,
+html[data-ui-theme="royal-glass"]:not(.dark) .bg-white.rounded-2xl {
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(18px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
+  border: 1px solid rgba(165, 180, 252, 0.68) !important;
+  border-radius: 20px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 12px 32px -8px rgba(79, 70, 229, 0.16) !important;
 }
-html[data-ui-theme="royal-glass"]:not(.dark) header,
-html[data-ui-theme="royal-glass"]:not(.dark) aside {
-  background: rgba(255, 255, 255, 0.76) !important;
-  backdrop-filter: blur(14px);
-  border-color: rgba(199, 210, 254, 0.7) !important;
+html[data-ui-theme="royal-glass"] aside:not(#config-split-vertical-rail) .nav-active {
+  background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%) !important;
+  color: #FFFFFF !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 16px -3px rgba(79, 70, 229, 0.45) !important;
+}
+html[data-ui-theme="royal-glass"] aside:not(#config-split-vertical-rail) .nav-active .nav-icon {
+  color: #FFFFFF !important;
 }
 html[data-ui-theme="royal-glass"] .bg-cyan-600,
 html[data-ui-theme="royal-glass"] .bg-sky-600,
 html[data-ui-theme="royal-glass"] .bg-blue-600 {
-  background: linear-gradient(135deg, #4F46E5 0%, #2563EB 100%) !important;
-  border-color: #4F46E5 !important;
-  box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.35);
+  background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%) !important;
+  border-color: #6366F1 !important;
+  box-shadow: 0 5px 14px -3px rgba(79, 70, 229, 0.42);
 }
-html[data-ui-theme="royal-glass"] .hover\:bg-cyan-500:hover,
-html[data-ui-theme="royal-glass"] .hover\:bg-sky-500:hover,
-html[data-ui-theme="royal-glass"] .hover\:bg-blue-500:hover {
-  background: linear-gradient(135deg, #6366F1 0%, #3B82F6 100%) !important;
-}
-
-/* Royal Glass Dark Mode — Midnight Indigo Frosted Glass */
+/* Royal Glass Dark Mode — Deep Cosmic Aurora */
 html[data-ui-theme="royal-glass"].dark body,
 html[data-ui-theme="royal-glass"].dark #app,
 html[data-ui-theme="royal-glass"].dark main {
   background:
-    radial-gradient(circle at 14% 8%, rgba(67, 56, 202, 0.35) 0%, transparent 45%),
-    radial-gradient(circle at 86% 18%, rgba(14, 165, 233, 0.22) 0%, transparent 44%),
-    #090818 !important;
+    radial-gradient(circle at 12% 10%, rgba(99, 102, 241, 0.42) 0%, transparent 46%),
+    radial-gradient(circle at 88% 16%, rgba(168, 85, 247, 0.30) 0%, transparent 45%),
+    radial-gradient(circle at 50% 95%, rgba(14, 165, 233, 0.22) 0%, transparent 45%),
+    #09071A !important;
   background-attachment: fixed !important;
   color: #EEF2FF;
 }
 html[data-ui-theme="royal-glass"].dark .bento-dashboard-page {
-  background: transparent !important;
+  --b-bg: transparent;
+  --b-card: rgba(22, 20, 56, 0.72);
+  --b-subtle: rgba(30, 27, 75, 0.72);
+  --b-pill: rgba(49, 46, 129, 0.55);
+  --b-border: rgba(129, 140, 248, 0.34);
+  --b-border-soft: rgba(129, 140, 248, 0.18);
+  --b-primary: #818CF8;
+  --b-accent-blue: #A5B4FC;
 }
-html[data-ui-theme="royal-glass"].dark header,
-html[data-ui-theme="royal-glass"].dark aside {
-  background: rgba(14, 14, 34, 0.8) !important;
-  backdrop-filter: blur(14px);
-  border-color: rgba(129, 140, 248, 0.24) !important;
+html[data-ui-theme="royal-glass"].dark header:not(.header-shell),
+html[data-ui-theme="royal-glass"].dark aside:not(#config-split-vertical-rail) {
+  background: rgba(15, 13, 40, 0.76) !important;
+  backdrop-filter: blur(18px) !important;
+  border-color: rgba(129, 140, 248, 0.28) !important;
 }
 html[data-ui-theme="royal-glass"].dark .saas-card,
 html[data-ui-theme="royal-glass"].dark .reports-card,
 html[data-ui-theme="royal-glass"].dark .header-shell,
-html[data-ui-theme="royal-glass"].dark .bento-card,
-html[data-ui-theme="royal-glass"].dark .bento-trend-card,
-html[data-ui-theme="royal-glass"].dark .bento-weather-hero {
-  background: rgba(19, 20, 46, 0.72) !important;
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid rgba(129, 140, 248, 0.28) !important;
-  border-radius: 18px !important;
-  box-shadow: inset 0 1px 0 rgba(199, 210, 254, 0.12), 0 12px 30px -6px rgba(2, 6, 23, 0.6) !important;
+html[data-ui-theme="royal-glass"].dark .s-card,
+html[data-ui-theme="royal-glass"].dark .bento-table-card,
+html[data-ui-theme="royal-glass"].dark .trend-studio,
+html[data-ui-theme="royal-glass"].dark .bg-white.rounded-2xl {
+  background: rgba(22, 20, 56, 0.72) !important;
+  backdrop-filter: blur(18px) saturate(150%) !important;
+  border: 1px solid rgba(129, 140, 248, 0.34) !important;
+  border-radius: 20px !important;
+  box-shadow: inset 0 1px 0 rgba(199, 210, 254, 0.14), 0 14px 32px -6px rgba(2, 6, 23, 0.65) !important;
+}
+
+/* ============================================================================
+   THEME 5: WARM TERRACOTTA (ESPRESSO SIDEBAR + WARM SAND PAPER + COPPER-GOLD EDITORIAL)
+   ============================================================================ */
+html[data-ui-theme="warm-terracotta"]:not(.dark) {
+  --theme-bg-gradient: linear-gradient(160deg, #F3E6D8 0%, #FAF3EB 45%, #FDF9F4 100%);
+  --theme-primary: #C2410C;
+  --theme-border: #E2CBB5;
+}
+html[data-ui-theme="warm-terracotta"]:not(.dark) body,
+html[data-ui-theme="warm-terracotta"]:not(.dark) #app,
+html[data-ui-theme="warm-terracotta"]:not(.dark) main {
+  background: var(--theme-bg-gradient) !important;
+  background-attachment: fixed !important;
+  color: #2C1E18;
+}
+/* Signature Deep Espresso Warm Sidebar */
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) {
+  background: linear-gradient(180deg, #2B1D17 0%, #1C120E 100%) !important;
+  border-right-color: #463026 !important;
+  color: #FDE8D7 !important;
+}
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .text-slate-900,
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .text-slate-700,
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .text-slate-600 {
+  color: #FFF7ED !important;
+}
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .text-slate-500,
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .text-slate-400 {
+  color: #FDBA74 !important;
+}
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .nav-item {
+  color: #FED7AA !important;
+  border-radius: 12px !important;
+}
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .nav-active {
+  background: linear-gradient(90deg, #C2410C 0%, #EA580C 100%) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(254, 215, 170, 0.35) !important;
+  box-shadow: 0 4px 12px rgba(194, 65, 12, 0.4) !important;
+}
+html[data-ui-theme="warm-terracotta"] aside:not(#config-split-vertical-rail) .nav-active .nav-icon {
+  color: #FFFFFF !important;
+}
+html[data-ui-theme="warm-terracotta"]:not(.dark) header:not(.header-shell) {
+  background: rgba(253, 248, 242, 0.95) !important;
+  border-bottom: 2px solid #E5CEB8 !important;
+}
+html[data-ui-theme="warm-terracotta"]:not(.dark) .bento-dashboard-page {
+  --b-bg: linear-gradient(160deg, #F3E6D8 0%, #FAF3EB 55%, #FDF9F4 100%);
+  --b-card: #FFFDF9;
+  --b-subtle: #F7EDE2;
+  --b-pill: #F1E1CF;
+  --b-border: #E2CBB5;
+  --b-border-soft: #EFE0D0;
+  --b-primary: #C2410C;
+  --b-accent-blue: #C2410C;
+  --b-text-main: #291B14;
+  --b-shadow: 0 4px 14px -4px rgba(124, 45, 18, 0.12);
+}
+html[data-ui-theme="warm-terracotta"].dark body,
+html[data-ui-theme="warm-terracotta"].dark #app,
+html[data-ui-theme="warm-terracotta"].dark main {
+  background: linear-gradient(180deg, #17100D 0%, #221712 100%) !important;
+  color: #FEF3E7;
+}
+html[data-ui-theme="warm-terracotta"].dark header:not(.header-shell) {
+  background: #1C130F !important;
+  border-bottom: 1px solid #422D23 !important;
+}
+html[data-ui-theme="warm-terracotta"].dark .bento-dashboard-page {
+  --b-bg: linear-gradient(180deg, #17100D 0%, #221712 100%);
+  --b-card: #281B15;
+  --b-subtle: #32221B;
+  --b-pill: #3C2920;
+  --b-border: #573B2E;
+  --b-border-soft: #422C22;
+  --b-primary: #F97316;
+  --b-accent-blue: #FB923C;
+}
+html[data-ui-theme="warm-terracotta"]:not(.dark) .saas-card,
+html[data-ui-theme="warm-terracotta"]:not(.dark) .reports-card,
+html[data-ui-theme="warm-terracotta"]:not(.dark) .bg-white.rounded-2xl {
+  background-color: #FFFDF9 !important;
+  border-color: #E2CBB5 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 16px -4px rgba(124, 45, 18, 0.10) !important;
+}
+html[data-ui-theme="warm-terracotta"].dark .saas-card,
+html[data-ui-theme="warm-terracotta"].dark .reports-card,
+html[data-ui-theme="warm-terracotta"].dark .bg-white.rounded-2xl {
+  background-color: #281B15 !important;
+  border-color: #54382B !important;
+  border-radius: 16px !important;
+}
+html[data-ui-theme="warm-terracotta"] .bg-cyan-600,
+html[data-ui-theme="warm-terracotta"] .bg-sky-600,
+html[data-ui-theme="warm-terracotta"] .bg-blue-600 {
+  background: linear-gradient(135deg, #C2410C 0%, #EA580C 100%) !important;
+  border-color: #C2410C !important;
+}
+html[data-ui-theme="warm-terracotta"] .reports-tab-active {
+  color: #C2410C !important;
+  border-color: #C2410C !important;
 }
 
 /* ============================================================================
@@ -295,8 +468,8 @@ html[data-ui-density="compact"] table th {
 html[data-ui-density="compact"] #queue-kpi-compact-strip > button {
   padding: 0.35rem 0.55rem !important;
 }
-html[data-ui-density="compact"] .bento-card {
-  padding: 0.5rem 0.65rem !important;
+html[data-ui-density="compact"] .s-card {
+  padding: 0.45rem 0.55rem !important;
 }
 
 /* ============================================================================

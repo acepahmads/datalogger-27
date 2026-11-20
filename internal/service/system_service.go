@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -195,6 +196,10 @@ func (s *SystemService) GetSystemStatusOverviewScoped(ctx context.Context) (*mod
 		RawTelemetryMaxRangeHours: config.Get().EffectiveRawTelemetryMaxRangeHours(),
 		ShowOperatorConsole:       config.Get().ShowOperatorConsole,
 		ShowDevelopmentMenu:       config.Get().ShowDevelopmentMenu,
+		UIThemePreset:             normalizeUIThemePreset(config.Get().UIThemePreset),
+		UILayout:                  normalizeUILayout(config.Get().UILayout),
+		UIDensity:                 normalizeUIDensity(config.Get().UIDensity),
+		UILightingMode:            normalizeUILightingMode(config.Get().UILightingMode),
 
 		ServiceStatus:   "RUNNING",
 		WorkerStatus:    "READY",
@@ -487,6 +492,10 @@ type SystemConfigDTO struct {
 	RawTelemetryMaxRangeHours   int    `json:"raw_telemetry_max_range_hours"`
 	ShowOperatorConsole         bool   `json:"show_operator_console"`
 	ShowDevelopmentMenu         bool   `json:"show_development_menu"`
+	UIThemePreset               string `json:"ui_theme_preset"`
+	UILayout                    string `json:"ui_layout"`
+	UIDensity                   string `json:"ui_density"`
+	UILightingMode              string `json:"ui_lighting_mode"`
 }
 
 type ReassignParameterCategoryItem struct {
@@ -524,6 +533,10 @@ type SaveSystemConfigRequest struct {
 	RawTelemetryMaxRangeHours int                             `json:"raw_telemetry_max_range_hours"`
 	ShowOperatorConsole       *bool                           `json:"show_operator_console,omitempty"`
 	ShowDevelopmentMenu       *bool                           `json:"show_development_menu,omitempty"`
+	UIThemePreset             *string                         `json:"ui_theme_preset,omitempty"`
+	UILayout                  *string                         `json:"ui_layout,omitempty"`
+	UIDensity                 *string                         `json:"ui_density,omitempty"`
+	UILightingMode            *string                         `json:"ui_lighting_mode,omitempty"`
 	Reassignments             []ReassignParameterCategoryItem `json:"reassignments,omitempty"`
 }
 
@@ -534,6 +547,42 @@ type ConfigSaveResult struct {
 	RestartRequiredFields []string `json:"restart_required_fields"`
 	DisruptedFields       []string `json:"disrupted_fields"`
 	Message               string   `json:"message"`
+}
+
+func normalizeUIThemePreset(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "eco-forest", "industrial-scada", "royal-glass", "warm-terracotta", "oceanic":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "oceanic"
+	}
+}
+
+func normalizeUILayout(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "classic", "split", "executive":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "classic"
+	}
+}
+
+func normalizeUIDensity(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "comfortable", "compact":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "comfortable"
+	}
+}
+
+func normalizeUILightingMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "light", "dark", "system":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "system"
+	}
 }
 
 func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
@@ -578,6 +627,10 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		RawTelemetryMaxRangeHours:   cfg.EffectiveRawTelemetryMaxRangeHours(),
 		ShowOperatorConsole:         cfg.ShowOperatorConsole,
 		ShowDevelopmentMenu:         cfg.ShowDevelopmentMenu,
+		UIThemePreset:               normalizeUIThemePreset(cfg.UIThemePreset),
+		UILayout:                    normalizeUILayout(cfg.UILayout),
+		UIDensity:                   normalizeUIDensity(cfg.UIDensity),
+		UILightingMode:              normalizeUILightingMode(cfg.UILightingMode),
 	}
 }
 
@@ -769,6 +822,36 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		cfg.ShowDevelopmentMenu = *req.ShowDevelopmentMenu
 	}
 
+	// Global UI Appearance & Multi-Layout Governance
+	if req.UIThemePreset != nil {
+		nextPreset := normalizeUIThemePreset(*req.UIThemePreset)
+		if nextPreset != normalizeUIThemePreset(cfg.UIThemePreset) {
+			changedNotes = append(changedNotes, fmt.Sprintf("ui_theme_preset: %s -> %s", normalizeUIThemePreset(cfg.UIThemePreset), nextPreset))
+			cfg.UIThemePreset = nextPreset
+		}
+	}
+	if req.UILayout != nil {
+		nextLayout := normalizeUILayout(*req.UILayout)
+		if nextLayout != normalizeUILayout(cfg.UILayout) {
+			changedNotes = append(changedNotes, fmt.Sprintf("ui_layout: %s -> %s", normalizeUILayout(cfg.UILayout), nextLayout))
+			cfg.UILayout = nextLayout
+		}
+	}
+	if req.UIDensity != nil {
+		nextDensity := normalizeUIDensity(*req.UIDensity)
+		if nextDensity != normalizeUIDensity(cfg.UIDensity) {
+			changedNotes = append(changedNotes, fmt.Sprintf("ui_density: %s -> %s", normalizeUIDensity(cfg.UIDensity), nextDensity))
+			cfg.UIDensity = nextDensity
+		}
+	}
+	if req.UILightingMode != nil {
+		nextLight := normalizeUILightingMode(*req.UILightingMode)
+		if nextLight != normalizeUILightingMode(cfg.UILightingMode) {
+			changedNotes = append(changedNotes, fmt.Sprintf("ui_lighting_mode: %s -> %s", normalizeUILightingMode(cfg.UILightingMode), nextLight))
+			cfg.UILightingMode = nextLight
+		}
+	}
+
 	// Monitoring Domain & Platform Cloud Mode
 	if req.CloudMode != nil && *req.CloudMode && strings.TrimSpace(req.MonitoringDomain) == "" {
 		req.MonitoringDomain = "CLOUD"
@@ -845,7 +928,11 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		changedNotes = append(changedNotes, fmt.Sprintf("%d parameters reassigned", len(req.Reassignments)))
 	}
 
-	if err := config.Save("config.json", cfg); err != nil {
+	savePath := strings.TrimSpace(os.Getenv("DATALOGGER_CONFIG"))
+	if savePath == "" {
+		savePath = "config.json"
+	}
+	if err := config.Save(savePath, cfg); err != nil {
 		return nil, errors.New("failed to save configuration file: " + err.Error())
 	}
 

@@ -235,19 +235,6 @@
         </div>
       </button>
 
-      <!-- 3b. Theme Studio Picker Button (Oceanic / Eco Forest / Industrial SCADA / Royal Glass) -->
-      <button
-        type="button"
-        id="btn-header-theme-studio"
-        @click="$store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
-        class="h-7 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center gap-1 transition-all shadow-xs cursor-pointer flex-shrink-0"
-        title="Pilih Tema & Gaya Tampilan (Oceanic Classic, Eco Forest, Industrial SCADA, Royal Glass)"
-        aria-label="Theme Studio"
-      >
-        <span class="text-xs leading-none">🎨</span>
-        <span class="hidden lg:inline text-3xs font-bold leading-none">Tema</span>
-      </button>
-
       <!-- 4. Theme Switch Button (Light / Dark Slide Switch) -->
       <button
         type="button"

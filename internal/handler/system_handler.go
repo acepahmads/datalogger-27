@@ -1392,8 +1392,18 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 		return
 	}
 
-	isScopedDomainOnlySave := (!scope.IsSuperAdmin && scope.UserTenantID != nil) ||
-		(scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1) && req.Reassignments != nil)
+	isGlobalAppearanceChange := req.UIThemePreset != nil ||
+		req.UILayout != nil ||
+		req.UIDensity != nil ||
+		req.UILightingMode != nil
+
+	if isGlobalAppearanceChange && config.Get().IsCloudMode() && !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang dapat mengubah tema & layout global saat mode Cloud aktif")
+		return
+	}
+
+	isScopedDomainOnlySave := !isGlobalAppearanceChange && ((!scope.IsSuperAdmin && scope.UserTenantID != nil) ||
+		(scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1) && req.Reassignments != nil))
 
 	if !isPlatformCloudChange && h.tenantService != nil && isScopedDomainOnlySave {
 		result, err := h.systemService.SaveScopedSiteDomainConfig(c.Request.Context(), req, actorID, actorUsername, ip, ua)

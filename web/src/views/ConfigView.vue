@@ -20,16 +20,6 @@
 
       <!-- Tab Switcher & First-Run Setup Button -->
       <div class="flex flex-wrap items-center gap-2">
-        <button
-          id="btn-config-theme-studio"
-          type="button"
-          @click="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
-          class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition shadow-xs cursor-pointer"
-          title="Pilih Tema & Gaya Tampilan (Oceanic Classic, Eco Forest, Industrial SCADA, Royal Glass)"
-        >
-          <span>🎨</span>
-          <span>Tema</span>
-        </button>
         <button v-if="isSuperAdmin || !isCloudActive"
                 @click="openSetupWizard"
                 class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-cyan-700 border border-cyan-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-cyan-400 dark:border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition shadow-xs">
@@ -38,7 +28,7 @@
         </button>
 
         <div
-          class="flex items-center space-x-1 bg-slate-100 dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-xs"
+          class="flex items-center space-x-1 bg-slate-100 dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-xs flex-wrap"
           :class="uiLayout === 'split' ? 'lg:hidden' : ''"
         >
           <button @click="activeTab = 'domain'"
@@ -53,6 +43,14 @@
                   :class="activeTab === 'branding' ? 'bg-cyan-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             <span>🏢</span>
             <span>{{ $t('config.tabBranding') || 'Organization & Branding' }}</span>
+          </button>
+          <button v-if="isSuperAdmin || !isCloudActive"
+                  @click="activeTab = 'appearance'"
+                  id="tab-btn-global-appearance"
+                  class="px-3 py-1.5 rounded-md transition-colors flex items-center space-x-1.5"
+                  :class="activeTab === 'appearance' ? 'bg-cyan-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+            <span>🎨</span>
+            <span>Tampilan &amp; Desain</span>
           </button>
           <button v-if="isSuperAdmin || !isCloudActive"
                   @click="activeTab = 'database'"
@@ -120,6 +118,16 @@
         <button
           v-if="isSuperAdmin || !isCloudActive"
           type="button"
+          @click="activeTab = 'appearance'"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+          :class="activeTab === 'appearance' ? 'bg-cyan-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+        >
+          <span>🎨</span>
+          <span>Tampilan &amp; Desain</span>
+        </button>
+        <button
+          v-if="isSuperAdmin || !isCloudActive"
+          type="button"
           @click="activeTab = 'database'"
           class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
           :class="activeTab === 'database' ? 'bg-blue-600 text-white btn-text shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
@@ -146,15 +154,6 @@
         >
           <span>💾</span>
           <span>{{ $t('config.tabLocalFirst') || 'Local-First' }}</span>
-        </button>
-        <div class="my-1 border-t border-slate-200 dark:border-slate-800"></div>
-        <button
-          type="button"
-          @click="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
-          class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 text-sky-700 dark:text-sky-300 hover:bg-sky-500/10 transition cursor-pointer"
-        >
-          <span>🎨</span>
-          <span>Tampilan &amp; Layout</span>
         </button>
       </aside>
 
@@ -1280,7 +1279,226 @@
       </div>
     </div>
 
-    <!-- TAB 4: Local-First Principle -->
+    <!-- TAB 4: Global Appearance (Theme & Layout Setup — Persisted Server-Wide) -->
+    <div v-else-if="activeTab === 'appearance'" id="tab-panel-global-appearance" class="space-y-5 max-w-5xl font-sans">
+      <div class="saas-card p-5 space-y-5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800/80 pb-3">
+          <div class="flex items-center space-x-3">
+            <span class="p-2.5 rounded-xl bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20 text-lg">
+              🎨
+            </span>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+                  Pengaturan Desain Tata Letak &amp; Tema Global
+                </h2>
+                <span class="text-4xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                  DISIMPAN GLOBAL DI SERVER
+                </span>
+              </div>
+              <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Berlaku otomatis untuk seluruh halaman (Dashboard Operator, Export Data, Pengiriman Outbound, Setup) dan seluruh pengguna/browser.
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              id="btn-global-appearance-reset"
+              @click="resetGlobalAppearance"
+              :disabled="savingAppearance"
+              class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+            >
+              Reset Default
+            </button>
+            <button
+              type="button"
+              id="btn-global-appearance-save"
+              @click="saveGlobalAppearanceConfig"
+              :disabled="savingAppearance"
+              class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white btn-text text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              {{ savingAppearance ? 'Menyimpan...' : '💾 Simpan Global' }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="appearanceSuccessMsg" class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+          ✓ {{ appearanceSuccessMsg }}
+        </div>
+        <div v-if="appearanceErrorMsg" class="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs font-semibold">
+          ⚠️ {{ appearanceErrorMsg }}
+        </div>
+
+        <!-- 1. Desain Tata Letak (Layout) -->
+        <div class="space-y-2">
+          <div class="text-xs font-bold text-slate-800 dark:text-slate-100">1. Desain Tata Letak (Layout)</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              v-for="lay in appearanceLayouts"
+              :key="'cfg-lay-' + lay.id"
+              type="button"
+              :id="'cfg-layout-card-' + lay.id"
+              @click="previewGlobalAppearance({ ui_layout: lay.id })"
+              class="text-left p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col gap-2 bg-white dark:bg-[#0B0F19]"
+              :class="form.ui_layout === lay.id
+                ? 'border-sky-500 ring-2 ring-sky-500/20 shadow-md'
+                : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'"
+            >
+              <div class="relative w-full h-16 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 p-1.5 overflow-hidden">
+                <span
+                  v-if="form.ui_layout === lay.id"
+                  class="absolute top-1 right-1 w-4 h-4 rounded-full bg-sky-600 text-white badge-text text-4xs font-extrabold flex items-center justify-center shadow-sm z-10"
+                >✓</span>
+                <div v-if="lay.id === 'classic'" class="flex gap-1 h-full">
+                  <div class="w-3 rounded bg-slate-300 dark:bg-slate-700 h-full"></div>
+                  <div class="flex-1 flex flex-col gap-1">
+                    <div class="h-3.5 rounded bg-sky-500/35"></div>
+                    <div class="grid grid-cols-3 gap-1 flex-1">
+                      <div class="rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
+                      <div class="rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
+                      <div class="rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
+                    </div>
+                    <div class="h-3 rounded bg-emerald-500/30"></div>
+                  </div>
+                </div>
+                <div v-else-if="lay.id === 'split'" class="grid grid-cols-12 gap-1 h-full">
+                  <div class="col-span-5 flex flex-col gap-1">
+                    <div class="h-2.5 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-cyan-500"></div>
+                    <div class="h-2.5 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-emerald-500"></div>
+                    <div class="h-2.5 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-amber-500"></div>
+                    <div class="flex-1 rounded-sm bg-white dark:bg-slate-800 border-l-2 border-cyan-500"></div>
+                  </div>
+                  <div class="col-span-7 flex flex-col gap-1">
+                    <div class="h-3 rounded-sm bg-cyan-500/30"></div>
+                    <div class="flex-1 rounded-sm bg-white dark:bg-slate-800 border border-cyan-500/40"></div>
+                  </div>
+                </div>
+                <div v-else class="flex flex-col gap-1 h-full items-center">
+                  <div class="h-2 w-20 rounded-full bg-indigo-500/45"></div>
+                  <div class="w-full h-4 rounded-lg bg-emerald-500/30"></div>
+                  <div class="grid grid-cols-4 gap-1 w-full flex-1">
+                    <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                    <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                    <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                    <div class="rounded-md bg-white dark:bg-slate-800"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-0.5">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-extrabold text-slate-900 dark:text-white">{{ lay.name }}</span>
+                  <span
+                    class="px-1.5 py-0.2 rounded-full text-4xs font-mono font-bold border"
+                    :class="form.ui_layout === lay.id
+                      ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'"
+                  >{{ form.ui_layout === lay.id ? 'AKTIF' : lay.badge }}</span>
+                </div>
+                <p class="text-4xs text-slate-500 dark:text-slate-400 leading-snug">{{ lay.description }}</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Gaya & Tema Warna -->
+        <div class="space-y-2">
+          <div class="text-xs font-bold text-slate-800 dark:text-slate-100">2. Gaya &amp; Tema Warna (5 Karakter Berbeda)</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+            <button
+              v-for="preset in appearanceThemes"
+              :key="'cfg-theme-' + preset.id"
+              type="button"
+              :id="'cfg-theme-card-' + preset.id"
+              @click="previewGlobalAppearance({ ui_theme_preset: preset.id })"
+              class="text-left p-2.5 rounded-2xl border-2 transition cursor-pointer flex flex-col gap-2 bg-white dark:bg-[#0B0F19]"
+              :class="form.ui_theme_preset === preset.id
+                ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
+                : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'"
+            >
+              <div
+                class="relative w-full h-16 rounded-xl border border-slate-200/80 dark:border-slate-700/70 p-2 flex flex-col justify-between"
+                :style="{ background: form.ui_lighting_mode === 'dark' ? preset.previewBgDark : preset.previewBgLight }"
+              >
+                <span
+                  v-if="form.ui_theme_preset === preset.id"
+                  class="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-600 text-white badge-text text-4xs font-extrabold flex items-center justify-center shadow-sm"
+                >✓</span>
+                <div class="flex items-center gap-1">
+                  <span
+                    v-for="(hex, idx) in preset.swatches"
+                    :key="preset.id + '-csw-' + idx"
+                    class="w-3.5 h-3.5 rounded-full border border-white/80 shadow-2xs"
+                    :style="{ background: hex }"
+                  ></span>
+                </div>
+                <div
+                  class="h-4 w-3/4 shadow-2xs"
+                  :style="{ background: preset.previewAccent, borderRadius: preset.previewRadius }"
+                ></div>
+              </div>
+              <div class="space-y-0.5">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-extrabold text-slate-900 dark:text-white truncate">{{ preset.name }}</span>
+                  <span class="text-4xs font-mono text-slate-500">{{ preset.badge }}</span>
+                </div>
+                <p class="text-4xs text-slate-500 dark:text-slate-400 leading-snug">{{ preset.description }}</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Mode Pencahayaan & Kepadatan -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+          <div class="space-y-2">
+            <div class="text-xs font-bold text-slate-800 dark:text-slate-100">3. Mode Pencahayaan Global</div>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                v-for="mode in appearanceLightingModes"
+                :key="'cfg-lm-' + mode.id"
+                type="button"
+                @click="previewGlobalAppearance({ ui_lighting_mode: mode.id })"
+                class="px-2.5 py-2 rounded-xl border text-2xs font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                :class="form.ui_lighting_mode === mode.id
+                  ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-xs'
+                  : 'bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'"
+              >
+                <span>{{ mode.icon }}</span>
+                <span>{{ mode.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="text-xs font-bold text-slate-800 dark:text-slate-100">4. Kepadatan Tampilan Global</div>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                @click="previewGlobalAppearance({ ui_density: 'comfortable' })"
+                class="px-3 py-2 rounded-xl border text-2xs font-bold transition cursor-pointer"
+                :class="form.ui_density === 'comfortable'
+                  ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-xs'
+                  : 'bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'"
+              >
+                Nyaman (Comfortable)
+              </button>
+              <button
+                type="button"
+                @click="previewGlobalAppearance({ ui_density: 'compact' })"
+                class="px-3 py-2 rounded-xl border text-2xs font-bold transition cursor-pointer"
+                :class="form.ui_density === 'compact'
+                  ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-xs'
+                  : 'bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'"
+              >
+                Padat (Compact)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: Local-First Principle -->
     <div v-else class="saas-card p-5 space-y-3 max-w-4xl font-sans bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
       <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight border-b border-slate-200 dark:border-slate-800/80 pb-3">
         Local-First Edge Architecture
@@ -1570,6 +1788,7 @@ import {
   saveExportSettings,
   EXPORT_LIMIT_PRESETS,
 } from '../utils/exportSettings';
+import { THEME_PRESETS, LAYOUT_PRESETS } from '../utils/theme';
 
 export default {
   name: 'ConfigView',
@@ -1589,6 +1808,16 @@ export default {
       exportMaxRecords: 10000,
       exportPresets: EXPORT_LIMIT_PRESETS,
       exportSavedMessage: '',
+      appearanceThemes: THEME_PRESETS,
+      appearanceLayouts: LAYOUT_PRESETS,
+      appearanceLightingModes: [
+        { id: 'light', label: 'Terang', icon: '☀' },
+        { id: 'dark', label: 'Gelap', icon: '🌙' },
+        { id: 'system', label: 'Sistem', icon: '💻' },
+      ],
+      savingAppearance: false,
+      appearanceSuccessMsg: '',
+      appearanceErrorMsg: '',
       brandingSaving: false,
       brandingSuccessMsg: '',
       brandingErrorMsg: '',
@@ -1648,6 +1877,10 @@ export default {
         seed_sample_data: true,
         show_operator_console: false,
         show_development_menu: false,
+        ui_theme_preset: 'oceanic',
+        ui_layout: 'classic',
+        ui_density: 'comfortable',
+        ui_lighting_mode: 'system',
       },
     };
   },
@@ -2016,15 +2249,74 @@ export default {
             seed_sample_data: typeof cfg.seed_sample_data === 'boolean' ? cfg.seed_sample_data : !isCloudCfg,
             show_operator_console: Boolean(cfg.show_operator_console === true),
             show_development_menu: Boolean(cfg.show_development_menu === true),
+            ui_theme_preset: cfg.ui_theme_preset || 'oceanic',
+            ui_layout: cfg.ui_layout || 'classic',
+            ui_density: cfg.ui_density || 'comfortable',
+            ui_lighting_mode: cfg.ui_lighting_mode || 'system',
           };
           this.$store.commit('SET_SYSTEM_STATUS', {
             show_operator_console: Boolean(cfg.show_operator_console === true),
             show_development_menu: Boolean(cfg.show_development_menu === true),
+            ui_theme_preset: this.form.ui_theme_preset,
+            ui_layout: this.form.ui_layout,
+            ui_density: this.form.ui_density,
+            ui_lighting_mode: this.form.ui_lighting_mode,
           });
         }
       } catch (err) {
         console.warn('Failed to fetch system config:', err);
       }
+    },
+    previewGlobalAppearance(patch) {
+      this.appearanceSuccessMsg = '';
+      this.appearanceErrorMsg = '';
+      if (patch.ui_layout) {
+        this.form.ui_layout = patch.ui_layout;
+        this.$store.dispatch('setLayout', patch.ui_layout);
+      }
+      if (patch.ui_theme_preset) {
+        this.form.ui_theme_preset = patch.ui_theme_preset;
+        this.$store.dispatch('setThemePreset', patch.ui_theme_preset);
+      }
+      if (patch.ui_density) {
+        this.form.ui_density = patch.ui_density;
+        this.$store.dispatch('setDensity', patch.ui_density);
+      }
+      if (patch.ui_lighting_mode) {
+        this.form.ui_lighting_mode = patch.ui_lighting_mode;
+        this.$store.dispatch('setTheme', patch.ui_lighting_mode);
+      }
+    },
+    async saveGlobalAppearanceConfig() {
+      this.savingAppearance = true;
+      this.appearanceSuccessMsg = '';
+      this.appearanceErrorMsg = '';
+      try {
+        await this.$store.dispatch('saveGlobalAppearance', {
+          layout: this.form.ui_layout,
+          themePreset: this.form.ui_theme_preset,
+          density: this.form.ui_density,
+          lightingMode: this.form.ui_lighting_mode,
+        });
+        await this.$store.dispatch('fetchSystemStatus');
+        this.appearanceSuccessMsg = 'Desain tata letak & tema global berhasil disimpan ke server dan aktif untuk seluruh halaman & pengguna.';
+      } catch (err) {
+        this.appearanceErrorMsg =
+          (err.response && err.response.data && (err.response.data.error || err.response.data.message)) ||
+          err.message ||
+          'Gagal menyimpan pengaturan tampilan global.';
+      } finally {
+        this.savingAppearance = false;
+      }
+    },
+    async resetGlobalAppearance() {
+      this.previewGlobalAppearance({
+        ui_layout: 'classic',
+        ui_theme_preset: 'oceanic',
+        ui_density: 'comfortable',
+        ui_lighting_mode: 'system',
+      });
+      await this.saveGlobalAppearanceConfig();
     },
     async testDbConnection() {
       this.testing = true;

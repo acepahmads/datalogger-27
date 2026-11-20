@@ -70,9 +70,13 @@ type Config struct {
 	// Raw Telemetry Query Governance: Maximum allowed time span in hours (default 168 = 7 days)
 	RawTelemetryMaxRangeHours int `json:"raw_telemetry_max_range_hours"`
 
-	// Global UI Navigation Visibility Governance (Default FALSE / Hidden)
-	ShowOperatorConsole bool `json:"show_operator_console"`
-	ShowDevelopmentMenu bool `json:"show_development_menu"`
+	// Global UI Navigation Visibility & Appearance Governance
+	ShowOperatorConsole bool   `json:"show_operator_console"`
+	ShowDevelopmentMenu bool   `json:"show_development_menu"`
+	UIThemePreset       string `json:"ui_theme_preset"`  // "oceanic" | "eco-forest" | "industrial-scada" | "royal-glass"
+	UILayout            string `json:"ui_layout"`        // "classic" | "split" | "executive"
+	UIDensity           string `json:"ui_density"`       // "comfortable" | "compact"
+	UILightingMode      string `json:"ui_lighting_mode"` // "system" | "light" | "dark"
 
 	// Communication / Serial Bus Defaults (Phase 7 #83)
 	SerialPort      string `json:"serial_port"`
@@ -136,6 +140,10 @@ func DefaultConfig() *Config {
 		RawTelemetryMaxRangeHours:   168,
 		ShowOperatorConsole:         false,
 		ShowDevelopmentMenu:         false,
+		UIThemePreset:               "oceanic",
+		UILayout:                    "classic",
+		UIDensity:                   "comfortable",
+		UILightingMode:              "system",
 		SerialPort:                  "COM1",
 		SerialBaudRate:              9600,
 		SerialDataBits:              8,

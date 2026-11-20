@@ -57,6 +57,10 @@ type SystemStatusOverview struct {
 	RawTelemetryMaxRangeHours int    `json:"raw_telemetry_max_range_hours"`
 	ShowOperatorConsole       bool   `json:"show_operator_console"`
 	ShowDevelopmentMenu       bool   `json:"show_development_menu"`
+	UIThemePreset             string `json:"ui_theme_preset"`
+	UILayout                  string `json:"ui_layout"`
+	UIDensity                 string `json:"ui_density"`
+	UILightingMode            string `json:"ui_lighting_mode"`
 
 	// Datalogger service status
 	ServiceStatus   string `json:"service_status"`

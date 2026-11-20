@@ -30,14 +30,14 @@
           {{ nav.label }}
         </router-link>
       </div>
-      <button
-        type="button"
-        @click="$store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
+      <router-link
+        v-if="$store && $store.getters && ($store.getters.isSuperAdmin || ($store.getters.isAdmin && !isCloudMode))"
+        to="/system/config?tab=appearance"
         class="px-3 py-1.5 rounded-full text-3xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-sky-400 transition cursor-pointer shadow-2xs"
-        title="Ganti Layout & Tema"
+        title="Buka Pengaturan Tampilan & Layout Global"
       >
-        🎨 Layout: Executive
-      </button>
+        🎨 Setup Global
+      </router-link>
     </div>
 
     <!-- Main Content Area with Sidebar -->

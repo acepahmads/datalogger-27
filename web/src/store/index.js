@@ -513,11 +513,42 @@ export default new Vuex.Store({
       const autoHide = localStorage.getItem('datalogger_sidebar_autohide') === 'true';
       commit('SET_SIDEBAR_AUTOHIDE', autoHide);
     },
-    async fetchSystemStatus({ commit }) {
+    async saveGlobalAppearance({ commit }, { layout, themePreset, density, lightingMode }) {
+      if (layout) commit('SET_LAYOUT', layout);
+      if (themePreset) commit('SET_THEME_PRESET', themePreset);
+      if (density) commit('SET_DENSITY', density);
+      if (lightingMode) commit('SET_THEME', lightingMode);
+      const payload = {};
+      if (layout) payload.ui_layout = layout;
+      if (themePreset) payload.ui_theme_preset = themePreset;
+      if (density) payload.ui_density = density;
+      if (lightingMode) payload.ui_lighting_mode = lightingMode;
+      const res = await axios.put(`${API_BASE}/system/config`, payload);
+      return res.data;
+    },
+    async fetchSystemStatus({ commit, state }) {
       try {
         const res = await axios.get(`${API_BASE}/system/status`);
         if (res.data && res.data.data) {
-          commit('SET_SYSTEM_STATUS', { ...res.data.data, _cloudChecked: true });
+          const data = res.data.data;
+          const prevStatus = state.systemStatus || {};
+          commit('SET_SYSTEM_STATUS', { ...data, _cloudChecked: true });
+          // Sync Global Server Appearance (Tema, Layout, Kepadatan, Mode Cahaya) to all clients
+          if (data.ui_theme_preset && data.ui_theme_preset !== (state.uiPreferences && state.uiPreferences.themePreset)) {
+            commit('SET_THEME_PRESET', data.ui_theme_preset);
+          }
+          if (data.ui_layout && data.ui_layout !== (state.uiPreferences && state.uiPreferences.layout)) {
+            commit('SET_LAYOUT', data.ui_layout);
+          }
+          if (data.ui_density && data.ui_density !== (state.uiPreferences && state.uiPreferences.density)) {
+            commit('SET_DENSITY', data.ui_density);
+          }
+          if (
+            data.ui_lighting_mode &&
+            (!prevStatus._cloudChecked || data.ui_lighting_mode !== prevStatus.ui_lighting_mode)
+          ) {
+            commit('SET_THEME', data.ui_lighting_mode);
+          }
           return res.data.data;
         }
       } catch (err) {

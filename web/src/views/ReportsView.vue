@@ -46,16 +46,6 @@
         <!-- Compact Export Button Group -->
         <div class="flex flex-wrap items-center gap-1.5">
           <button
-            id="btn-reports-theme-studio"
-            type="button"
-            @click="$store && $store.commit('SET_SHOW_THEME_STUDIO_MODAL', true)"
-            title="Pilih Tema & Gaya Tampilan"
-            class="reports-btn-secondary px-2 py-1 rounded-lg text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
-          >
-            <span>🎨</span>
-            <span class="hidden sm:inline">Tema</span>
-          </button>
-          <button
             id="btn-print-report"
             type="button"
             @click="printReport"
