@@ -11259,11 +11259,16 @@ export default {
 .bento-mid.is-compact-mid.bento-mid-compact-weather-right > .bento-weather-root {
   grid-column: 2;
   order: 3;
+  height: auto;
+  align-self: start;
   position: sticky;
   top: 8px;
 }
 .bento-mid.is-trend-hidden {
   align-items: start;
+}
+.bento-mid.is-trend-hidden > .bento-weather-root {
+  height: auto;
 }
 
 .weather-dedup-pill {

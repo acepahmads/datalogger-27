@@ -804,10 +804,10 @@ export default {
   padding: 11px 12px 10px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   height: 100%;
-  min-height: 310px;
+  min-height: 0;
 }
 
 .bento-weather-root.is-day {
@@ -1342,6 +1342,7 @@ export default {
   align-items: center;
   gap: 5px;
   padding-top: 2px;
+  margin-top: auto;
 }
 
 .wh-act-btn {
