@@ -2649,14 +2649,17 @@
     <!-- =================================================================== -->
     <!-- 2. AUTO-ADAPTIVE MIDDLE BENTO:                                      -->
     <!--    - Wide (>=1280px): Left ISPU + Center Parameters + Right Weather -->
-    <!--    - Compact (<1280px): Top ISPU + Weather Strip + Full-Width Params-->
+    <!--    - Medium/Tablet Landscape (>=900px compact, e.g. 1024x768):      -->
+    <!--      Top ISPU Bar + Left Parameters + Right Vertical Weather Card   -->
+    <!--    - Narrow (<900px): Top ISPU + Weather Strip + Full-Width Params  -->
     <!-- =================================================================== -->
     <section
       class="bento-mid"
       :class="{
         'bento-mid-both': !isCompactScreen && isAQMSDomain && isIspuBarVisible && isBentoWeatherCardVisible,
         'bento-mid-weather-only': !isCompactScreen && !(isAQMSDomain && isIspuBarVisible) && isBentoWeatherCardVisible,
-        'bento-mid-single': isCompactScreen || (!(isAQMSDomain && isIspuBarVisible) && !isBentoWeatherCardVisible),
+        'bento-mid-compact-weather-right': isCompactScreen && isWeatherRightDocked,
+        'bento-mid-single': (isCompactScreen && !isWeatherRightDocked) || (!isCompactScreen && !(isAQMSDomain && isIspuBarVisible) && !isBentoWeatherCardVisible),
         'is-compact-mid': isCompactScreen,
         'is-trend-hidden': !perfSettings.trendAnalysisEnabled
       }"
@@ -3671,12 +3674,12 @@
         </div>
       </div>
 
-      <!-- Weather Hero Card: Full Right Bento Hero (>=1280px) & Compact Horizontal Strip (<1280px) -->
+      <!-- Weather Hero Card: Full Right Bento Hero (>=900px, incl. 1024x768) & Compact Horizontal Strip (<900px) -->
       <BentoWeatherHeroCard
         v-if="isBentoWeatherCardVisible"
         :weather="bentoWeatherData"
         :is-dark="isDark"
-        :compact="isCompactScreen"
+        :compact="isWeatherCompactStrip"
         :animations-enabled="!(perfSettings && !perfSettings.chartAnimationsEnabled)"
         :selected-param-ids="bentoSelectedTrendParamIds"
         :hide-duplicates-in-grid="bentoHideDupWeatherInGrid"
@@ -7373,6 +7376,12 @@ export default {
     isCompactScreen() {
       return this.bentoViewportWidth < 1280 || (this.bentoViewportWidth < 1400 && this.bentoViewportHeight <= 780);
     },
+    isWeatherCompactStrip() {
+      return this.bentoViewportWidth < 900;
+    },
+    isWeatherRightDocked() {
+      return Boolean(this.isBentoWeatherCardVisible && !this.isWeatherCompactStrip);
+    },
     isMobileScreen() {
       return this.bentoViewportWidth < 768;
     },
@@ -7711,6 +7720,11 @@ export default {
       if (w < 768) return 2;
       if (w < 900) return n >= 9 ? 4 : 3;
       if (w < 1280) {
+        if (this.isWeatherRightDocked) {
+          const availW = this.bentoAvailableParamsWidth || (w - 284);
+          if (availW < 640) return n >= 4 ? 3 : (n >= 2 ? 2 : 1);
+          if (availW < 840) return n >= 7 ? 4 : (n >= 4 ? 3 : (n >= 2 ? 2 : 1));
+        }
         if (n >= 11) return 5;
         if (n >= 7) return 4;
         return 3;
@@ -7741,8 +7755,9 @@ export default {
       }
       const vw = this.bentoViewportWidth || 1600;
       const hasLeftIspu = Boolean(this.isAQMSDomain && this.isIspuBarVisible && !this.isCompactScreen);
-      const hasRightWeather = Boolean(this.isBentoWeatherCardVisible && !this.isCompactScreen);
-      const reserved = (hasLeftIspu ? 290 : 0) + (hasRightWeather ? 282 : 0) + 28;
+      const hasRightWeather = Boolean(this.isWeatherRightDocked);
+      const weatherReserve = this.isCompactScreen ? 266 : 282;
+      const reserved = (hasLeftIspu ? 290 : 0) + (hasRightWeather ? weatherReserve : 0) + 28;
       return Math.max(320, vw - reserved);
     },
     bentoCategoryTableSections() {
@@ -11225,6 +11240,27 @@ export default {
 }
 .bento-mid.is-compact-mid > .right-params-wrap {
   order: 3;
+}
+/* Medium/Tablet Landscape (e.g. 1024x768, 1366x768): Full-width compact ISPU on top + Full Vertical Weather docked right of Parameters */
+.bento-mid.is-compact-mid.bento-mid-compact-weather-right {
+  grid-template-columns: minmax(0, 1fr) 256px;
+  column-gap: 9px;
+  row-gap: 7px;
+  align-items: start;
+}
+.bento-mid.is-compact-mid.bento-mid-compact-weather-right > .bento-ispu-root {
+  grid-column: 1 / -1;
+  order: 1;
+}
+.bento-mid.is-compact-mid.bento-mid-compact-weather-right > .right-params-wrap {
+  grid-column: 1;
+  order: 2;
+}
+.bento-mid.is-compact-mid.bento-mid-compact-weather-right > .bento-weather-root {
+  grid-column: 2;
+  order: 3;
+  position: sticky;
+  top: 8px;
 }
 .bento-mid.is-trend-hidden {
   align-items: start;

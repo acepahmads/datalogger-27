@@ -142,7 +142,9 @@ check('6. DashboardOperatorView integrates symmetric 3-column Bento layout, comp
   assert(dashViewCode.includes('<BentoWeatherHeroCard'), 'Must render BentoWeatherHeroCard inside .bento-mid');
   assert(dashViewCode.includes("'bento-mid-both'") && dashViewCode.includes('.bento-mid.bento-mid-both'), 'Must style 3-column symmetric Bento grid (ISPU + Params + Weather)');
   assert(dashViewCode.includes("'bento-mid-weather-only'") && dashViewCode.includes('.bento-mid.bento-mid-weather-only'), 'Must style 2-column Weather-only grid when ISPU is hidden');
-  assert(dashViewCode.includes('.bento-mid.is-compact-mid > .bento-weather-root'), 'Must position compact Weather strip above parameters on tablet/mobile');
+  assert(dashViewCode.includes("'bento-mid-compact-weather-right'") && dashViewCode.includes('.bento-mid.is-compact-mid.bento-mid-compact-weather-right'), 'Must dock full vertical Weather card on right of parameters at medium/tablet landscape resolutions (e.g. 1024x768)');
+  assert(dashViewCode.includes('isWeatherCompactStrip()') && dashViewCode.includes(':compact="isWeatherCompactStrip"'), 'Must only collapse Weather card to horizontal strip below 900px');
+  assert(dashViewCode.includes('.bento-mid.is-compact-mid > .bento-weather-root'), 'Must position compact Weather strip above parameters on narrow tablet portrait/mobile');
   assert(dashViewCode.includes('id="btn-bento-weather-toggle"'), 'Must render quick 1-click Weather toggle icon button');
   assert(dashViewCode.includes("localStorage.getItem('datalogger_bento_show_weather_card')") && dashViewCode.includes("localStorage.getItem('datalogger_bento_hide_dup_weather')"), 'Must persist weather visibility & deduplication preferences in localStorage');
   assert(dashViewCode.includes('shouldDeduplicateWeatherInGrid()') && dashViewCode.includes('nonWeatherCount > 0'), 'Must protect pure AWS stations from ending up with an empty center grid');
